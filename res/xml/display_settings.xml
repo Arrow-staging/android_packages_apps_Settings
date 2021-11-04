@@ -204,4 +204,15 @@
                 android:defaultValue="true" />
     </PreferenceCategory>
 
+    <PreferenceCategory
+        android:key="monet_category"
+        android:title="@string/colors_category">
+
+        <Preference
+            android:key="monet_engine"
+            android:title="@string/monet_title"
+            android:summary="@string/monet_summary"
+            android:fragment="com.arrow.settings.fragments.ui.MonetSettings"/>
+    </PreferenceCategory>
+
 </PreferenceScreen>
