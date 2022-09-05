@@ -49,6 +49,8 @@ public class PanelFeatureProviderImpl implements PanelFeatureProvider {
                 return NfcPanel.create(context);
             case Settings.Panel.ACTION_MOBILE_DATA:
                 return MobileDataPanel.create(context);
+            case Settings.Panel.ACTION_APP_VOLUME:
+                return AppVolumePanel.create(context);
             case Settings.Panel.ACTION_WIFI:
                 return WifiPanel.create(context);
             case Settings.Panel.ACTION_VOLUME:
