@@ -191,4 +191,14 @@
     <string name="monet_engine_accurate_shades_title">Use accurate shades</string>
     <string name="monet_engine_chroma_factor_title">Chroma factor</string>
     <string name="monet_engine_linear_lightness_title">Use linear lightness</string>
+
+    <!-- Monet color themes -->
+    <string name="monet_styles_category_title">Monet Themes</string>
+    <string name="monet_styles_title">Custom monet themes</string>
+    <string name="monet_styles_title_summary">Switch to custom themes presets</string>
+    <string name="monet_styles_dialog_title">Custom preset</string>
+    <string name="monet_default">AOSP (default)</string>
+    <string name="monet_vivid">Vivid Colors</string>
+    <string name="monet_snowpaint">Paint in the Snow</string>
+    <string name="monet_espresso">Espresso</string>
 </resources>
