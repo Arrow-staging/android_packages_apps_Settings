@@ -18,12 +18,9 @@ import android.hardware.display.ColorDisplayManager;
 
 import androidx.annotation.VisibleForTesting;
 
-import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
 
 public class ColorModePreferenceController extends BasePreferenceController {
-
-    private ColorDisplayManager mColorDisplayManager;
 
     public ColorModePreferenceController(Context context, String key) {
         super(context, key);
@@ -34,29 +31,16 @@ public class ColorModePreferenceController extends BasePreferenceController {
         return mContext.getSystemService(ColorDisplayManager.class)
                 .isDeviceColorManaged()
                 && !ColorDisplayManager.areAccessibilityTransformsEnabled(mContext) ?
-                AVAILABLE_UNSEARCHABLE : DISABLED_FOR_USER;
+                AVAILABLE : DISABLED_FOR_USER;
     }
 
     @Override
     public CharSequence getSummary() {
-        final int colorMode = getColorDisplayManager().getColorMode();
-        if (colorMode == ColorDisplayManager.COLOR_MODE_AUTOMATIC) {
-            return mContext.getText(R.string.color_mode_option_automatic);
-        }
-        if (colorMode == ColorDisplayManager.COLOR_MODE_SATURATED) {
-            return mContext.getText(R.string.color_mode_option_saturated);
-        }
-        if (colorMode == ColorDisplayManager.COLOR_MODE_BOOSTED) {
-            return mContext.getText(R.string.color_mode_option_boosted);
-        }
-        return mContext.getText(R.string.color_mode_option_natural);
+        return ColorModeUtils.getColorModeMapping(mContext.getResources()).get(getColorMode());
     }
 
     @VisibleForTesting
-    ColorDisplayManager getColorDisplayManager() {
-        if (mColorDisplayManager == null) {
-            mColorDisplayManager = mContext.getSystemService(ColorDisplayManager.class);
-        }
-        return mColorDisplayManager;
+    public int getColorMode() {
+        return mContext.getSystemService(ColorDisplayManager.class).getColorMode();
     }
 }

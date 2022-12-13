@@ -18,13 +18,16 @@ package com.android.settings.security;
 import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.SearchIndexableResource;
 import android.provider.Settings;
 import android.widget.Switch;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.PreferenceScreen;
@@ -36,28 +39,29 @@ import com.android.settings.SettingsActivity;
 import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.password.ChooseLockGeneric;
 import com.android.settings.search.BaseSearchIndexProvider;
-import com.android.settings.widget.SwitchBar;
+import com.android.settings.widget.SettingsMainSwitchBar;
 import com.android.settingslib.search.SearchIndexable;
 import com.android.settingslib.widget.FooterPreference;
+import com.android.settingslib.widget.OnMainSwitchChangeListener;
 
 import java.util.Arrays;
 import java.util.List;
-
 /**
  * Screen pinning settings.
  */
 @SearchIndexable
 public class ScreenPinningSettings extends SettingsPreferenceFragment
-        implements SwitchBar.OnSwitchChangeListener {
+        implements OnMainSwitchChangeListener, DialogInterface.OnClickListener {
 
     private static final String KEY_USE_SCREEN_LOCK = "use_screen_lock";
     private static final String KEY_FOOTER = "screen_pinning_settings_screen_footer";
     private static final int CHANGE_LOCK_METHOD_REQUEST = 43;
 
-    private SwitchBar mSwitchBar;
+    private SettingsMainSwitchBar mSwitchBar;
     private SwitchPreference mUseScreenLock;
     private FooterPreference mFooterPreference;
     private LockPatternUtils mLockPatternUtils;
+    private UserManager mUserManager;
 
     @Override
     public int getMetricsCategory() {
@@ -71,6 +75,7 @@ public class ScreenPinningSettings extends SettingsPreferenceFragment
         final SettingsActivity activity = (SettingsActivity) getActivity();
         activity.setTitle(R.string.screen_pinning_title);
         mLockPatternUtils = new LockPatternUtils(activity);
+        mUserManager = activity.getSystemService(UserManager.class);
 
         addPreferencesFromResource(R.xml.screen_pinning_settings);
         final PreferenceScreen root = getPreferenceScreen();
@@ -78,9 +83,10 @@ public class ScreenPinningSettings extends SettingsPreferenceFragment
         mFooterPreference = root.findPreference(KEY_FOOTER);
 
         mSwitchBar = activity.getSwitchBar();
-        mSwitchBar.addOnSwitchChangeListener(this);
+        mSwitchBar.setTitle(getContext().getString(R.string.app_pinning_main_switch_title));
         mSwitchBar.show();
         mSwitchBar.setChecked(isLockToAppEnabled(getActivity()));
+        mSwitchBar.addOnSwitchChangeListener(this);
 
         updateDisplay();
     }
@@ -130,8 +136,8 @@ public class ScreenPinningSettings extends SettingsPreferenceFragment
             if (passwordQuality == DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED) {
                 Intent chooseLockIntent = new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD);
                 chooseLockIntent.putExtra(
-                        ChooseLockGeneric.ChooseLockGenericFragment.MINIMUM_QUALITY_KEY,
-                        DevicePolicyManager.PASSWORD_QUALITY_SOMETHING);
+                        ChooseLockGeneric.ChooseLockGenericFragment.HIDE_INSECURE_OPTIONS,
+                        true);
                 startActivityForResult(chooseLockIntent, CHANGE_LOCK_METHOD_REQUEST);
                 return false;
             }
@@ -180,18 +186,36 @@ public class ScreenPinningSettings extends SettingsPreferenceFragment
     }
 
     /**
-     * Listens to the state change of the lock-to-app master switch.
+     * Listens to the state change of the overall lock-to-app switch.
      */
     @Override
     public void onSwitchChanged(Switch switchView, boolean isChecked) {
-        setLockToAppEnabled(isChecked);
+        if (isChecked) {
+            new AlertDialog.Builder(getContext())
+                    .setMessage(R.string.screen_pinning_dialog_message)
+                    .setPositiveButton(R.string.dlg_ok, this)
+                    .setNegativeButton(R.string.dlg_cancel, this)
+                    .setCancelable(false)
+                    .show();
+        } else {
+            setLockToAppEnabled(false);
+            updateDisplay();
+        }
+    }
+
+    @Override
+    public void onClick(DialogInterface dialogInterface, int which) {
+        if (which == DialogInterface.BUTTON_POSITIVE) {
+            setLockToAppEnabled(true);
+        } else {
+            mSwitchBar.setChecked(false);
+        }
         updateDisplay();
     }
 
     private void updateDisplay() {
         if (isLockToAppEnabled(getActivity())) {
-            mFooterPreference.setVisible(false);
-            mUseScreenLock.setVisible(true);
+            mUseScreenLock.setEnabled(true);
             mUseScreenLock.setOnPreferenceChangeListener(new OnPreferenceChangeListener() {
                 @Override
                 public boolean onPreferenceChange(Preference preference, Object newValue) {
@@ -201,23 +225,34 @@ public class ScreenPinningSettings extends SettingsPreferenceFragment
             mUseScreenLock.setChecked(isScreenLockUsed());
             mUseScreenLock.setTitle(getCurrentSecurityTitle());
         } else {
-            mFooterPreference.setVisible(true);
-            mUseScreenLock.setVisible(false);
+            mFooterPreference.setSummary(getAppPinningContent());
+            mUseScreenLock.setEnabled(false);
         }
+    }
+
+    private boolean isGuestModeSupported() {
+        return UserManager.supportsMultipleUsers()
+                && !mUserManager.hasUserRestriction(UserManager.DISALLOW_USER_SWITCH);
+    }
+
+    private CharSequence getAppPinningContent() {
+        return isGuestModeSupported()
+                ? getActivity().getText(R.string.screen_pinning_guest_user_description)
+                : getActivity().getText(R.string.screen_pinning_description);
     }
 
     /**
      * For search
      */
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
-        new BaseSearchIndexProvider() {
+            new BaseSearchIndexProvider() {
 
-            @Override
-            public List<SearchIndexableResource> getXmlResourcesToIndex(Context context,
-                    boolean enabled) {
-                final SearchIndexableResource sir = new SearchIndexableResource(context);
-                sir.xmlResId = R.xml.screen_pinning_settings;
-                return Arrays.asList(sir);
-            }
-        };
+                @Override
+                public List<SearchIndexableResource> getXmlResourcesToIndex(Context context,
+                        boolean enabled) {
+                    final SearchIndexableResource sir = new SearchIndexableResource(context);
+                    sir.xmlResId = R.xml.screen_pinning_settings;
+                    return Arrays.asList(sir);
+                }
+            };
 }

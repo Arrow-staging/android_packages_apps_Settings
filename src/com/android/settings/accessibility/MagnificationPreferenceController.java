@@ -18,12 +18,10 @@ package com.android.settings.accessibility;
 
 import android.content.Context;
 import android.os.Bundle;
-import android.provider.Settings;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
 
 public class MagnificationPreferenceController extends BasePreferenceController {
@@ -41,22 +39,7 @@ public class MagnificationPreferenceController extends BasePreferenceController 
 
     @Override
     public CharSequence getSummary() {
-        final boolean tripleTapEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_ENABLED, 0) == 1;
-        final boolean buttonEnabled = Settings.Secure.getInt(mContext.getContentResolver(),
-                Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_NAVBAR_ENABLED, 0) == 1;
-
-        int summaryResId = 0;
-        if (!tripleTapEnabled && !buttonEnabled) {
-            summaryResId = R.string.accessibility_feature_state_off;
-        } else if (!tripleTapEnabled && buttonEnabled) {
-            summaryResId = R.string.accessibility_screen_magnification_navbar_title;
-        } else if (tripleTapEnabled && !buttonEnabled) {
-            summaryResId = R.string.accessibility_screen_magnification_gestures_title;
-        } else {
-            summaryResId = R.string.accessibility_screen_magnification_state_navbar_gesture;
-        }
-        return mContext.getResources().getText(summaryResId);
+        return ToggleScreenMagnificationPreferenceFragment.getServiceSummary(mContext);
     }
 
     @Override
@@ -67,14 +50,9 @@ public class MagnificationPreferenceController extends BasePreferenceController 
     }
 
     private void configureMagnificationPreferenceIfNeeded() {
-        // Some devices support only a single magnification mode. In these cases, we redirect to
-        // the magnification mode's UI directly, rather than showing a PreferenceScreen with a
-        // single list item.
-        if (!MagnificationPreferenceFragment.isApplicable(mContext.getResources())) {
-            mPreference.setFragment(ToggleScreenMagnificationPreferenceFragment.class.getName());
-            final Bundle extras = mPreference.getExtras();
-            MagnificationGesturesPreferenceController
-                    .populateMagnificationGesturesPreferenceExtras(extras, mContext);
-        }
+        mPreference.setFragment(ToggleScreenMagnificationPreferenceFragment.class.getName());
+        final Bundle extras = mPreference.getExtras();
+        MagnificationGesturesPreferenceController
+                .populateMagnificationGesturesPreferenceExtras(extras, mContext);
     }
 }

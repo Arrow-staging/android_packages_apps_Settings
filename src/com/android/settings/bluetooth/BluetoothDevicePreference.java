@@ -44,6 +44,7 @@ import com.android.settings.widget.GearPreference;
 import com.android.settingslib.bluetooth.BluetoothUtils;
 import com.android.settingslib.bluetooth.CachedBluetoothDevice;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
+import com.android.settingslib.utils.ThreadUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -52,18 +53,19 @@ import java.lang.annotation.RetentionPolicy;
  * BluetoothDevicePreference is the preference type used to display each remote
  * Bluetooth device in the Bluetooth Settings screen.
  */
-public final class BluetoothDevicePreference extends GearPreference implements
-        CachedBluetoothDevice.Callback {
+public final class BluetoothDevicePreference extends GearPreference {
     private static final String TAG = "BluetoothDevicePref";
 
     private static int sDimAlpha = Integer.MIN_VALUE;
 
     @Retention(RetentionPolicy.SOURCE)
     @IntDef({SortType.TYPE_DEFAULT,
-            SortType.TYPE_FIFO})
+            SortType.TYPE_FIFO,
+            SortType.TYPE_NO_SORT})
     public @interface SortType {
         int TYPE_DEFAULT = 1;
         int TYPE_FIFO = 2;
+        int TYPE_NO_SORT = 3;
     }
 
     private final CachedBluetoothDevice mCachedDevice;
@@ -75,10 +77,20 @@ public final class BluetoothDevicePreference extends GearPreference implements
     private AlertDialog mDisconnectDialog;
     private String contentDescription = null;
     private boolean mHideSecondTarget = false;
+    private boolean mIsCallbackRemoved = false;
     @VisibleForTesting
     boolean mNeedNotifyHierarchyChanged = false;
     /* Talk-back descriptions for various BT icons */
     Resources mResources;
+    final BluetoothDevicePreferenceCallback mCallback;
+
+    private class BluetoothDevicePreferenceCallback implements CachedBluetoothDevice.Callback {
+
+        @Override
+        public void onDeviceAttributesChanged() {
+            onPreferenceAttributesChanged();
+        }
+    }
 
     public BluetoothDevicePreference(Context context, CachedBluetoothDevice cachedDevice,
             boolean showDeviceWithoutNames, @SortType int type) {
@@ -94,11 +106,12 @@ public final class BluetoothDevicePreference extends GearPreference implements
         }
 
         mCachedDevice = cachedDevice;
-        mCachedDevice.registerCallback(this);
+        mCallback = new BluetoothDevicePreferenceCallback();
+        mCachedDevice.registerCallback(mCallback);
         mCurrentTime = System.currentTimeMillis();
         mType = type;
 
-        onDeviceAttributesChanged();
+        onPreferenceAttributesChanged();
     }
 
     public void setNeedNotifyHierarchyChanged(boolean needNotifyHierarchyChanged) {
@@ -125,10 +138,32 @@ public final class BluetoothDevicePreference extends GearPreference implements
     @Override
     protected void onPrepareForRemoval() {
         super.onPrepareForRemoval();
-        mCachedDevice.unregisterCallback(this);
+        if (!mIsCallbackRemoved) {
+            mCachedDevice.unregisterCallback(mCallback);
+            mIsCallbackRemoved = true;
+        }
         if (mDisconnectDialog != null) {
             mDisconnectDialog.dismiss();
             mDisconnectDialog = null;
+        }
+    }
+
+    @Override
+    public void onAttached() {
+        super.onAttached();
+        if (mIsCallbackRemoved) {
+            mCachedDevice.registerCallback(mCallback);
+            mIsCallbackRemoved = false;
+        }
+        onPreferenceAttributesChanged();
+    }
+
+    @Override
+    public void onDetached() {
+        super.onDetached();
+        if (!mIsCallbackRemoved) {
+            mCachedDevice.unregisterCallback(mCallback);
+            mIsCallbackRemoved = true;
         }
     }
 
@@ -140,7 +175,11 @@ public final class BluetoothDevicePreference extends GearPreference implements
         mHideSecondTarget = hideSecondTarget;
     }
 
-    public void onDeviceAttributesChanged() {
+    void onPreferenceAttributesChanged() {
+        Pair<Drawable, String> pair = mCachedDevice.getDrawableWithDescription();
+        setIcon(pair.first);
+        contentDescription = pair.second;
+
         /*
          * The preference framework takes care of making sure the value has
          * changed before proceeding. It will also call notifyChanged() if
@@ -149,13 +188,6 @@ public final class BluetoothDevicePreference extends GearPreference implements
         setTitle(mCachedDevice.getName());
         // Null check is done at the framework
         setSummary(mCachedDevice.getConnectionSummary());
-
-        final Pair<Drawable, String> pair =
-                BluetoothUtils.getBtRainbowDrawableWithDescription(getContext(), mCachedDevice);
-        if (pair.first != null) {
-            setIcon(pair.first);
-            contentDescription = pair.second;
-        }
 
         // Used to gray out the item
         setEnabled(!mCachedDevice.isBusy());
@@ -241,7 +273,7 @@ public final class BluetoothDevicePreference extends GearPreference implements
         } else if (bondState == BluetoothDevice.BOND_BONDED) {
             metricsFeatureProvider.action(context,
                     SettingsEnums.ACTION_SETTINGS_BLUETOOTH_CONNECT);
-            mCachedDevice.connect(true);
+            mCachedDevice.connect();
         } else if (bondState == BluetoothDevice.BOND_NONE) {
             metricsFeatureProvider.action(context,
                     SettingsEnums.ACTION_SETTINGS_BLUETOOTH_PAIR);

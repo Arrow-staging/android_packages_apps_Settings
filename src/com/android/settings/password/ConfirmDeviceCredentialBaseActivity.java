@@ -17,8 +17,9 @@
 package com.android.settings.password;
 
 import android.app.KeyguardManager;
-import android.hardware.biometrics.BiometricManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.UserManager;
 import android.util.Log;
 import android.view.MenuItem;
@@ -30,6 +31,8 @@ import com.android.settings.R;
 import com.android.settings.SettingsActivity;
 import com.android.settings.SetupWizardUtils;
 import com.android.settings.Utils;
+
+import com.google.android.setupdesign.util.ThemeHelper;
 
 public abstract class ConfirmDeviceCredentialBaseActivity extends SettingsActivity {
 
@@ -65,16 +68,17 @@ public abstract class ConfirmDeviceCredentialBaseActivity extends SettingsActivi
             return;
         }
         if (UserManager.get(this).isManagedProfile(credentialOwnerUserId)) {
-            setTheme(R.style.Theme_ConfirmDeviceCredentialsWork);
+            setTheme(SetupWizardUtils.getTheme(this, getIntent()));
             mConfirmCredentialTheme = ConfirmCredentialTheme.WORK;
         } else if (getIntent().getBooleanExtra(
                 ConfirmDeviceCredentialBaseFragment.DARK_THEME, false)) {
             setTheme(R.style.Theme_ConfirmDeviceCredentialsDark);
             mConfirmCredentialTheme = ConfirmCredentialTheme.DARK;
         } else {
-            setTheme(SetupWizardUtils.getTheme(getIntent()));
+            setTheme(SetupWizardUtils.getTheme(this, getIntent()));
             mConfirmCredentialTheme = ConfirmCredentialTheme.NORMAL;
         }
+        ThemeHelper.trySetDynamicColor(this);
         super.onCreate(savedState);
 
         if (mConfirmCredentialTheme == ConfirmCredentialTheme.NORMAL) {
@@ -159,12 +163,30 @@ public abstract class ConfirmDeviceCredentialBaseActivity extends SettingsActivi
     }
 
     @Override
+    public void onDestroy() {
+        super.onDestroy();
+        // Force a garbage collection to remove remnant of user password shards from memory.
+        // Execute this with a slight delay to allow the activity lifecycle to complete and
+        // the instance to become gc-able.
+        new Handler(Looper.myLooper()).postDelayed(() -> {
+            System.gc();
+            System.runFinalization();
+            System.gc();
+        }, 5000);
+    }
+
+    @Override
     public void finish() {
         super.finish();
         if (getIntent().getBooleanExtra(
                 ConfirmDeviceCredentialBaseFragment.USE_FADE_ANIMATION, false)) {
             overridePendingTransition(0, R.anim.confirm_credential_biometric_transition_exit);
         }
+    }
+
+    @Override
+    protected boolean isToolbarEnabled() {
+        return false;
     }
 
     public void prepareEnterAnimation() {

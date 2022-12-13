@@ -27,9 +27,14 @@ import com.android.settings.core.BasePreferenceController;
 import com.android.settings.wifi.WifiConnectionPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 
-// This controls a header at the top of the Network & internet page that only appears when there
-// are two or more active mobile subscriptions. It shows an overview of available network
-// connections with an entry for wifi (if connected) and an entry for each subscription.
+/**
+ * This controls a header at the top of the Network & internet page that only appears when there
+ * are two or more active mobile subscriptions. It shows an overview of available network
+ * connections with an entry for wifi (if connected) and an entry for each subscription.
+ *
+ * @deprecated This class will be removed in Android U, there is no networks header anymore.
+ */
+@Deprecated
 public class MultiNetworkHeaderController extends BasePreferenceController implements
         WifiConnectionPreferenceController.UpdateListener,
         SubscriptionsPreferenceController.UpdateListener {

@@ -16,13 +16,15 @@
 
 package com.android.settings.panel;
 
-import static com.android.settingslib.media.MediaOutputSliceConstants.ACTION_MEDIA_OUTPUT;
-
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.FeatureFlagUtils;
 
 public class PanelFeatureProviderImpl implements PanelFeatureProvider {
+
+    private static final String SYSTEMUI_PACKAGE_NAME = "com.android.systemui";
 
     @Override
     public PanelContent getPanel(Context context, Bundle bundle) {
@@ -37,17 +39,30 @@ public class PanelFeatureProviderImpl implements PanelFeatureProvider {
 
         switch (panelType) {
             case Settings.Panel.ACTION_INTERNET_CONNECTIVITY:
-                return InternetConnectivityPanel.create(context);
-            case ACTION_MEDIA_OUTPUT:
-                return MediaOutputPanel.create(context, mediaPackageName);
+                // Redirect to the internet dialog in SystemUI.
+                Intent intent = new Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY);
+                intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                        .setPackage(SYSTEMUI_PACKAGE_NAME);
+                context.sendBroadcast(intent);
+                return null;
             case Settings.Panel.ACTION_NFC:
                 return NfcPanel.create(context);
             case Settings.Panel.ACTION_WIFI:
                 return WifiPanel.create(context);
             case Settings.Panel.ACTION_VOLUME:
-                return VolumePanel.create(context);
+                if (FeatureFlagUtils.isEnabled(context,
+                        FeatureFlagUtils.SETTINGS_VOLUME_PANEL_IN_SYSTEMUI)) {
+                    // Redirect to the volume panel in SystemUI.
+                    Intent volumeIntent = new Intent(Settings.Panel.ACTION_VOLUME);
+                    volumeIntent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND).setPackage(
+                            SYSTEMUI_PACKAGE_NAME);
+                    context.sendBroadcast(volumeIntent);
+                    return null;
+                } else {
+                    return VolumePanel.create(context);
+                }
         }
 
-        throw new IllegalStateException("No matching panel for: "  + panelType);
+        throw new IllegalStateException("No matching panel for: " + panelType);
     }
 }

@@ -18,10 +18,16 @@ package com.android.settings.wifi;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import android.content.Context;
+import android.net.wifi.WifiManager;
 import android.view.View;
+
+import androidx.test.core.app.ApplicationProvider;
 
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.settings.testutils.shadow.ShadowConnectivityManager;
@@ -43,7 +49,11 @@ public class AddNetworkFragmentTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
+        Context context = spy(ApplicationProvider.getApplicationContext());
+        when(context.getSystemService(Context.WIFI_SERVICE)).thenReturn(mock(WifiManager.class));
+
         mAddNetworkFragment = spy(new AddNetworkFragment());
+        when(mAddNetworkFragment.getContext()).thenReturn(context);
         FragmentController.setupFragment(mAddNetworkFragment);
     }
 
@@ -55,7 +65,7 @@ public class AddNetworkFragmentTest {
 
     @Test
     public void getMode_shouldBeModeConnected() {
-        assertThat(mAddNetworkFragment.getMode()).isEqualTo(WifiConfigUiBase.MODE_CONNECT);
+        assertThat(mAddNetworkFragment.getMode()).isEqualTo(WifiConfigUiBase2.MODE_CONNECT);
     }
 
     @Test

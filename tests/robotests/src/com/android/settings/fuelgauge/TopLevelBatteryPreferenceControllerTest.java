@@ -16,35 +16,49 @@
 
 package com.android.settings.fuelgauge;
 
-import static com.android.settings.core.BasePreferenceController.AVAILABLE_UNSEARCHABLE;
+import static com.android.settings.core.BasePreferenceController.AVAILABLE;
 import static com.android.settings.core.BasePreferenceController.UNSUPPORTED_ON_DEVICE;
-import static com.android.settings.fuelgauge.TopLevelBatteryPreferenceController.getDashboardLabel;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import android.app.Activity;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
+
+import androidx.preference.Preference;
+
+import com.android.settings.R;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.robolectric.annotation.Config;
+import org.mockito.MockitoAnnotations;
+import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
-import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
 public class TopLevelBatteryPreferenceControllerTest {
     private Context mContext;
     private TopLevelBatteryPreferenceController mController;
+    private BatterySettingsFeatureProvider mBatterySettingsFeatureProvider;
 
     @Before
     public void setUp() {
-        mContext = RuntimeEnvironment.application;
+        MockitoAnnotations.initMocks(this);
+        mContext = spy(Robolectric.setupActivity(Activity.class));
         mController = new TopLevelBatteryPreferenceController(mContext, "test_key");
     }
 
     @Test
     public void getAvailibilityStatus_availableByDefault() {
-        assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE_UNSEARCHABLE);
+        assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE);
     }
 
     @Test
@@ -54,16 +68,54 @@ public class TopLevelBatteryPreferenceControllerTest {
     }
 
     @Test
+    public void convertClassPathToComponentName_nullInput_returnsNull() {
+        assertThat(mController.convertClassPathToComponentName(null)).isNull();
+    }
+
+    @Test
+    @Ignore
+    public void convertClassPathToComponentName_emptyStringInput_returnsNull() {
+        assertThat(mController.convertClassPathToComponentName("")).isNull();
+    }
+
+    @Test
+    public void convertClassPathToComponentName_singleClassName_returnsCorrectComponentName() {
+        ComponentName output = mController.convertClassPathToComponentName("ClassName");
+
+        assertThat(output.getPackageName()).isEqualTo("");
+        assertThat(output.getClassName()).isEqualTo("ClassName");
+    }
+
+    @Test
+    public void convertClassPathToComponentName_validAddress_returnsCorrectComponentName() {
+        ComponentName output = mController.convertClassPathToComponentName("my.fragment.ClassName");
+
+        assertThat(output.getPackageName()).isEqualTo("my.fragment");
+        assertThat(output.getClassName()).isEqualTo("ClassName");
+    }
+
+    @Test
     public void getDashboardLabel_returnsCorrectLabel() {
+        mController.mPreference = new Preference(mContext);
         BatteryInfo info = new BatteryInfo();
         info.batteryPercentString = "3%";
-        assertThat(getDashboardLabel(mContext, info)).isEqualTo(info.batteryPercentString);
+        assertThat(mController.getDashboardLabel(mContext, info, true))
+                .isEqualTo(info.batteryPercentString);
 
         info.remainingLabel = "Phone will shut down soon";
-        assertThat(getDashboardLabel(mContext, info)).isEqualTo("3% - Phone will shut down soon");
+        assertThat(mController.getDashboardLabel(mContext, info, true))
+                .isEqualTo("3% - Phone will shut down soon");
 
         info.discharging = false;
         info.chargeLabel = "5% - charging";
-        assertThat(getDashboardLabel(mContext, info)).isEqualTo("5% - charging");
+        assertThat(mController.getDashboardLabel(mContext, info, true)).isEqualTo("5% - charging");
+    }
+
+    @Test
+    public void getSummary_batteryNotPresent_shouldShowWarningMessage() {
+        mController.mIsBatteryPresent = false;
+
+        assertThat(mController.getSummary())
+                .isEqualTo(mContext.getString(R.string.battery_missing_message));
     }
 }

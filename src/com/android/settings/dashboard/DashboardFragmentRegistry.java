@@ -22,25 +22,28 @@ import com.android.settings.DisplaySettings;
 import com.android.settings.LegalSettings;
 import com.android.settings.accounts.AccountDashboardFragment;
 import com.android.settings.accounts.AccountDetailDashboardFragment;
-import com.android.settings.applications.AppAndNotificationDashboardFragment;
+import com.android.settings.applications.AppDashboardFragment;
 import com.android.settings.connecteddevice.AdvancedConnectedDeviceDashboardFragment;
 import com.android.settings.connecteddevice.ConnectedDeviceDashboardFragment;
 import com.android.settings.development.DevelopmentSettingsDashboardFragment;
 import com.android.settings.deviceinfo.StorageDashboardFragment;
 import com.android.settings.deviceinfo.aboutphone.MyDeviceInfoFragment;
 import com.android.settings.display.NightDisplaySettings;
+import com.android.settings.emergency.EmergencyDashboardFragment;
 import com.android.settings.enterprise.EnterprisePrivacySettings;
-import com.android.settings.fuelgauge.PowerUsageSummary;
+import com.android.settings.fuelgauge.SmartBatterySettings;
 import com.android.settings.fuelgauge.batterysaver.BatterySaverSettings;
+import com.android.settings.fuelgauge.batteryusage.PowerUsageSummary;
 import com.android.settings.gestures.GestureSettings;
 import com.android.settings.homepage.TopLevelSettings;
 import com.android.settings.language.LanguageAndInputSettings;
 import com.android.settings.network.NetworkDashboardFragment;
 import com.android.settings.notification.ConfigureNotificationSettings;
 import com.android.settings.notification.SoundSettings;
-import com.android.settings.notification.ZenModeSettings;
+import com.android.settings.notification.zen.ZenModeSettings;
 import com.android.settings.privacy.PrivacyDashboardFragment;
 import com.android.settings.security.LockscreenDashboardFragment;
+import com.android.settings.security.SecurityAdvancedSettings;
 import com.android.settings.security.SecuritySettings;
 import com.android.settings.system.SystemDashboardFragment;
 import com.android.settingslib.drawer.CategoryKey;
@@ -74,18 +77,22 @@ public class DashboardFragmentRegistry {
                 CategoryKey.CATEGORY_CONNECT);
         PARENT_TO_CATEGORY_KEY_MAP.put(AdvancedConnectedDeviceDashboardFragment.class.getName(),
                 CategoryKey.CATEGORY_DEVICE);
-        PARENT_TO_CATEGORY_KEY_MAP.put(AppAndNotificationDashboardFragment.class.getName(),
+        PARENT_TO_CATEGORY_KEY_MAP.put(AppDashboardFragment.class.getName(),
                 CategoryKey.CATEGORY_APPS);
         PARENT_TO_CATEGORY_KEY_MAP.put(PowerUsageSummary.class.getName(),
                 CategoryKey.CATEGORY_BATTERY);
         PARENT_TO_CATEGORY_KEY_MAP.put(DisplaySettings.class.getName(),
                 CategoryKey.CATEGORY_DISPLAY);
+        PARENT_TO_CATEGORY_KEY_MAP.put(EmergencyDashboardFragment.class.getName(),
+                CategoryKey.CATEGORY_EMERGENCY);
         PARENT_TO_CATEGORY_KEY_MAP.put(SoundSettings.class.getName(),
                 CategoryKey.CATEGORY_SOUND);
         PARENT_TO_CATEGORY_KEY_MAP.put(StorageDashboardFragment.class.getName(),
                 CategoryKey.CATEGORY_STORAGE);
         PARENT_TO_CATEGORY_KEY_MAP.put(SecuritySettings.class.getName(),
                 CategoryKey.CATEGORY_SECURITY);
+        PARENT_TO_CATEGORY_KEY_MAP.put(SecurityAdvancedSettings.class.getName(),
+                CategoryKey.CATEGORY_SECURITY_ADVANCED_SETTINGS);
         PARENT_TO_CATEGORY_KEY_MAP.put(AccountDetailDashboardFragment.class.getName(),
                 CategoryKey.CATEGORY_ACCOUNT_DETAIL);
         PARENT_TO_CATEGORY_KEY_MAP.put(AccountDashboardFragment.class.getName(),
@@ -116,11 +123,17 @@ public class DashboardFragmentRegistry {
                 CategoryKey.CATEGORY_MY_DEVICE_INFO);
         PARENT_TO_CATEGORY_KEY_MAP.put(BatterySaverSettings.class.getName(),
                 CategoryKey.CATEGORY_BATTERY_SAVER_SETTINGS);
+        PARENT_TO_CATEGORY_KEY_MAP.put(SmartBatterySettings.class.getName(),
+                CategoryKey.CATEGORY_SMART_BATTERY_SETTINGS);
 
         CATEGORY_KEY_TO_PARENT_MAP = new ArrayMap<>(PARENT_TO_CATEGORY_KEY_MAP.size());
 
         for (Map.Entry<String, String> parentToKey : PARENT_TO_CATEGORY_KEY_MAP.entrySet()) {
             CATEGORY_KEY_TO_PARENT_MAP.put(parentToKey.getValue(), parentToKey.getKey());
         }
+
+        // For injection index, redirect CATEGORY_ACCOUNT_DETAIL to AccountDashboardFragment.
+        CATEGORY_KEY_TO_PARENT_MAP.put(CategoryKey.CATEGORY_ACCOUNT_DETAIL,
+                AccountDashboardFragment.class.getName());
     }
 }

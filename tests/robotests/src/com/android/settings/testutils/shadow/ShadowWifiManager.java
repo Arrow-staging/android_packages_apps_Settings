@@ -18,6 +18,8 @@ package com.android.settings.testutils.shadow;
 
 import static org.robolectric.RuntimeEnvironment.application;
 
+import android.net.wifi.ScanResult;
+import android.net.wifi.SoftApConfiguration;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.net.wifi.hotspot2.PasspointConfiguration;
@@ -37,16 +39,16 @@ public class ShadowWifiManager extends org.robolectric.shadows.ShadowWifiManager
     private List<PasspointConfiguration> mPasspointConfiguration;
 
     public WifiConfiguration savedWifiConfig;
-    private WifiConfiguration mSavedApConfig;
+    private SoftApConfiguration mSavedApConfig;
 
     @Implementation
-    protected WifiConfiguration getWifiApConfiguration() {
+    protected SoftApConfiguration getSoftApConfiguration() {
         return mSavedApConfig;
     }
 
     @Implementation
-    protected boolean setWifiApConfiguration(WifiConfiguration wifiConfig) {
-        mSavedApConfig = wifiConfig;
+    protected boolean setSoftApConfiguration(SoftApConfiguration softApConfig) {
+        mSavedApConfig = softApConfig;
         return true;
     }
 
@@ -78,6 +80,11 @@ public class ShadowWifiManager extends org.robolectric.shadows.ShadowWifiManager
     @Implementation
     protected boolean isDualModeSupported() {
         return false;
+    }
+
+    @Implementation
+    protected List<ScanResult> getScanResults() {
+        return new ArrayList<ScanResult>();
     }
 
     public static ShadowWifiManager get() {

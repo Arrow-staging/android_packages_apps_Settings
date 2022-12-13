@@ -15,31 +15,32 @@
  */
 package com.android.settings.vpn2;
 
+import static android.app.AppOpsManager.OP_ACTIVATE_PLATFORM_VPN;
 import static android.app.AppOpsManager.OP_ACTIVATE_VPN;
 
 import android.annotation.NonNull;
 import android.app.AppOpsManager;
 import android.app.Dialog;
+import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.net.ConnectivityManager;
-import android.net.IConnectivityManager;
+import android.net.VpnManager;
 import android.os.Bundle;
-import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.Log;
+import android.widget.TextView;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.DialogFragment;
 import androidx.preference.Preference;
+import androidx.preference.PreferenceViewHolder;
 
 import com.android.internal.net.VpnConfig;
 import com.android.internal.util.ArrayUtils;
@@ -47,6 +48,9 @@ import com.android.settings.R;
 import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
+import com.android.settings.overlay.FeatureFactory;
+import com.android.settingslib.RestrictedLockUtils;
+import com.android.settingslib.RestrictedLockUtils.EnforcedAdmin;
 import com.android.settingslib.RestrictedPreference;
 import com.android.settingslib.RestrictedSwitchPreference;
 
@@ -66,8 +70,9 @@ public class AppManagementFragment extends SettingsPreferenceFragment
     private static final String KEY_FORGET_VPN = "forget_vpn";
 
     private PackageManager mPackageManager;
-    private ConnectivityManager mConnectivityManager;
-    private IConnectivityManager mConnectivityService;
+    private DevicePolicyManager mDevicePolicyManager;
+    private VpnManager mVpnManager;
+    private AdvancedVpnFeatureProvider mFeatureProvider;
 
     // VPN app info
     private final int mUserId = UserHandle.myUserId();
@@ -76,7 +81,6 @@ public class AppManagementFragment extends SettingsPreferenceFragment
     private String mVpnLabel;
 
     // UI preference
-    private Preference mPreferenceVersion;
     private RestrictedSwitchPreference mPreferenceAlwaysOn;
     private RestrictedSwitchPreference mPreferenceLockdown;
     private RestrictedPreference mPreferenceForget;
@@ -118,11 +122,10 @@ public class AppManagementFragment extends SettingsPreferenceFragment
         addPreferencesFromResource(R.xml.vpn_app_management);
 
         mPackageManager = getContext().getPackageManager();
-        mConnectivityManager = getContext().getSystemService(ConnectivityManager.class);
-        mConnectivityService = IConnectivityManager.Stub
-                .asInterface(ServiceManager.getService(Context.CONNECTIVITY_SERVICE));
+        mDevicePolicyManager = getContext().getSystemService(DevicePolicyManager.class);
+        mVpnManager = getContext().getSystemService(VpnManager.class);
+        mFeatureProvider = FeatureFactory.getFactory(getContext()).getAdvancedVpnFeatureProvider();
 
-        mPreferenceVersion = findPreference(KEY_VERSION);
         mPreferenceAlwaysOn = (RestrictedSwitchPreference) findPreference(KEY_ALWAYS_ON_VPN);
         mPreferenceLockdown = (RestrictedSwitchPreference) findPreference(KEY_LOCKDOWN_VPN);
         mPreferenceForget = (RestrictedPreference) findPreference(KEY_FORGET_VPN);
@@ -138,9 +141,52 @@ public class AppManagementFragment extends SettingsPreferenceFragment
 
         boolean isInfoLoaded = loadInfo();
         if (isInfoLoaded) {
-            mPreferenceVersion.setTitle(
-                    getPrefContext().getString(R.string.vpn_version, mPackageInfo.versionName));
             updateUI();
+
+            Preference version = getPreferenceScreen().findPreference(KEY_VERSION);
+            if (version != null) {
+                // Version field has been added.
+                return;
+            }
+
+            /**
+             * Create version field at runtime, and set max height on the display area.
+             *
+             * When long length of text given within version field, a large text area
+             * might be created and inconvenient to the user (User need to scroll
+             * for a long time in order to get to the Preferences after this field.)
+             */
+            version = new Preference(getPrefContext()) {
+                @Override
+                public void onBindViewHolder(PreferenceViewHolder holder) {
+                    super.onBindViewHolder(holder);
+
+                    TextView titleView =
+                            (TextView) holder.findViewById(android.R.id.title);
+                    if (titleView != null) {
+                        titleView.setTextAppearance(R.style.vpn_app_management_version_title);
+                    }
+
+                    TextView summaryView =
+                            (TextView) holder.findViewById(android.R.id.summary);
+                    if (summaryView != null) {
+                        summaryView.setTextAppearance(R.style.vpn_app_management_version_summary);
+
+                        // Set max height in summary area.
+                        int versionMaxHeight = getListView().getHeight();
+                        summaryView.setMaxHeight(versionMaxHeight);
+                        summaryView.setVerticalScrollBarEnabled(false);
+                        summaryView.setHorizontallyScrolling(false);
+                    }
+                }
+            };
+            version.setOrder(0);            // Set order to 0 in order to be placed
+                                            // in front of other Preference(s).
+            version.setKey(KEY_VERSION);    // Set key to avoid from creating multi instance.
+            version.setTitle(R.string.vpn_version);
+            version.setSummary(mPackageInfo.versionName);
+            version.setSelectable(false);
+            getPreferenceScreen().addPreference(version);
         } else {
             finish();
         }
@@ -224,8 +270,8 @@ public class AppManagementFragment extends SettingsPreferenceFragment
     }
 
     private boolean setAlwaysOnVpn(boolean isEnabled, boolean isLockdown) {
-        return mConnectivityManager.setAlwaysOnVpnPackageForUser(mUserId,
-                isEnabled ? mPackageName : null, isLockdown, /* lockdownWhitelist */ null);
+        return mVpnManager.setAlwaysOnVpnPackageForUser(mUserId,
+                isEnabled ? mPackageName : null, isLockdown, /* lockdownAllowlist */ null);
     }
 
     private void updateUI() {
@@ -240,7 +286,16 @@ public class AppManagementFragment extends SettingsPreferenceFragment
         }
     }
 
-    private void updateRestrictedViews() {
+    @VisibleForTesting
+    void updateRestrictedViews() {
+        if (mFeatureProvider.isAdvancedVpnSupported(getContext())
+                && !mFeatureProvider.isAdvancedVpnRemovable()
+                && TextUtils.equals(mPackageName, mFeatureProvider.getAdvancedVpnPackageName())) {
+            mPreferenceForget.setVisible(false);
+        } else {
+            mPreferenceForget.setVisible(true);
+        }
+
         if (isAdded()) {
             mPreferenceAlwaysOn.checkRestrictionAndSetDisabled(UserManager.DISALLOW_CONFIG_VPN,
                     mUserId);
@@ -249,7 +304,16 @@ public class AppManagementFragment extends SettingsPreferenceFragment
             mPreferenceForget.checkRestrictionAndSetDisabled(UserManager.DISALLOW_CONFIG_VPN,
                     mUserId);
 
-            if (mConnectivityManager.isAlwaysOnVpnPackageSupportedForUser(mUserId, mPackageName)) {
+            if (mPackageName.equals(mDevicePolicyManager.getAlwaysOnVpnPackage())) {
+                EnforcedAdmin admin = RestrictedLockUtils.getProfileOrDeviceOwner(
+                        getContext(), UserHandle.of(mUserId));
+                mPreferenceAlwaysOn.setDisabledByAdmin(admin);
+                mPreferenceForget.setDisabledByAdmin(admin);
+                if (mDevicePolicyManager.isAlwaysOnVpnLockdownEnabled()) {
+                    mPreferenceLockdown.setDisabledByAdmin(admin);
+                }
+            }
+            if (mVpnManager.isAlwaysOnVpnPackageSupportedForUser(mUserId, mPackageName)) {
                 // setSummary doesn't override the admin message when user restriction is applied
                 mPreferenceAlwaysOn.setSummary(R.string.vpn_always_on_summary);
                 // setEnabled is not required here, as checkRestrictionAndSetDisabled
@@ -262,8 +326,16 @@ public class AppManagementFragment extends SettingsPreferenceFragment
         }
     }
 
+    @VisibleForTesting
+    void init(String packageName, AdvancedVpnFeatureProvider featureProvider,
+            RestrictedPreference preference) {
+        mPackageName = packageName;
+        mFeatureProvider = featureProvider;
+        mPreferenceForget = preference;
+    }
+
     private String getAlwaysOnVpnPackage() {
-        return mConnectivityManager.getAlwaysOnVpnPackageForUser(mUserId);
+        return mVpnManager.getAlwaysOnVpnPackageForUser(mUserId);
     }
 
     private boolean isVpnAlwaysOn() {
@@ -312,7 +384,7 @@ public class AppManagementFragment extends SettingsPreferenceFragment
         final AppOpsManager service =
                 (AppOpsManager) context.getSystemService(Context.APP_OPS_SERVICE);
         final List<AppOpsManager.PackageOps> ops = service.getOpsForPackage(application.uid,
-                application.packageName, new int[]{OP_ACTIVATE_VPN});
+                application.packageName, new int[]{OP_ACTIVATE_VPN, OP_ACTIVATE_PLATFORM_VPN});
         return !ArrayUtils.isEmpty(ops);
     }
 
@@ -320,13 +392,8 @@ public class AppManagementFragment extends SettingsPreferenceFragment
      * @return {@code true} if another VPN (VpnService or legacy) is connected or set as always-on.
      */
     private boolean isAnotherVpnActive() {
-        try {
-            final VpnConfig config = mConnectivityService.getVpnConfig(mUserId);
-            return config != null && !TextUtils.equals(config.user, mPackageName);
-        } catch (RemoteException e) {
-            Log.w(TAG, "Failure to look up active VPN", e);
-            return false;
-        }
+        final VpnConfig config = mVpnManager.getVpnConfig(mUserId);
+        return config != null && !TextUtils.equals(config.user, mPackageName);
     }
 
     public static class CannotConnectFragment extends InstrumentedDialogFragment {

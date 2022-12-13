@@ -21,7 +21,10 @@ import android.provider.Settings;
 
 import com.android.settings.core.BasePreferenceController;
 
+/** Controller that shows and updates the color correction summary. */
 public class DaltonizerPreferenceController extends BasePreferenceController {
+    private static final String DALTONIZER_ENABLED =
+            Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED;
 
     public DaltonizerPreferenceController(Context context, String preferenceKey) {
         super(context, preferenceKey);
@@ -29,12 +32,11 @@ public class DaltonizerPreferenceController extends BasePreferenceController {
 
     @Override
     public int getAvailabilityStatus() {
-        return AVAILABLE_UNSEARCHABLE;
+        return AVAILABLE;
     }
 
     @Override
     public CharSequence getSummary() {
-        return AccessibilityUtil.getSummary(mContext,
-                Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED);
+        return AccessibilityUtil.getSummary(mContext, DALTONIZER_ENABLED);
     }
 }

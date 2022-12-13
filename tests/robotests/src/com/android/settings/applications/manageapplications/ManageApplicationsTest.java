@@ -28,7 +28,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -49,15 +48,18 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.SearchView;
 
 import androidx.fragment.app.FragmentActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.settings.R;
+import com.android.settings.testutils.shadow.ShadowAppUtils;
+import com.android.settings.testutils.shadow.ShadowUserManager;
 import com.android.settings.widget.LoadingViewController;
 import com.android.settingslib.applications.ApplicationsState;
+import com.android.settingslib.applications.ApplicationsState.AppEntry;
+import com.android.settingslib.applications.ApplicationsState.AppFilter;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -66,12 +68,14 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 import org.robolectric.fakes.RoboMenuItem;
 import org.robolectric.util.ReflectionHelpers;
 
 import java.util.ArrayList;
 
 @RunWith(RobolectricTestRunner.class)
+@Config(shadows = {ShadowUserManager.class, ShadowAppUtils.class})
 public class ManageApplicationsTest {
 
     @Mock
@@ -99,6 +103,7 @@ public class ManageApplicationsTest {
     public void setUp() {
         MockitoAnnotations.initMocks(this);
         mContext = RuntimeEnvironment.application;
+        mContext.setTheme(R.style.Theme_AppCompat);
         mAppReset = new RoboMenuItem(R.id.reset_app_preferences);
         mSortRecent = new RoboMenuItem(R.id.sort_order_recent_notification);
         mSortFrequent = new RoboMenuItem(R.id.sort_order_frequent_notification);
@@ -109,9 +114,12 @@ public class ManageApplicationsTest {
         mFragment = spy(new ManageApplications());
         when(mFragment.getContext()).thenReturn(mContext);
         when(mFragment.getActivity()).thenReturn(mActivity);
+        ReflectionHelpers.setField(mFragment, "mUserManager",
+                mContext.getSystemService(UserManager.class));
         when(mActivity.getResources()).thenReturn(mResources);
         when(mActivity.getSystemService(UserManager.class)).thenReturn(mUserManager);
         when(mActivity.getPackageManager()).thenReturn(mPackageManager);
+        when(mActivity.getLayoutInflater()).thenReturn(LayoutInflater.from(mContext));
     }
 
     @Test
@@ -143,22 +151,6 @@ public class ManageApplicationsTest {
         mFragment.updateOptionsMenu();
         assertThat(mMenu.findItem(R.id.sort_order_recent_notification).isVisible()).isFalse();
         assertThat(mMenu.findItem(R.id.sort_order_frequent_notification).isVisible()).isFalse();
-    }
-
-    @Test
-    public void onCreateView_shouldNotShowLoadingContainer() {
-        ReflectionHelpers.setField(mFragment, "mResetAppsHelper", mock(ResetAppsHelper.class));
-        doNothing().when(mFragment).createHeader();
-
-        final LayoutInflater layoutInflater = mock(LayoutInflater.class);
-        final View view = mock(View.class);
-        final View loadingContainer = mock(View.class);
-        when(layoutInflater.inflate(anyInt(), eq(null))).thenReturn(view);
-        when(view.findViewById(R.id.loading_container)).thenReturn(loadingContainer);
-
-        mFragment.onCreateView(layoutInflater, mock(ViewGroup.class), null);
-
-        verify(loadingContainer, never()).setVisibility(View.VISIBLE);
     }
 
     @Test
@@ -211,7 +203,6 @@ public class ManageApplicationsTest {
     @Test
     public void updateLoading_appLoaded_shouldNotDelayCallToHandleLoadingContainer() {
         ReflectionHelpers.setField(mFragment, "mLoadingContainer", mock(View.class));
-        ReflectionHelpers.setField(mFragment, "mListContainer", mock(View.class));
         final ManageApplications.ApplicationsAdapter adapter =
                 spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
                         AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
@@ -233,7 +224,6 @@ public class ManageApplicationsTest {
     @Test
     public void updateLoading_appNotLoaded_shouldDelayCallToHandleLoadingContainer() {
         ReflectionHelpers.setField(mFragment, "mLoadingContainer", mock(View.class));
-        ReflectionHelpers.setField(mFragment, "mListContainer", mock(View.class));
         final ManageApplications.ApplicationsAdapter adapter =
                 spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
                         AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
@@ -262,7 +252,6 @@ public class ManageApplicationsTest {
         when(listContainer.getVisibility()).thenReturn(View.INVISIBLE);
         when(listContainer.getContext()).thenReturn(context);
         ReflectionHelpers.setField(mFragment, "mLoadingContainer", loadingContainer);
-        ReflectionHelpers.setField(mFragment, "mListContainer", listContainer);
         final ManageApplications.ApplicationsAdapter adapter =
                 spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
                         AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
@@ -286,7 +275,7 @@ public class ManageApplicationsTest {
 
         adapter.onRebuildComplete(null);
 
-        verify(loadingViewController).showContent(true /* animate */);
+        verify(loadingViewController).showEmpty(false /* animate */);
     }
 
     @Test
@@ -294,15 +283,16 @@ public class ManageApplicationsTest {
         final String query = "Test";
         final RecyclerView recyclerView = mock(RecyclerView.class);
         final View emptyView = mock(View.class);
+        final View loadingContainer = mock(View.class);
         ReflectionHelpers.setField(mFragment, "mRecyclerView", recyclerView);
         ReflectionHelpers.setField(mFragment, "mEmptyView", emptyView);
+        ReflectionHelpers.setField(mFragment, "mLoadingContainer", loadingContainer);
         final SearchView searchView = mock(SearchView.class);
         ReflectionHelpers.setField(mFragment, "mSearchView", searchView);
         when(searchView.isVisibleToUser()).thenReturn(true);
         when(searchView.getQuery()).thenReturn(query);
         final View listContainer = mock(View.class);
         when(listContainer.getVisibility()).thenReturn(View.VISIBLE);
-        ReflectionHelpers.setField(mFragment, "mListContainer", listContainer);
         ReflectionHelpers.setField(
                 mFragment, "mFilterAdapter", mock(ManageApplications.FilterSpinnerAdapter.class));
         final ArrayList<ApplicationsState.AppEntry> appList = new ArrayList<>();
@@ -366,6 +356,7 @@ public class ManageApplicationsTest {
         appEntry.extraInfo = mock(AppFilterItem.class);
         appList.add(appEntry);
         ReflectionHelpers.setField(adapter, "mEntries", appList);
+        ReflectionHelpers.setField(adapter, "mContext", mContext);
 
         adapter.onBindViewHolder(holder, 0);
         // no crash? yay!
@@ -387,6 +378,7 @@ public class ManageApplicationsTest {
         appEntry.info = mock(ApplicationInfo.class);
         appList.add(appEntry);
         ReflectionHelpers.setField(adapter, "mEntries", appList);
+        ReflectionHelpers.setField(adapter, "mContext", mContext);
 
         adapter.onBindViewHolder(holder, 0);
         verify(holder).updateSwitch(any(), anyBoolean(), anyBoolean());
@@ -406,6 +398,7 @@ public class ManageApplicationsTest {
         appEntry.info = mock(ApplicationInfo.class);
         appList.add(appEntry);
         ReflectionHelpers.setField(adapter, "mEntries", appList);
+        ReflectionHelpers.setField(adapter, "mContext", mContext);
 
         adapter.onBindViewHolder(holder, 0);
         verify(holder, never()).updateSwitch(any(), anyBoolean(), anyBoolean());
@@ -462,10 +455,13 @@ public class ManageApplicationsTest {
         ManageApplications.ApplicationsAdapter adapter = new ManageApplications.ApplicationsAdapter(
                 mState, mFragment, mock(AppFilterItem.class), mock(Bundle.class));
 
-        adapter.rebuild(mSortRecent.getItemId());
+        adapter.rebuild(mSortRecent.getItemId(), false);
         assertThat(mFragment.mSortOrder).isEqualTo(mSortRecent.getItemId());
 
-        adapter.rebuild(mSortFrequent.getItemId());
+        adapter.rebuild(mSortFrequent.getItemId(), false);
+        assertThat(mFragment.mSortOrder).isEqualTo(mSortFrequent.getItemId());
+
+        adapter.rebuild(mSortFrequent.getItemId(), true);
         assertThat(mFragment.mSortOrder).isEqualTo(mSortFrequent.getItemId());
     }
 
@@ -478,8 +474,6 @@ public class ManageApplicationsTest {
         mFragment.mFilterAdapter.updateFilterView(true);
 
         assertThat(mFragment.mSpinnerHeader.getVisibility()).isEqualTo(View.VISIBLE);
-        assertThat(mFragment.mRecyclerView.getPaddingTop()).isEqualTo(
-                mContext.getResources().getDimensionPixelSize(R.dimen.app_bar_height));
     }
 
     @Test
@@ -524,6 +518,88 @@ public class ManageApplicationsTest {
         assertThat(bundle.getBoolean(ManageApplications.EXTRA_EXPAND_SEARCH_VIEW)).isFalse();
     }
 
+    @Test
+    public void createHeader_batteryListType_hasCorrectItems() {
+        ReflectionHelpers.setField(mFragment, "mListType", ManageApplications.LIST_TYPE_HIGH_POWER);
+        ReflectionHelpers.setField(mFragment, "mRootView",
+                LayoutInflater.from(mContext).inflate(R.layout.manage_applications_apps, null));
+        mFragment.mRecyclerView = new RecyclerView(mContext);
+        final ManageApplications.ApplicationsAdapter adapter =
+                spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
+                        AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
+        ReflectionHelpers.setField(mFragment, "mApplications", adapter);
+
+        mFragment.createHeader();
+
+        assertThat(mFragment.mFilterAdapter.getCount()).isEqualTo(2);
+        assertThat(mFragment.mFilterAdapter.getItem(0)).isEqualTo(
+                mContext.getString(R.string.high_power_filter_on));
+        assertThat(mFragment.mFilterAdapter.getItem(1)).isEqualTo(
+                mContext.getString(R.string.filter_all_apps));
+    }
+
+    @Test
+    public void createHeader_notificationListType_hasCorrectItems() {
+        ReflectionHelpers.setField(mFragment, "mListType", LIST_TYPE_NOTIFICATION);
+        ReflectionHelpers.setField(mFragment, "mRootView",
+                LayoutInflater.from(mContext).inflate(R.layout.manage_applications_apps, null));
+        mFragment.mRecyclerView = new RecyclerView(mContext);
+        final ManageApplications.ApplicationsAdapter adapter =
+                spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
+                        AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
+        ReflectionHelpers.setField(mFragment, "mApplications", adapter);
+
+        mFragment.createHeader();
+
+        assertThat(mFragment.mFilterAdapter.getCount()).isEqualTo(4);
+        assertThat(mFragment.mFilterAdapter.getItem(0)).isEqualTo(
+                mContext.getString(R.string.sort_order_recent_notification));
+        assertThat(mFragment.mFilterAdapter.getItem(1)).isEqualTo(
+                mContext.getString(R.string.sort_order_frequent_notification));
+        assertThat(mFragment.mFilterAdapter.getItem(2)).isEqualTo(
+                mContext.getString(R.string.filter_all_apps));
+        assertThat(mFragment.mFilterAdapter.getItem(3)).isEqualTo(
+                mContext.getString(R.string.filter_notif_blocked_apps));
+    }
+
+    @Test
+    public void onItemSelected_powerWhiteApps_returnCorrectValue() {
+        ReflectionHelpers.setField(mFragment, "mListType", ManageApplications.LIST_TYPE_HIGH_POWER);
+        ReflectionHelpers.setField(mFragment, "mRootView",
+                LayoutInflater.from(mContext).inflate(R.layout.manage_applications_apps, null));
+        mFragment.mRecyclerView = new RecyclerView(mContext);
+        final ManageApplications.ApplicationsAdapter adapter =
+                spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
+                        AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
+        ReflectionHelpers.setField(mFragment, "mApplications", adapter);
+        mFragment.createHeader();
+
+        mFragment.onItemSelected(null, null, 0, 0);
+
+        AppFilter filter = ReflectionHelpers.getField(adapter, "mCompositeFilter");
+        assertThat(filter.filterApp(createPowerAllowListApp(false))).isFalse();
+        assertThat(filter.filterApp(createPowerAllowListApp(true))).isTrue();
+    }
+
+    @Test
+    public void onItemSelected_allApps_returnCorrectValue() {
+        ReflectionHelpers.setField(mFragment, "mListType", ManageApplications.LIST_TYPE_HIGH_POWER);
+        ReflectionHelpers.setField(mFragment, "mRootView",
+                LayoutInflater.from(mContext).inflate(R.layout.manage_applications_apps, null));
+        mFragment.mRecyclerView = new RecyclerView(mContext);
+        final ManageApplications.ApplicationsAdapter adapter =
+                spy(new ManageApplications.ApplicationsAdapter(mState, mFragment,
+                        AppFilterRegistry.getInstance().get(FILTER_APPS_ALL), new Bundle()));
+        ReflectionHelpers.setField(mFragment, "mApplications", adapter);
+        mFragment.createHeader();
+
+        mFragment.onItemSelected(null, null, 1, 0);
+
+        AppFilter filter = ReflectionHelpers.getField(adapter, "mCompositeFilter");
+        assertThat(filter.filterApp(createPowerAllowListApp(false))).isTrue();
+        assertThat(filter.filterApp(createPowerAllowListApp(true))).isTrue();
+    }
+
     private void setUpOptionMenus() {
         when(mMenu.findItem(anyInt())).thenAnswer(invocation -> {
             final Object[] args = invocation.getArguments();
@@ -541,13 +617,21 @@ public class ManageApplicationsTest {
         });
     }
 
-    private ArrayList<ApplicationsState.AppEntry> getTestAppList(String[] appNames) {
-        final ArrayList<ApplicationsState.AppEntry> appList = new ArrayList<>();
+    private ArrayList<AppEntry> getTestAppList(String[] appNames) {
+        final ArrayList<AppEntry> appList = new ArrayList<>();
         for (String name : appNames) {
-            final ApplicationsState.AppEntry appEntry = mock(ApplicationsState.AppEntry.class);
+            final AppEntry appEntry = mock(AppEntry.class);
             appEntry.label = name;
             appList.add(appEntry);
         }
         return appList;
+    }
+
+    private AppEntry createPowerAllowListApp(boolean isPowerAllowListed) {
+        final ApplicationInfo info = new ApplicationInfo();
+        info.sourceDir = "abc";
+        final AppEntry entry = new AppEntry(mContext, info, 0);
+        entry.extraInfo = isPowerAllowListed ? Boolean.TRUE : Boolean.FALSE;
+        return entry;
     }
 }

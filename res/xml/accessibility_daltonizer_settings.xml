@@ -17,20 +17,38 @@
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:settings="http://schemas.android.com/apk/res-auto"
-    android:key="daltonizer_preference_screen"
+    android:persistent="false"
     android:title="@string/accessibility_display_daltonizer_preference_title">
 
-    <ListPreference
-        android:entries="@array/daltonizer_type_entries"
-        android:entryValues="@array/daltonizer_type_values"
-        android:key="type"
-        android:summary="%s"
-        android:title="@string/daltonizer_type"
-        android:icon="@drawable/ic_accessibility_illustration_colorblind" />
-
-    <com.android.settingslib.widget.FooterPreference
-        android:key="daltonizer_footer"
-        android:title="@string/accessibility_display_daltonizer_preference_subtitle"
+    <com.android.settings.accessibility.PaletteListPreference
+        android:key="daltonizer_preview"
+        android:persistent="false"
         android:selectable="false"
+        android:title="@string/summary_placeholder"
+        settings:allowDividerBelow="true"
         settings:searchable="false"/>
+
+    <com.android.settingslib.widget.SelectorWithWidgetPreference
+        android:key="daltonizer_mode_deuteranomaly"
+        android:persistent="false"
+        android:summary="@string/daltonizer_mode_deuteranomaly_summary"
+        android:title="@string/daltonizer_mode_deuteranomaly_title" />
+
+    <com.android.settingslib.widget.SelectorWithWidgetPreference
+        android:key="daltonizer_mode_protanomaly"
+        android:persistent="false"
+        android:summary="@string/daltonizer_mode_protanomaly_summary"
+        android:title="@string/daltonizer_mode_protanomaly_title" />
+
+    <com.android.settingslib.widget.SelectorWithWidgetPreference
+        android:key="daltonizer_mode_tritanomaly"
+        android:persistent="false"
+        android:summary="@string/daltonizer_mode_tritanomaly_summary"
+        android:title="@string/daltonizer_mode_tritanomaly_title" />
+
+    <com.android.settingslib.widget.SelectorWithWidgetPreference
+        android:key="daltonizer_mode_grayscale"
+        android:persistent="false"
+        android:title="@string/daltonizer_mode_grayscale_title" />
+
 </PreferenceScreen>

@@ -25,6 +25,7 @@ import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
 import android.widget.TextView;
 
+import com.android.settings.R;
 import com.android.settings.SettingsPreferenceFragment;
 
 public abstract class EmptyTextSettings extends SettingsPreferenceFragment {
@@ -36,11 +37,16 @@ public abstract class EmptyTextSettings extends SettingsPreferenceFragment {
         super.onViewCreated(view, savedInstanceState);
         mEmpty = new TextView(getContext());
         mEmpty.setGravity(Gravity.CENTER);
+        final int textPadding = getContext().getResources().getDimensionPixelSize(
+                R.dimen.empty_text_padding);
+        mEmpty.setPadding(textPadding, 0 /* top */, textPadding, 0 /* bottom */);
         TypedValue value = new TypedValue();
         getContext().getTheme().resolveAttribute(android.R.attr.textAppearanceMedium, value, true);
         mEmpty.setTextAppearance(value.resourceId);
+        final int layoutHeight = getContext().getResources()
+                .getDimensionPixelSize(R.dimen.empty_text_layout_height);
         ((ViewGroup) view.findViewById(android.R.id.list_container)).addView(mEmpty,
-                new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+                new LayoutParams(LayoutParams.MATCH_PARENT, layoutHeight));
         setEmptyView(mEmpty);
     }
 

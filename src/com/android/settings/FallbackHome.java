@@ -31,7 +31,6 @@ import android.os.Handler;
 import android.os.Message;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 import android.util.Log;
@@ -43,7 +42,7 @@ import java.util.Objects;
 
 public class FallbackHome extends Activity {
     private static final String TAG = "FallbackHome";
-    private static final int PROGRESS_TIMEOUT = 2000;
+    private int mProgressTimeout;
 
     private boolean mProvisioned;
     private WallpaperManager mWallManager;
@@ -77,6 +76,12 @@ public class FallbackHome extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        mProgressTimeout = getResources().getInteger(
+            com.android.internal.R.integer.config_progressTimeoutFallbackHome);
+
+        if (mProgressTimeout <= 0) {
+            mProgressTimeout = 0;
+        }
 
         // Set ourselves totally black before the device is provisioned so that
         // we don't flash the wallpaper before SUW
@@ -108,7 +113,7 @@ public class FallbackHome extends Activity {
     protected void onResume() {
         super.onResume();
         if (mProvisioned) {
-            mHandler.postDelayed(mProgressTimeoutRunnable, PROGRESS_TIMEOUT);
+            mHandler.postDelayed(mProgressTimeoutRunnable, mProgressTimeout);
         }
     }
 
@@ -166,12 +171,6 @@ public class FallbackHome extends Activity {
                     .addCategory(Intent.CATEGORY_HOME);
             final ResolveInfo homeInfo = getPackageManager().resolveActivity(homeIntent, 0);
             if (Objects.equals(getPackageName(), homeInfo.activityInfo.packageName)) {
-                if (UserManager.isSplitSystemUser()
-                        && UserHandle.myUserId() == UserHandle.USER_SYSTEM) {
-                    // This avoids the situation where the system user has no home activity after
-                    // SUW and this activity continues to throw out warnings. See b/28870689.
-                    return;
-                }
                 Log.d(TAG, "User unlocked but no home; let's hope someone enables one soon?");
                 mHandler.sendEmptyMessageDelayed(0, 500);
             } else {

@@ -21,6 +21,7 @@ import android.app.Application;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.os.Bundle;
+import android.telephony.SmsManager;
 import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
@@ -30,7 +31,6 @@ import androidx.preference.Preference.OnPreferenceChangeListener;
 import androidx.preference.PreferenceScreen;
 import androidx.preference.PreferenceViewHolder;
 
-import com.android.internal.telephony.SmsUsageMonitor;
 import com.android.settings.R;
 import com.android.settings.applications.AppStateBaseBridge.Callback;
 import com.android.settings.applications.AppStateSmsPremBridge;
@@ -68,13 +68,13 @@ public class PremiumSmsAccess extends EmptyTextSettings
     @Override
     public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        setLoading(true, false);
+        setEmptyText(R.string.premium_sms_none);
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        mSmsBackend.resume();
+        mSmsBackend.resume(true /* forceLoadAllApps */);
     }
 
     @Override
@@ -110,20 +110,20 @@ public class PremiumSmsAccess extends EmptyTextSettings
 
     @VisibleForTesting
     void logSpecialPermissionChange(int smsState, String packageName) {
-        int category = SmsUsageMonitor.PREMIUM_SMS_PERMISSION_UNKNOWN;
+        int category = SmsManager.PREMIUM_SMS_CONSENT_UNKNOWN;
         switch (smsState) {
-            case SmsUsageMonitor.PREMIUM_SMS_PERMISSION_ASK_USER:
+            case SmsManager.PREMIUM_SMS_CONSENT_ASK_USER:
                 category = SettingsEnums.APP_SPECIAL_PERMISSION_PREMIUM_SMS_ASK;
                 break;
-            case SmsUsageMonitor.PREMIUM_SMS_PERMISSION_NEVER_ALLOW:
+            case SmsManager.PREMIUM_SMS_CONSENT_NEVER_ALLOW:
                 category = SettingsEnums.APP_SPECIAL_PERMISSION_PREMIUM_SMS_DENY;
                 break;
-            case SmsUsageMonitor.PREMIUM_SMS_PERMISSION_ALWAYS_ALLOW:
+            case SmsManager.PREMIUM_SMS_CONSENT_ALWAYS_ALLOW:
                 category = SettingsEnums.
                         APP_SPECIAL_PERMISSION_PREMIUM_SMS_ALWAYS_ALLOW;
                 break;
         }
-        if (category != SmsUsageMonitor.PREMIUM_SMS_PERMISSION_UNKNOWN) {
+        if (category != SmsManager.PREMIUM_SMS_CONSENT_UNKNOWN) {
             // TODO(117860032): Category is wrong. It should be defined in SettingsEnums.
             final MetricsFeatureProvider metricsFeatureProvider =
                     FeatureFactory.getFactory(getContext()).getMetricsFeatureProvider();
@@ -138,8 +138,6 @@ public class PremiumSmsAccess extends EmptyTextSettings
 
     private void updatePrefs(ArrayList<AppEntry> apps) {
         if (apps == null) return;
-        setEmptyText(R.string.premium_sms_none);
-        setLoading(false, true);
         final PreferenceScreen screen = getPreferenceScreen();
         screen.removeAll();
         screen.setOrderingAsAdded(true);
@@ -220,9 +218,9 @@ public class PremiumSmsAccess extends EmptyTextSettings
             }
             setEntries(R.array.security_settings_premium_sms_values);
             setEntryValues(new CharSequence[]{
-                    String.valueOf(SmsUsageMonitor.PREMIUM_SMS_PERMISSION_ASK_USER),
-                    String.valueOf(SmsUsageMonitor.PREMIUM_SMS_PERMISSION_NEVER_ALLOW),
-                    String.valueOf(SmsUsageMonitor.PREMIUM_SMS_PERMISSION_ALWAYS_ALLOW),
+                    String.valueOf(SmsManager.PREMIUM_SMS_CONSENT_ASK_USER),
+                    String.valueOf(SmsManager.PREMIUM_SMS_CONSENT_NEVER_ALLOW),
+                    String.valueOf(SmsManager.PREMIUM_SMS_CONSENT_ALWAYS_ALLOW),
             });
             setValue(String.valueOf(getCurrentValue()));
             setSummary("%s");
@@ -231,7 +229,7 @@ public class PremiumSmsAccess extends EmptyTextSettings
         private int getCurrentValue() {
             return mAppEntry.extraInfo instanceof SmsState
                     ? ((SmsState) mAppEntry.extraInfo).smsState
-                    : SmsUsageMonitor.PREMIUM_SMS_PERMISSION_UNKNOWN;
+                    : SmsManager.PREMIUM_SMS_CONSENT_UNKNOWN;
         }
 
         @Override

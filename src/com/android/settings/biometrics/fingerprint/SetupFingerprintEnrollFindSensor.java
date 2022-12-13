@@ -31,23 +31,22 @@ import androidx.fragment.app.FragmentManager;
 
 import com.android.settings.R;
 import com.android.settings.SetupWizardUtils;
+import com.android.settings.biometrics.BiometricUtils;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
 import com.android.settings.password.ChooseLockSettingsHelper;
 
 public class SetupFingerprintEnrollFindSensor extends FingerprintEnrollFindSensor {
 
     @Override
-    protected int getContentView() {
-        return R.layout.fingerprint_enroll_find_sensor;
-    }
-
-    @Override
     protected Intent getFingerprintEnrollingIntent() {
         Intent intent = new Intent(this, SetupFingerprintEnrollEnrolling.class);
         intent.putExtra(ChooseLockSettingsHelper.EXTRA_KEY_CHALLENGE_TOKEN, mToken);
+        intent.putExtra(EXTRA_KEY_CHALLENGE, mChallenge);
+        intent.putExtra(EXTRA_KEY_SENSOR_ID, mSensorId);
         if (mUserId != UserHandle.USER_NULL) {
             intent.putExtra(Intent.EXTRA_USER_ID, mUserId);
         }
+        BiometricUtils.copyMultiBiometricExtras(getIntent(), intent);
         SetupWizardUtils.copySetupExtras(getIntent(), intent);
         return intent;
     }
@@ -78,7 +77,7 @@ public class SetupFingerprintEnrollFindSensor extends FingerprintEnrollFindSenso
 
         @NonNull
         public AlertDialog.Builder onCreateDialogBuilder() {
-            return new AlertDialog.Builder(getContext())
+            return new AlertDialog.Builder(getActivity(), R.style.Theme_AlertDialog)
                     .setTitle(R.string.setup_fingerprint_enroll_skip_title)
                     .setPositiveButton(R.string.skip_anyway_button_label, this)
                     .setNegativeButton(R.string.go_back_button_label, this)

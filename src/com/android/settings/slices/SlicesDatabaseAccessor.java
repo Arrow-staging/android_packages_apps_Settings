@@ -50,6 +50,7 @@ public class SlicesDatabaseAccessor {
             IndexColumns.CONTROLLER,
             IndexColumns.SLICE_TYPE,
             IndexColumns.UNAVAILABLE_SLICE_SUBTITLE,
+            IndexColumns.HIGHLIGHT_MENU_RESOURCE,
     };
 
     private final Context mContext;
@@ -88,16 +89,18 @@ public class SlicesDatabaseAccessor {
     }
 
     /**
-     * @return a list of Slice {@link Uri}s matching {@param authority}.
+     * @return a list of Slice {@link Uri}s based on their visibility {@param isPublicSlice } and
+     * {@param authority}.
      */
-    public List<Uri> getSliceUris(String authority) {
+    public List<Uri> getSliceUris(String authority, boolean isPublicSlice) {
         verifyIndexing();
         final List<Uri> uris = new ArrayList<>();
+        final String whereClause = IndexColumns.PUBLIC_SLICE + (isPublicSlice ? "=1" : "=0");
         final SQLiteDatabase database = mHelper.getReadableDatabase();
         final String[] columns = new String[]{IndexColumns.SLICE_URI};
-        try (final Cursor resultCursor = database.query(TABLE_SLICES_INDEX, columns,
-                null /* where */, null /* selection */, null /* groupBy */, null /* having */,
-                null /* orderBy */)) {
+        try (Cursor resultCursor = database.query(TABLE_SLICES_INDEX, columns,
+                whereClause /* where */, null /* selection */, null /* groupBy */,
+                null /* having */, null /* orderBy */)) {
             if (!resultCursor.moveToFirst()) {
                 return uris;
             }
@@ -125,10 +128,12 @@ public class SlicesDatabaseAccessor {
         int numResults = resultCursor.getCount();
 
         if (numResults == 0) {
+            resultCursor.close();
             throw new IllegalStateException("Invalid Slices key from path: " + path);
         }
 
         if (numResults > 1) {
+            resultCursor.close();
             throw new IllegalStateException(
                     "Should not match more than 1 slice with path: " + path);
         }
@@ -159,6 +164,8 @@ public class SlicesDatabaseAccessor {
                 cursor.getColumnIndex(IndexColumns.SLICE_TYPE));
         final String unavailableSliceSubtitle = cursor.getString(
                 cursor.getColumnIndex(IndexColumns.UNAVAILABLE_SLICE_SUBTITLE));
+        final int highlightMenuRes = cursor.getInt(
+                cursor.getColumnIndex(IndexColumns.HIGHLIGHT_MENU_RESOURCE));
 
         if (isIntentOnly) {
             sliceType = SliceData.SliceType.INTENT;
@@ -176,6 +183,7 @@ public class SlicesDatabaseAccessor {
                 .setUri(uri)
                 .setSliceType(sliceType)
                 .setUnavailableSliceSubtitle(unavailableSliceSubtitle)
+                .setHighlightMenuRes(highlightMenuRes)
                 .build();
     }
 

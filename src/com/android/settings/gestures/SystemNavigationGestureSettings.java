@@ -17,54 +17,50 @@
 package com.android.settings.gestures;
 
 import static android.os.UserHandle.USER_CURRENT;
+import static android.provider.Settings.Secure.ACCESSIBILITY_BUTTON_MODE_FLOATING_MENU;
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_2BUTTON_OVERLAY;
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_3BUTTON_OVERLAY;
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_GESTURAL_OVERLAY;
 
-import static com.android.settings.widget.RadioButtonPreferenceWithExtraWidget.EXTRA_WIDGET_VISIBILITY_GONE;
-import static com.android.settings.widget.RadioButtonPreferenceWithExtraWidget.EXTRA_WIDGET_VISIBILITY_SETTING;
-
-import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.om.IOverlayManager;
 import android.content.om.OverlayInfo;
+import android.content.res.Resources;
+import android.os.Bundle;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.view.accessibility.AccessibilityManager;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
-import com.android.settings.SettingsTutorialDialogWrapperActivity;
+import com.android.settings.accessibility.AccessibilityGestureNavigationTutorial;
+import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.dashboard.suggestions.SuggestionFeatureProvider;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.search.BaseSearchIndexProvider;
+import com.android.settings.support.actionbar.HelpResourceProvider;
 import com.android.settings.utils.CandidateInfoExtra;
 import com.android.settings.widget.RadioButtonPickerFragment;
-import com.android.settings.widget.RadioButtonPreferenceWithExtraWidget;
-import com.android.settings.widget.VideoPreference;
 import com.android.settingslib.search.SearchIndexable;
+import com.android.settingslib.search.SearchIndexableRaw;
 import com.android.settingslib.widget.CandidateInfo;
-import com.android.settingslib.widget.RadioButtonPreference;
+import com.android.settingslib.widget.IllustrationPreference;
+import com.android.settingslib.widget.SelectorWithWidgetPreference;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @SearchIndexable
-public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
-
-    private static final String TAG = "SystemNavigationGesture";
-
-    @VisibleForTesting
-    static final String SHARED_PREFERENCES_NAME = "system_navigation_settings_preferences";
-    @VisibleForTesting
-    static final String PREFS_BACK_SENSITIVITY_KEY = "system_navigation_back_sensitivity";
+public class SystemNavigationGestureSettings extends RadioButtonPickerFragment implements
+        HelpResourceProvider {
 
     @VisibleForTesting
     static final String KEY_SYSTEM_NAV_3BUTTONS = "system_nav_3buttons";
@@ -76,32 +72,37 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
     public static final String PREF_KEY_SUGGESTION_COMPLETE =
             "pref_system_navigation_suggestion_complete";
 
-    @VisibleForTesting
-    static final String NAV_BAR_MODE_GESTURAL_OVERLAY_NARROW_BACK
-            = "com.android.internal.systemui.navbar.gestural_narrow_back";
-    @VisibleForTesting
-    static final String NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK
-            = "com.android.internal.systemui.navbar.gestural_wide_back";
-    @VisibleForTesting
-    static final String NAV_BAR_MODE_GESTURAL_OVERLAY_EXTRA_WIDE_BACK
-            = "com.android.internal.systemui.navbar.gestural_extra_wide_back";
-    @VisibleForTesting
-    static final String[] BACK_GESTURE_INSET_OVERLAYS = {
-            NAV_BAR_MODE_GESTURAL_OVERLAY_NARROW_BACK,
-            NAV_BAR_MODE_GESTURAL_OVERLAY,
-            NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK,
-            NAV_BAR_MODE_GESTURAL_OVERLAY_EXTRA_WIDE_BACK
-    };
-    @VisibleForTesting
-    static int BACK_GESTURE_INSET_DEFAULT_OVERLAY = 1;
+    private static final String KEY_SHOW_A11Y_TUTORIAL_DIALOG = "show_a11y_tutorial_dialog_bool";
+
+    private boolean mA11yTutorialDialogShown = false;
 
     private IOverlayManager mOverlayManager;
 
-    private VideoPreference mVideoPreference;
+    private IllustrationPreference mVideoPreference;
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        if (savedInstanceState != null) {
+            mA11yTutorialDialogShown =
+                    savedInstanceState.getBoolean(KEY_SHOW_A11Y_TUTORIAL_DIALOG, false);
+            if (mA11yTutorialDialogShown) {
+                AccessibilityGestureNavigationTutorial.showGestureNavigationTutorialDialog(
+                        getContext(), dialog -> mA11yTutorialDialogShown = false);
+            }
+        }
+    }
+
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        outState.putBoolean(KEY_SHOW_A11Y_TUTORIAL_DIALOG, mA11yTutorialDialogShown);
+        super.onSaveInstanceState(outState);
+    }
 
     @Override
     public void onAttach(Context context) {
         super.onAttach(context);
+
         SuggestionFeatureProvider suggestionFeatureProvider = FeatureFactory.getFactory(context)
                 .getSuggestionFeatureProvider(context);
         SharedPreferences prefs = suggestionFeatureProvider.getSharedPrefs(context);
@@ -110,11 +111,10 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
         mOverlayManager = IOverlayManager.Stub.asInterface(
                 ServiceManager.getService(Context.OVERLAY_SERVICE));
 
-        mVideoPreference = new VideoPreference(context);
+        mVideoPreference = new IllustrationPreference(context);
         setIllustrationVideo(mVideoPreference, getDefaultKey());
-        mVideoPreference.setHeight( /* Illustration height in dp */
-                getResources().getDimension(R.dimen.system_navigation_illustration_height)
-                        / getResources().getDisplayMetrics().density);
+
+        migrateOverlaySensitivityToSettings(context, mOverlayManager);
     }
 
     @Override
@@ -135,8 +135,8 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
             return;
         }
         for (CandidateInfo info : candidateList) {
-            RadioButtonPreferenceWithExtraWidget pref =
-                    new RadioButtonPreferenceWithExtraWidget(getPrefContext());
+            SelectorWithWidgetPreference pref =
+                    new SelectorWithWidgetPreference(getPrefContext());
             bindPreference(pref, info.getKey(), info, defaultKey);
             bindPreferenceExtra(pref, info.getKey(), info, defaultKey, systemDefaultKey);
             screen.addPreference(pref);
@@ -145,22 +145,26 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
     }
 
     @Override
-    public void bindPreferenceExtra(RadioButtonPreference pref,
+    public void bindPreferenceExtra(SelectorWithWidgetPreference pref,
             String key, CandidateInfo info, String defaultKey, String systemDefaultKey) {
-        if (!(info instanceof CandidateInfoExtra)
-                || !(pref instanceof RadioButtonPreferenceWithExtraWidget)) {
+        if (!(info instanceof CandidateInfoExtra)) {
             return;
         }
 
         pref.setSummary(((CandidateInfoExtra) info).loadSummary());
 
-        RadioButtonPreferenceWithExtraWidget p = (RadioButtonPreferenceWithExtraWidget) pref;
-        if (info.getKey() == KEY_SYSTEM_NAV_GESTURAL) {
-            p.setExtraWidgetVisibility(EXTRA_WIDGET_VISIBILITY_SETTING);
-            p.setExtraWidgetOnClickListener((v) -> GestureNavigationBackSensitivityDialog
-                    .show(this, getBackSensitivity(getContext(), mOverlayManager)));
-        } else {
-            p.setExtraWidgetVisibility(EXTRA_WIDGET_VISIBILITY_GONE);
+        if (KEY_SYSTEM_NAV_GESTURAL.equals(info.getKey())) {
+            pref.setExtraWidgetOnClickListener((v) -> startActivity(new Intent(
+                    GestureNavigationSettingsFragment.GESTURE_NAVIGATION_SETTINGS)));
+        }
+
+        if (KEY_SYSTEM_NAV_2BUTTONS.equals(info.getKey()) || KEY_SYSTEM_NAV_3BUTTONS.equals(
+                info.getKey())) {
+            pref.setExtraWidgetOnClickListener((v) ->
+                    new SubSettingLauncher(getContext())
+                            .setDestination(ButtonNavigationSettingsFragment.class.getName())
+                            .setSourceMetricsCategory(SettingsEnums.SETTINGS_GESTURE_SWIPE_UP)
+                            .launch());
         }
     }
 
@@ -206,54 +210,38 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
 
     @Override
     protected boolean setDefaultKey(String key) {
-        final Context c = getContext();
-        setCurrentSystemNavigationMode(c, mOverlayManager, key);
+        setCurrentSystemNavigationMode(mOverlayManager, key);
         setIllustrationVideo(mVideoPreference, key);
-        if (TextUtils.equals(KEY_SYSTEM_NAV_GESTURAL, key) && (
-                isAnyServiceSupportAccessibilityButton() || isNavBarMagnificationEnabled())) {
-            Intent intent = new Intent(getActivity(), SettingsTutorialDialogWrapperActivity.class);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
-        }
+        setGestureNavigationTutorialDialog(key);
         return true;
     }
 
-    @VisibleForTesting
-    static void setBackSensitivity(Context context, IOverlayManager overlayManager,
-            int sensitivity) {
-        if (sensitivity < 0 || sensitivity >= BACK_GESTURE_INSET_OVERLAYS.length) {
-            throw new IllegalArgumentException("Sensitivity out of range.");
+    static void migrateOverlaySensitivityToSettings(Context context,
+            IOverlayManager overlayManager) {
+        if (!SystemNavigationPreferenceController.isGestureNavigationEnabled(context)) {
+            return;
         }
 
-        // Store the sensitivity level, to be able to restore when user returns to Gesture Nav mode
-        context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE).edit()
-                .putInt(PREFS_BACK_SENSITIVITY_KEY, sensitivity).apply();
-        if (getCurrentSystemNavigationMode(context) == KEY_SYSTEM_NAV_GESTURAL) {
-            setNavBarInteractionMode(overlayManager, BACK_GESTURE_INSET_OVERLAYS[sensitivity]);
+        OverlayInfo info = null;
+        try {
+            info = overlayManager.getOverlayInfo(NAV_BAR_MODE_GESTURAL_OVERLAY, USER_CURRENT);
+        } catch (RemoteException e) { /* Do nothing */ }
+        if (info != null && !info.isEnabled()) {
+            // Enable the default gesture nav overlay. Back sensitivity for left and right are
+            // stored as separate settings values, and other gesture nav overlays are deprecated.
+            setCurrentSystemNavigationMode(overlayManager, KEY_SYSTEM_NAV_GESTURAL);
+            Settings.Secure.putFloat(context.getContentResolver(),
+                    Settings.Secure.BACK_GESTURE_INSET_SCALE_LEFT, 1.0f);
+            Settings.Secure.putFloat(context.getContentResolver(),
+                    Settings.Secure.BACK_GESTURE_INSET_SCALE_RIGHT, 1.0f);
         }
-    }
-
-    @VisibleForTesting
-    static int getBackSensitivity(Context context, IOverlayManager overlayManager) {
-        for (int i = 0; i < BACK_GESTURE_INSET_OVERLAYS.length; i++) {
-            OverlayInfo info = null;
-            try {
-                info = overlayManager.getOverlayInfo(BACK_GESTURE_INSET_OVERLAYS[i], USER_CURRENT);
-            } catch (RemoteException e) { /* Do nothing */ }
-            if (info != null && info.isEnabled()) {
-                return i;
-            }
-        }
-        // If Gesture nav is not selected, read the value from shared preferences.
-        return context.getSharedPreferences(SHARED_PREFERENCES_NAME, Context.MODE_PRIVATE)
-                .getInt(PREFS_BACK_SENSITIVITY_KEY, BACK_GESTURE_INSET_DEFAULT_OVERLAY);
     }
 
     @VisibleForTesting
     static String getCurrentSystemNavigationMode(Context context) {
-        if (SystemNavigationPreferenceController.isEdgeToEdgeEnabled(context)) {
+        if (SystemNavigationPreferenceController.isGestureNavigationEnabled(context)) {
             return KEY_SYSTEM_NAV_GESTURAL;
-        } else if (SystemNavigationPreferenceController.isSwipeUpEnabled(context)) {
+        } else if (SystemNavigationPreferenceController.is2ButtonNavigationEnabled(context)) {
             return KEY_SYSTEM_NAV_2BUTTONS;
         } else {
             return KEY_SYSTEM_NAV_3BUTTONS;
@@ -261,24 +249,20 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
     }
 
     @VisibleForTesting
-    static void setCurrentSystemNavigationMode(Context context, IOverlayManager overlayManager,
-            String key) {
+    static void setCurrentSystemNavigationMode(IOverlayManager overlayManager, String key) {
+        String overlayPackage = NAV_BAR_MODE_GESTURAL_OVERLAY;
         switch (key) {
             case KEY_SYSTEM_NAV_GESTURAL:
-                int sensitivity = getBackSensitivity(context, overlayManager);
-                setNavBarInteractionMode(overlayManager, BACK_GESTURE_INSET_OVERLAYS[sensitivity]);
+                overlayPackage = NAV_BAR_MODE_GESTURAL_OVERLAY;
                 break;
             case KEY_SYSTEM_NAV_2BUTTONS:
-                setNavBarInteractionMode(overlayManager, NAV_BAR_MODE_2BUTTON_OVERLAY);
+                overlayPackage = NAV_BAR_MODE_2BUTTON_OVERLAY;
                 break;
             case KEY_SYSTEM_NAV_3BUTTONS:
-                setNavBarInteractionMode(overlayManager, NAV_BAR_MODE_3BUTTON_OVERLAY);
+                overlayPackage = NAV_BAR_MODE_3BUTTON_OVERLAY;
                 break;
         }
-    }
 
-    private static void setNavBarInteractionMode(IOverlayManager overlayManager,
-            String overlayPackage) {
         try {
             overlayManager.setEnabledExclusiveInCategory(overlayPackage, USER_CURRENT);
         } catch (RemoteException e) {
@@ -286,40 +270,49 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
         }
     }
 
-    private static void setIllustrationVideo(VideoPreference videoPref, String systemNavKey) {
-        videoPref.setVideo(0, 0);
+    private static void setIllustrationVideo(IllustrationPreference videoPref,
+            String systemNavKey) {
         switch (systemNavKey) {
             case KEY_SYSTEM_NAV_GESTURAL:
-                videoPref.setVideo(R.raw.system_nav_fully_gestural,
-                        R.drawable.system_nav_fully_gestural);
+                videoPref.setLottieAnimationResId(R.raw.lottie_system_nav_fully_gestural);
                 break;
             case KEY_SYSTEM_NAV_2BUTTONS:
-                videoPref.setVideo(R.raw.system_nav_2_button, R.drawable.system_nav_2_button);
+                videoPref.setLottieAnimationResId(R.raw.lottie_system_nav_2_button);
                 break;
             case KEY_SYSTEM_NAV_3BUTTONS:
-                videoPref.setVideo(R.raw.system_nav_3_button, R.drawable.system_nav_3_button);
+                videoPref.setLottieAnimationResId(R.raw.lottie_system_nav_3_button);
                 break;
         }
     }
 
-    private boolean isAnyServiceSupportAccessibilityButton() {
-        final AccessibilityManager ams = (AccessibilityManager) getContext().getSystemService(
-                Context.ACCESSIBILITY_SERVICE);
-        final List<AccessibilityServiceInfo> services = ams.getEnabledAccessibilityServiceList(
-                AccessibilityServiceInfo.FEEDBACK_ALL_MASK);
-
-        for (AccessibilityServiceInfo info : services) {
-            if ((info.flags & AccessibilityServiceInfo.FLAG_REQUEST_ACCESSIBILITY_BUTTON) != 0) {
-                return true;
-            }
+    private void setGestureNavigationTutorialDialog(String systemNavKey) {
+        if (TextUtils.equals(KEY_SYSTEM_NAV_GESTURAL, systemNavKey)
+                && !isAccessibilityFloatingMenuEnabled()
+                && (isAnyServiceSupportAccessibilityButton() || isNavBarMagnificationEnabled())) {
+            mA11yTutorialDialogShown = true;
+            AccessibilityGestureNavigationTutorial.showGestureNavigationTutorialDialog(getContext(),
+                    dialog -> mA11yTutorialDialogShown = false);
+        } else {
+            mA11yTutorialDialogShown = false;
         }
+    }
 
-        return false;
+    private boolean isAnyServiceSupportAccessibilityButton() {
+        final AccessibilityManager ams = getContext().getSystemService(AccessibilityManager.class);
+        final List<String> targets = ams.getAccessibilityShortcutTargets(
+                AccessibilityManager.ACCESSIBILITY_BUTTON);
+        return !targets.isEmpty();
     }
 
     private boolean isNavBarMagnificationEnabled() {
         return Settings.Secure.getInt(getContext().getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_DISPLAY_MAGNIFICATION_NAVBAR_ENABLED, 0) == 1;
+    }
+
+    private boolean isAccessibilityFloatingMenuEnabled() {
+        return Settings.Secure.getInt(getContext().getContentResolver(),
+                Settings.Secure.ACCESSIBILITY_BUTTON_MODE, /* def= */ -1)
+                == ACCESSIBILITY_BUTTON_MODE_FLOATING_MENU;
     }
 
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
@@ -329,5 +322,45 @@ public class SystemNavigationGestureSettings extends RadioButtonPickerFragment {
                 protected boolean isPageSearchEnabled(Context context) {
                     return SystemNavigationPreferenceController.isGestureAvailable(context);
                 }
+
+                @Override
+                public List<SearchIndexableRaw> getRawDataToIndex(Context context,
+                        boolean enabled) {
+                    final Resources res = context.getResources();
+                    final List<SearchIndexableRaw> result = new ArrayList<>();
+
+                    if (SystemNavigationPreferenceController.isOverlayPackageAvailable(context,
+                            NAV_BAR_MODE_GESTURAL_OVERLAY)) {
+                        SearchIndexableRaw data = new SearchIndexableRaw(context);
+                        data.title = res.getString(R.string.edge_to_edge_navigation_title);
+                        data.key = KEY_SYSTEM_NAV_GESTURAL;
+                        result.add(data);
+                    }
+
+                    if (SystemNavigationPreferenceController.isOverlayPackageAvailable(context,
+                            NAV_BAR_MODE_2BUTTON_OVERLAY)) {
+                        SearchIndexableRaw data = new SearchIndexableRaw(context);
+                        data.title = res.getString(R.string.swipe_up_to_switch_apps_title);
+                        data.key = KEY_SYSTEM_NAV_2BUTTONS;
+                        result.add(data);
+                    }
+
+                    if (SystemNavigationPreferenceController.isOverlayPackageAvailable(context,
+                            NAV_BAR_MODE_3BUTTON_OVERLAY)) {
+                        SearchIndexableRaw data = new SearchIndexableRaw(context);
+                        data.title = res.getString(R.string.legacy_navigation_title);
+                        data.key = KEY_SYSTEM_NAV_3BUTTONS;
+                        result.add(data);
+                    }
+
+                    return result;
+                }
             };
+
+    // From HelpResourceProvider
+    @Override
+    public int getHelpResource() {
+        // TODO(b/146001201): Replace with system navigation help page when ready.
+        return R.string.help_uri_default;
+    }
 }

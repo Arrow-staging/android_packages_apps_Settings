@@ -18,8 +18,6 @@
     <dimen name="appwidget_width">421dip</dimen>
     <dimen name="appwidget_height">68dip</dimen>
 
-    <dimen name="captioning_preview_height">100dp</dimen>
-
     <!-- ActionBar height -->
     <dimen name="actionbar_size">46dip</dimen>
 
@@ -29,10 +27,5 @@
 
     <!-- Display, Screen zoom -->
     <dimen name="screen_zoom_preview_height">160dp</dimen>
-
-    <!-- Text size of the big number in the donut. -->
-    <dimen name="storage_donut_view_percent_text_size">30sp</dimen>
-    <!-- Text size of the label text in the donut. -->
-    <dimen name="storage_donut_view_label_text_size">14sp</dimen>
 
 </resources>

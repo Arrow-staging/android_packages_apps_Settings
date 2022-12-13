@@ -31,6 +31,7 @@ import android.os.Message;
 import android.widget.Toast;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.fragment.app.FragmentActivity;
 
 import com.android.settings.R;
@@ -57,12 +58,17 @@ public class NetworkRequestDialogActivity extends FragmentActivity implements
     final static String EXTRA_IS_SPECIFIED_SSID =
         "com.android.settings.wifi.extra.REQUEST_IS_FOR_SINGLE_NETWORK";
 
-    private NetworkRequestDialogBaseFragment mDialogFragment;
+    @VisibleForTesting
+    NetworkRequestDialogBaseFragment mDialogFragment;
+    @VisibleForTesting
+    boolean mIsSpecifiedSsid;
+    @VisibleForTesting
+    boolean mShowingErrorDialog;
+    @VisibleForTesting
+    ProgressDialog mProgressDialog;
+
     private NetworkRequestUserSelectionCallback mUserSelectionCallback;
-    private boolean mIsSpecifiedSsid;
-    private boolean mShowingErrorDialog;
     private WifiConfiguration mMatchedConfig;
-    private ProgressDialog mProgressDialog;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -102,7 +108,8 @@ public class NetworkRequestDialogActivity extends FragmentActivity implements
         mDialogFragment.show(getSupportFragmentManager(), TAG);
     }
 
-    private void dismissDialogs() {
+    @VisibleForTesting
+    void dismissDialogs() {
         if (mDialogFragment != null) {
             mDialogFragment.dismiss();
             mDialogFragment = null;
@@ -173,7 +180,9 @@ public class NetworkRequestDialogActivity extends FragmentActivity implements
             return;
         }
 
-        mDialogFragment.onUserSelectionCallbackRegistration(userSelectionCallback);
+        if (mDialogFragment != null) {
+            mDialogFragment.onUserSelectionCallbackRegistration(userSelectionCallback);
+        }
     }
 
     @Override
@@ -193,22 +202,23 @@ public class NetworkRequestDialogActivity extends FragmentActivity implements
         if (mIsSpecifiedSsid) {
             // Prevent from throwing same dialog, because onMatch() will be called many times.
             if (mMatchedConfig == null) {
-                mMatchedConfig = WifiUtils.getWifiConfig(
-                    null /* accesspoint */, scanResults.get(0), null /* password */);
+                mMatchedConfig = WifiUtils.getWifiConfig(null /* wifiEntry */, scanResults.get(0));
                 showSingleSsidRequestDialog(
-                    WifiInfo.removeDoubleQuotes(mMatchedConfig.SSID), false /* isTryAgain */);
+                        WifiInfo.sanitizeSsid(mMatchedConfig.SSID), false /* isTryAgain */);
             }
             return;
         }
 
-        mDialogFragment.onMatch(scanResults);
+        if (mDialogFragment != null) {
+            mDialogFragment.onMatch(scanResults);
+        }
     }
 
     @Override
     public void onUserSelectionConnectSuccess(WifiConfiguration wificonfiguration) {
         if (!isFinishing()) {
-            Toast.makeText(this, R.string.network_connection_connect_successful,
-                Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.network_connection_connect_successful, Toast.LENGTH_SHORT)
+                    .show();
             setResult(RESULT_OK);
             finish();
         }
@@ -216,13 +226,12 @@ public class NetworkRequestDialogActivity extends FragmentActivity implements
 
     @Override
     public void onUserSelectionConnectFailure(WifiConfiguration wificonfiguration) {
-        if (mIsSpecifiedSsid) {
-            showSingleSsidRequestDialog(
-                WifiInfo.removeDoubleQuotes(mMatchedConfig.SSID), true /* isTryAgain */);
-            return;
+        if (!isFinishing()) {
+            Toast.makeText(this, R.string.network_connection_connect_failure, Toast.LENGTH_SHORT)
+                    .show();
+            setResult(RESULT_OK);
+            finish();
         }
-
-        mDialogFragment.onUserSelectionConnectFailure(wificonfiguration);
     }
 
     // Called when user click "Connect" button. Called by

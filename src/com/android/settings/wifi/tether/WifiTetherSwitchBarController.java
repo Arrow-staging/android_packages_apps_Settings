@@ -17,6 +17,11 @@
 package com.android.settings.wifi.tether;
 
 import static android.net.ConnectivityManager.TETHERING_WIFI;
+import static android.net.wifi.WifiManager.EXTRA_WIFI_AP_STATE;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_DISABLING;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLED;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_ENABLING;
+import static android.net.wifi.WifiManager.WIFI_AP_STATE_FAILED;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -26,36 +31,43 @@ import android.net.ConnectivityManager;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.Settings;
+import android.util.Log;
+import android.widget.Switch;
 
 import androidx.annotation.VisibleForTesting;
 
 import com.android.settings.datausage.DataSaverBackend;
-import com.android.settings.widget.SwitchWidgetController;
+import com.android.settings.widget.SettingsMainSwitchBar;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
+import com.android.settingslib.widget.OnMainSwitchChangeListener;
 
-public class WifiTetherSwitchBarController implements SwitchWidgetController.OnSwitchChangeListener,
-        LifecycleObserver, OnStart, OnStop, DataSaverBackend.Listener {
+/**
+ * Controller for logic pertaining to switch Wi-Fi tethering.
+ */
+public class WifiTetherSwitchBarController implements
+        LifecycleObserver, OnStart, OnStop, DataSaverBackend.Listener, OnMainSwitchChangeListener {
 
+    private static final String TAG = "WifiTetherSBC";
     private static final IntentFilter WIFI_INTENT_FILTER;
 
     private final Context mContext;
-    private final SwitchWidgetController mSwitchBar;
+    private final SettingsMainSwitchBar mSwitchBar;
+    private final Switch mSwitch;
     private final ConnectivityManager mConnectivityManager;
     private final WifiManager mWifiManager;
 
     @VisibleForTesting
-    final DataSaverBackend mDataSaverBackend;
+    DataSaverBackend mDataSaverBackend;
     @VisibleForTesting
     final ConnectivityManager.OnStartTetheringCallback mOnStartTetheringCallback =
             new ConnectivityManager.OnStartTetheringCallback() {
                 @Override
                 public void onTetheringFailed() {
                     super.onTetheringFailed();
-                    mSwitchBar.setChecked(false);
-                    updateWifiSwitch();
+                    Log.e(TAG, "Failed to start Wi-Fi Tethering.");
+                    handleWifiApStateChanged(mWifiManager.getWifiApState());
                 }
             };
 
@@ -63,51 +75,66 @@ public class WifiTetherSwitchBarController implements SwitchWidgetController.OnS
         WIFI_INTENT_FILTER = new IntentFilter(WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
     }
 
-    WifiTetherSwitchBarController(Context context, SwitchWidgetController switchBar) {
+    WifiTetherSwitchBarController(Context context, SettingsMainSwitchBar switchBar) {
         mContext = context;
         mSwitchBar = switchBar;
+        mSwitch = mSwitchBar.getSwitch();
         mDataSaverBackend = new DataSaverBackend(context);
         mConnectivityManager =
                 (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-        mSwitchBar.setChecked(mWifiManager.getWifiApState() == WifiManager.WIFI_AP_STATE_ENABLED);
-        mSwitchBar.setListener(this);
+        mSwitchBar.setChecked(mWifiManager.getWifiApState() == WIFI_AP_STATE_ENABLED);
         updateWifiSwitch();
     }
 
     @Override
     public void onStart() {
         mDataSaverBackend.addListener(this);
-        mSwitchBar.startListening();
-        mContext.registerReceiver(mReceiver, WIFI_INTENT_FILTER);
+        mSwitchBar.addOnSwitchChangeListener(this);
+        mContext.registerReceiver(mReceiver, WIFI_INTENT_FILTER,
+                Context.RECEIVER_EXPORTED_UNAUDITED);
+        handleWifiApStateChanged(mWifiManager.getWifiApState());
     }
 
     @Override
     public void onStop() {
         mDataSaverBackend.remListener(this);
-        mSwitchBar.stopListening();
         mContext.unregisterReceiver(mReceiver);
     }
 
     @Override
-    public boolean onSwitchToggled(boolean isChecked) {
-        if (!isChecked) {
-            stopTether();
-        } else if (!mWifiManager.isWifiApEnabled()) {
+    public void onSwitchChanged(Switch switchView, boolean isChecked) {
+        // Filter out unnecessary callbacks when switch is disabled.
+        if (!switchView.isEnabled()) return;
+
+        if (isChecked) {
             startTether();
+        } else {
+            stopTether();
         }
-        return true;
     }
 
     void stopTether() {
+        if (!isWifiApActivated()) return;
+
         mSwitchBar.setEnabled(false);
         mConnectivityManager.stopTethering(TETHERING_WIFI);
     }
 
     void startTether() {
+        if (isWifiApActivated()) return;
+
         mSwitchBar.setEnabled(false);
         mConnectivityManager.startTethering(TETHERING_WIFI, true /* showProvisioningUi */,
                 mOnStartTetheringCallback, new Handler(Looper.getMainLooper()));
+    }
+
+    private boolean isWifiApActivated() {
+        final int wifiApState = mWifiManager.getWifiApState();
+        if (wifiApState == WIFI_AP_STATE_ENABLED || wifiApState == WIFI_AP_STATE_ENABLING) {
+            return true;
+        }
+        return false;
     }
 
     private final BroadcastReceiver mReceiver = new BroadcastReceiver() {
@@ -115,39 +142,21 @@ public class WifiTetherSwitchBarController implements SwitchWidgetController.OnS
         public void onReceive(Context context, Intent intent) {
             String action = intent.getAction();
             if (WifiManager.WIFI_AP_STATE_CHANGED_ACTION.equals(action)) {
-                final int state = intent.getIntExtra(
-                        WifiManager.EXTRA_WIFI_AP_STATE, WifiManager.WIFI_AP_STATE_FAILED);
+                final int state = intent.getIntExtra(EXTRA_WIFI_AP_STATE, WIFI_AP_STATE_FAILED);
                 handleWifiApStateChanged(state);
             }
         }
     };
 
-    private void handleWifiApStateChanged(int state) {
-        switch (state) {
-            case WifiManager.WIFI_AP_STATE_ENABLING:
-                mSwitchBar.setEnabled(false);
-                break;
-            case WifiManager.WIFI_AP_STATE_ENABLED:
-                if (!mSwitchBar.isChecked()) {
-                    mSwitchBar.setChecked(true);
-                }
-                updateWifiSwitch();
-                break;
-            case WifiManager.WIFI_AP_STATE_DISABLING:
-                if (mSwitchBar.isChecked()) {
-                    mSwitchBar.setChecked(false);
-                }
-                mSwitchBar.setEnabled(false);
-                break;
-            case WifiManager.WIFI_AP_STATE_DISABLED:
-                mSwitchBar.setChecked(false);
-                updateWifiSwitch();
-                break;
-            default:
-                mSwitchBar.setChecked(false);
-                updateWifiSwitch();
-                break;
+    @VisibleForTesting
+    void handleWifiApStateChanged(int state) {
+        if (state == WIFI_AP_STATE_ENABLING || state == WIFI_AP_STATE_DISABLING) return;
+
+        final boolean shouldBeChecked = (state == WIFI_AP_STATE_ENABLED);
+        if (mSwitch.isChecked() != shouldBeChecked) {
+            mSwitch.setChecked(shouldBeChecked);
         }
+        updateWifiSwitch();
     }
 
     private void updateWifiSwitch() {
@@ -160,12 +169,12 @@ public class WifiTetherSwitchBarController implements SwitchWidgetController.OnS
     }
 
     @Override
-    public void onWhitelistStatusChanged(int uid, boolean isWhitelisted) {
+    public void onAllowlistStatusChanged(int uid, boolean isAllowlisted) {
         // we don't care, since we just want to read the value
     }
 
     @Override
-    public void onBlacklistStatusChanged(int uid, boolean isBlacklisted) {
+    public void onDenylistStatusChanged(int uid, boolean isDenylisted) {
         // we don't care, since we just want to read the value
     }
 }

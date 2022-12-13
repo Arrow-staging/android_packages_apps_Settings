@@ -19,12 +19,12 @@ package com.android.settings.network.telephony;
 import android.app.Dialog;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.content.res.Resources;
 import android.graphics.Paint;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.OvalShape;
 import android.os.Bundle;
-import android.telephony.ServiceState;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
@@ -46,7 +46,13 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.android.settings.R;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
+import com.android.settings.network.SubscriptionUtil;
 import com.android.settingslib.DeviceInfoUtils;
+
+import com.google.common.collect.ImmutableMap;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * A dialog allowing the display name of a mobile network subscription to be changed
@@ -63,6 +69,7 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
     private EditText mNameView;
     private Spinner mColorSpinner;
     private Color[] mColors;
+    private Map<Integer, Integer> mLightDarkMap;
 
     public static RenameMobileNetworkDialogFragment newInstance(int subscriptionId) {
         final Bundle args = new Bundle(1);
@@ -98,6 +105,21 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
         mTelephonyManager = getTelephonyManager(context);
         mSubscriptionManager = getSubscriptionManager(context);
         mSubId = getArguments().getInt(KEY_SUBSCRIPTION_ID);
+        Resources res = context.getResources();
+        mLightDarkMap = ImmutableMap.<Integer, Integer>builder()
+                .put(res.getInteger(R.color.SIM_color_cyan),
+                        res.getInteger(R.color.SIM_dark_mode_color_cyan))
+                .put(res.getInteger(R.color.SIM_color_blue800),
+                        res.getInteger(R.color.SIM_dark_mode_color_blue))
+                .put(res.getInteger(R.color.SIM_color_green800),
+                        res.getInteger(R.color.SIM_dark_mode_color_green))
+                .put(res.getInteger(R.color.SIM_color_purple800),
+                        res.getInteger(R.color.SIM_dark_mode_color_purple))
+                .put(res.getInteger(R.color.SIM_color_pink800),
+                        res.getInteger(R.color.SIM_dark_mode_color_pink))
+                .put(res.getInteger(R.color.SIM_color_orange),
+                        res.getInteger(R.color.SIM_dark_mode_color_orange))
+                .build();
     }
 
     @NonNull
@@ -115,9 +137,9 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
                 .setPositiveButton(R.string.mobile_network_sim_name_rename, (dialog, which) -> {
                     mSubscriptionManager.setDisplayName(mNameView.getText().toString(), mSubId,
                             SubscriptionManager.NAME_SOURCE_USER_INPUT);
-                    mSubscriptionManager.setIconTint(
-                            mColors[mColorSpinner.getSelectedItemPosition()].getColor(),
-                            mSubId);
+                    final Color color = (mColorSpinner == null) ? mColors[0]
+                            : mColors[mColorSpinner.getSelectedItemPosition()];
+                    mSubscriptionManager.setIconTint(color.getColor(), mSubId);
                 })
                 .setNegativeButton(android.R.string.cancel, null);
         return builder.create();
@@ -126,12 +148,23 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
     @VisibleForTesting
     protected void populateView(View view) {
         mNameView = view.findViewById(R.id.name_edittext);
-        final SubscriptionInfo info = mSubscriptionManager.getActiveSubscriptionInfo(mSubId);
+        SubscriptionInfo info = null;
+        final List<SubscriptionInfo> infoList = mSubscriptionManager
+                .getAvailableSubscriptionInfoList();
+        if (infoList != null) {
+            for (SubscriptionInfo subInfo : infoList) {
+                if (subInfo.getSubscriptionId() == mSubId) {
+                    info = subInfo;
+                    break;
+                }
+            }
+        }
         if (info == null) {
             Log.w(TAG, "got null SubscriptionInfo for mSubId:" + mSubId);
             return;
         }
-        final CharSequence displayName = info.getDisplayName();
+        final CharSequence displayName = SubscriptionUtil.getUniqueSubscriptionDisplayName(
+                info, getContext());
         mNameView.setText(displayName);
         if (!TextUtils.isEmpty(displayName)) {
             mNameView.setSelection(displayName.length());
@@ -141,22 +174,20 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
         final ColorAdapter adapter = new ColorAdapter(getContext(),
                 R.layout.dialog_mobile_network_color_picker_item, mColors);
         mColorSpinner.setAdapter(adapter);
-        for (int i = 0; i < mColors.length; i++) {
-            if (mColors[i].getColor() == info.getIconTint()) {
-                mColorSpinner.setSelection(i);
-                break;
-            }
-        }
+        mColorSpinner.setSelection(getSimColorIndex(info.getIconTint()));
 
         final TextView operatorName = view.findViewById(R.id.operator_name_value);
-        final ServiceState serviceState = mTelephonyManager.getServiceStateForSubscriber(mSubId);
-        operatorName.setText(serviceState.getOperatorAlphaLong());
+        mTelephonyManager = mTelephonyManager.createForSubscriptionId(mSubId);
+        operatorName.setText(info.getCarrierName());
 
         final TextView phoneTitle = view.findViewById(R.id.number_label);
         phoneTitle.setVisibility(info.isOpportunistic() ? View.GONE : View.VISIBLE);
 
         final TextView phoneNumber = view.findViewById(R.id.number_value);
-        phoneNumber.setText(DeviceInfoUtils.getBidiFormattedPhoneNumber(getContext(), info));
+        final String pn = DeviceInfoUtils.getBidiFormattedPhoneNumber(getContext(), info);
+        if (!TextUtils.isEmpty(pn)) {
+            phoneNumber.setText(pn);
+        }
     }
 
     @Override
@@ -183,8 +214,13 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
             if (convertView == null) {
                 convertView = inflater.inflate(mItemResId, null);
             }
+            boolean isDarkMode = false;
+            if ((getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK)
+                    == Configuration.UI_MODE_NIGHT_YES) {
+                isDarkMode = true;
+            }
             ((ImageView) convertView.findViewById(R.id.color_icon))
-                    .setImageDrawable(getItem(position).getDrawable());
+                    .setImageDrawable(getItem(position).getDrawable(isDarkMode));
             ((TextView) convertView.findViewById(R.id.color_label))
                     .setText(getItem(position).getLabel());
 
@@ -199,7 +235,7 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
 
     private Color[] getColors() {
         final Resources res = getContext().getResources();
-        final int[] colorInts = res.getIntArray(com.android.internal.R.array.sim_colors);
+        final int[] colorInts = res.getIntArray(R.array.sim_color_light);
         final String[] colorStrings = res.getStringArray(R.array.color_picker);
         final int iconSize = res.getDimensionPixelSize(R.dimen.color_swatch_size);
         final int strokeWidth = res.getDimensionPixelSize(R.dimen.color_swatch_stroke_width);
@@ -210,7 +246,7 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
         return colors;
     }
 
-    private static class Color {
+    private class Color {
 
         private String mLabel;
         private int mColor;
@@ -235,8 +271,42 @@ public class RenameMobileNetworkDialogFragment extends InstrumentedDialogFragmen
             return mColor;
         }
 
-        private ShapeDrawable getDrawable() {
+        private ShapeDrawable getDrawable(boolean isDarkMode) {
+            if (isDarkMode) {
+                mDrawable.getPaint().setColor(getDarkColor(mColor));
+            }
             return mDrawable;
         }
+    }
+
+    private int getDarkColor(int lightColor) {
+        return mLightDarkMap.getOrDefault(lightColor, lightColor);
+    }
+
+    /*
+    * Get the color index from previous color that defined in Android OS
+    * (frameworks/base/core/res/res/values/arrays.xml). If can't find the color, continue to look
+    * for it in the new color plattee. If not, give it the first index.
+    */
+
+    private int getSimColorIndex(int color) {
+        int index = -1;
+        final int[] previousSimColorInts =
+                getContext().getResources().getIntArray(com.android.internal.R.array.sim_colors);
+        for (int i = 0; i < previousSimColorInts.length; i++) {
+            if (previousSimColorInts[i] == color) {
+                index = i;
+            }
+        }
+
+        if (index == -1) {
+            for (int i = 0; i < mColors.length; i++) {
+                if (mColors[i].getColor() == color) {
+                    index = i;
+                }
+            }
+        }
+
+        return index == -1 ? 0 : index;
     }
 }

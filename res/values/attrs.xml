@@ -68,8 +68,12 @@
         <attr name="searchable" format="boolean" />
         <!-- Classname of a PreferenceController corresponding to the preference -->
         <attr name="controller" format="string" />
-        <!-- customized subtitle if it's an unavailable slice -->
+        <!-- Customized subtitle if it's an unavailable slice -->
         <attr name="unavailableSliceSubtitle" format="string" />
+        <!-- Whether or not the preference is for work profile, by default it's false. -->
+        <attr name="forWork" format="boolean" />
+        <!-- Identifier for highlighting the menu preference on 2-pane -->
+        <attr name="highlightableMenuKey" format="string" />
     </declare-styleable>
 
     <declare-styleable name="PreferenceScreen">
@@ -99,6 +103,11 @@
         <attr name="iconBackgroundColor" format="reference|color" />
     </declare-styleable>
 
+    <!-- For AppGridView -->
+    <declare-styleable name="AppGridView">
+        <attr name="appCount" format="integer" />
+    </declare-styleable>
+
     <attr name="switchBarTheme" format="reference" />
     <attr name="switchBarMarginStart" format="dimension" />
     <attr name="switchBarMarginEnd" format="dimension" />
@@ -111,10 +120,6 @@
     <!-- Confirm device credentials screen -->
     <attr name="confirmDeviceCredentialsSideMargin" format="dimension" />
     <attr name="confirmDeviceCredentialsTopMargin" format="dimension" />
-
-    <declare-styleable name="WorkPreference">
-        <attr name="forWork" format="boolean" />
-    </declare-styleable>
 
     <declare-styleable name="VideoPreference">
         <attr name="animation" format="reference" />
@@ -141,13 +146,11 @@
         <attr name="android:gravity" />
     </declare-styleable>
 
-    <!-- For DonutView -->
-    <declare-styleable name="DonutView">
-        <attr name="meterBackgroundColor" format="color" />
-        <attr name="meterConsumedColor" format="color" />
-        <attr name="applyColorAccent" format="boolean" />
-        <attr name="showPercentString" format="boolean" />
-        <attr name="thickness" format="dimension" />
+    <!-- For biometric enroll checkboxes -->
+    <declare-styleable name="BiometricEnrollCheckbox">
+        <attr name="icon" format="reference" />
+        <attr name="title" format="reference" />
+        <attr name="description" format="reference" />
     </declare-styleable>
 
     <!-- For Face enroll accessibility toggle -->
@@ -159,6 +162,17 @@
     <declare-styleable name="TwoStateButtonPreference">
         <attr name="textOn" format="reference" />
         <attr name="textOff" format="reference" />
+    </declare-styleable>
+
+    <!-- For LabeledSeekBarPreference -->
+    <declare-styleable name="LabeledSeekBarPreference">
+        <attr name="textStart" format="reference" />
+        <attr name="textEnd" format="reference" />
+        <attr name="tickMark" format="reference" />
+        <attr name="iconStart" format="reference" />
+        <attr name="iconEnd" format="reference" />
+        <attr name="iconStartContentDescription" format="reference" />
+        <attr name="iconEndContentDescription" format="reference" />
     </declare-styleable>
 
     <declare-styleable name="TintDrawable">

@@ -2,18 +2,18 @@
 android-settings-core-eng+gerrit@google.com
 
 # People who can approve changes for submission
+arcwang@google.com
 chiujason@google.com
 edgarwang@google.com
 emilychuang@google.com
 millchen@google.com
-rafftsai@google.com
 stanleytfwang@google.com
 sunnyshao@google.com
 tmfang@google.com
 yantingyang@google.com
 
-# Emergency approvers in case the above are not available
-zhfan@google.com
+# Emergency only
+luyota@google.com
 
 # Exempt resource files (because they are in a flat directory and too hard to manage via OWNERS)
 per-file *.xml=*

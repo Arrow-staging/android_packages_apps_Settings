@@ -42,7 +42,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
-
 import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
@@ -67,33 +66,58 @@ public class BatteryBroadcastReceiverTest {
         mBatteryBroadcastReceiver = new BatteryBroadcastReceiver(mContext);
         mBatteryBroadcastReceiver.mBatteryLevel = BATTERY_INIT_LEVEL;
         mBatteryBroadcastReceiver.mBatteryStatus = BATTERY_INIT_STATUS;
+        mBatteryBroadcastReceiver.mBatteryHealth = BatteryManager.BATTERY_HEALTH_UNKNOWN;
         mBatteryBroadcastReceiver.setBatteryChangedListener(mBatteryListener);
 
         mChargingIntent = new Intent(Intent.ACTION_BATTERY_CHANGED);
         mChargingIntent.putExtra(BatteryManager.EXTRA_LEVEL, BATTERY_INTENT_LEVEL);
         mChargingIntent.putExtra(BatteryManager.EXTRA_SCALE, BATTERY_INTENT_SCALE);
         mChargingIntent
-            .putExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_CHARGING);
+                .putExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_CHARGING);
     }
 
     @Test
     @Config(shadows = {
-            BatteryFixSliceTest.ShadowBatteryStatsHelperLoader.class,
             BatteryFixSliceTest.ShadowBatteryTipLoader.class
     })
     public void testOnReceive_batteryLevelChanged_dataUpdated() {
         mBatteryBroadcastReceiver.onReceive(mContext, mChargingIntent);
 
         assertThat(mBatteryBroadcastReceiver.mBatteryLevel)
-            .isEqualTo(Utils.getBatteryPercentage(mChargingIntent));
-        assertThat(mBatteryBroadcastReceiver.mBatteryStatus)
-            .isEqualTo(Utils.getBatteryStatus(mContext.getResources(), mChargingIntent));
+                .isEqualTo(Utils.getBatteryPercentage(mChargingIntent));
+        assertThat(mBatteryBroadcastReceiver.mBatteryStatus).isEqualTo(
+                Utils.getBatteryStatus(mContext, mChargingIntent, /* compactStatus= */ false));
         verify(mBatteryListener).onBatteryChanged(BatteryUpdateType.BATTERY_LEVEL);
     }
 
     @Test
     @Config(shadows = {
-            BatteryFixSliceTest.ShadowBatteryStatsHelperLoader.class,
+            BatteryFixSliceTest.ShadowBatteryTipLoader.class
+    })
+    public void testOnReceive_batteryHealthChanged_dataUpdated() {
+        mChargingIntent
+                .putExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_OVERHEAT);
+        mBatteryBroadcastReceiver.onReceive(mContext, mChargingIntent);
+
+        assertThat(mBatteryBroadcastReceiver.mBatteryHealth)
+                .isEqualTo(BatteryManager.BATTERY_HEALTH_OVERHEAT);
+        verify(mBatteryListener).onBatteryChanged(BatteryUpdateType.BATTERY_HEALTH);
+    }
+
+    @Test
+    @Config(shadows = {
+            BatteryFixSliceTest.ShadowBatteryTipLoader.class
+    })
+    public void onReceive_batteryNotPresent_shouldShowHelpMessage() {
+        mChargingIntent.putExtra(BatteryManager.EXTRA_PRESENT, false);
+
+        mBatteryBroadcastReceiver.onReceive(mContext, mChargingIntent);
+
+        verify(mBatteryListener).onBatteryChanged(BatteryUpdateType.BATTERY_NOT_PRESENT);
+    }
+
+    @Test
+    @Config(shadows = {
             BatteryFixSliceTest.ShadowBatteryTipLoader.class
     })
     public void testOnReceive_powerSaveModeChanged_listenerInvoked() {
@@ -105,13 +129,12 @@ public class BatteryBroadcastReceiverTest {
 
     @Test
     @Config(shadows = {
-            BatteryFixSliceTest.ShadowBatteryStatsHelperLoader.class,
             BatteryFixSliceTest.ShadowBatteryTipLoader.class
     })
     public void testOnReceive_batteryDataNotChanged_listenerNotInvoked() {
         final String batteryLevel = Utils.getBatteryPercentage(mChargingIntent);
         final String batteryStatus =
-            Utils.getBatteryStatus(mContext.getResources(), mChargingIntent);
+                Utils.getBatteryStatus(mContext, mChargingIntent, /* compactStatus= */ false);
         mBatteryBroadcastReceiver.mBatteryLevel = batteryLevel;
         mBatteryBroadcastReceiver.mBatteryStatus = batteryStatus;
 
@@ -119,12 +142,13 @@ public class BatteryBroadcastReceiverTest {
 
         assertThat(mBatteryBroadcastReceiver.mBatteryLevel).isEqualTo(batteryLevel);
         assertThat(mBatteryBroadcastReceiver.mBatteryStatus).isEqualTo(batteryStatus);
+        assertThat(mBatteryBroadcastReceiver.mBatteryHealth)
+                .isEqualTo(BatteryManager.BATTERY_HEALTH_UNKNOWN);
         verify(mBatteryListener, never()).onBatteryChanged(anyInt());
     }
 
     @Test
     @Config(shadows = {
-            BatteryFixSliceTest.ShadowBatteryStatsHelperLoader.class,
             BatteryFixSliceTest.ShadowBatteryTipLoader.class
     })
     public void testRegister_updateBatteryStatus() {
@@ -134,9 +158,11 @@ public class BatteryBroadcastReceiverTest {
         mBatteryBroadcastReceiver.register();
 
         assertThat(mBatteryBroadcastReceiver.mBatteryLevel)
-            .isEqualTo(Utils.getBatteryPercentage(mChargingIntent));
-        assertThat(mBatteryBroadcastReceiver.mBatteryStatus)
-            .isEqualTo(Utils.getBatteryStatus(mContext.getResources(), mChargingIntent));
+                .isEqualTo(Utils.getBatteryPercentage(mChargingIntent));
+        assertThat(mBatteryBroadcastReceiver.mBatteryStatus).isEqualTo(
+                Utils.getBatteryStatus(mContext, mChargingIntent, /* compactStatus= */ false));
+        assertThat(mBatteryBroadcastReceiver.mBatteryHealth)
+                .isEqualTo(BatteryManager.BATTERY_HEALTH_UNKNOWN);
         // 2 times because register will force update the battery
         verify(mBatteryListener, times(2)).onBatteryChanged(BatteryUpdateType.MANUAL);
     }

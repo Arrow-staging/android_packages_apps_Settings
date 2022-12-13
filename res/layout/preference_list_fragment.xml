@@ -19,7 +19,7 @@
 
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:androidprv="http://schemas.android.com/apk/prv/res/android"
     android:id="@+id/container_material"
     android:orientation="vertical"
     android:layout_width="match_parent"
@@ -49,10 +49,11 @@
         android:padding="@*android:dimen/preference_fragment_padding_side"
         android:layout_gravity="center"
         android:gravity="center_vertical"
+        android:textAppearance="?android:attr/textAppearanceMedium"
         android:visibility="gone" />
 
     <LinearLayout
-        android:theme="@style/Theme.MaterialComponents.DayNight"
+        android:theme="@style/Theme.TabTheme"
         android:id="@+id/tab_container"
         android:clipToPadding="true"
         android:clipChildren="true"
@@ -62,27 +63,15 @@
         android:visibility="gone">
 
         <com.google.android.material.tabs.TabLayout
-            android:background="@android:color/transparent"
             android:id="@+id/tabs"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:tabMaxWidth="0dp"
-            app:tabGravity="fill"
-            app:tabMode="fixed"
-            app:tabIndicatorColor="@*android:color/accent_device_default"
-            app:tabSelectedTextColor="@*android:color/accent_device_default"
-            app:tabTextColor="?android:attr/textColorSecondary"/>
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"/>
+            style="@style/SettingsLibTabsStyle"/>
 
-        <androidx.viewpager.widget.ViewPager
+        <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/view_pager"
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-        </androidx.viewpager.widget.ViewPager>
+        </androidx.viewpager2.widget.ViewPager2>
     </LinearLayout>
 
 </LinearLayout>

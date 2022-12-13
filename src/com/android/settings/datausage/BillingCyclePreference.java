@@ -20,6 +20,8 @@ import android.content.Intent;
 import android.net.NetworkTemplate;
 import android.os.Bundle;
 import android.os.RemoteException;
+import android.telephony.TelephonyManager;
+import android.telephony.data.ApnSetting;
 import android.util.AttributeSet;
 
 import androidx.preference.Preference;
@@ -76,7 +78,8 @@ public class BillingCyclePreference extends Preference
     private void updateEnabled() {
         try {
             setEnabled(mServices.mNetworkService.isBandwidthControlEnabled()
-                    && mServices.mTelephonyManager.getDataEnabled(mSubId)
+                    && mServices.mTelephonyManager.createForSubscriptionId(mSubId)
+                            .isDataEnabledForReason(TelephonyManager.DATA_ENABLED_REASON_USER)
                     && mServices.mUserManager.isAdminUser());
         } catch (RemoteException e) {
             setEnabled(false);
@@ -96,7 +99,7 @@ public class BillingCyclePreference extends Preference
     }
 
     /**
-     * Implementation of MobileDataEnabledListener.Client
+     * Implementation of {@code MobileDataEnabledListener.Client}
      */
     public void onMobileDataEnabledChange() {
         updateEnabled();

@@ -50,6 +50,11 @@
   </string-array>
     <!-- no translation found for dark_ui_scheduler_preference_titles:0 (7465697698048662118) -->
     <!-- no translation found for dark_ui_scheduler_preference_titles:1 (4057198235664064478) -->
+    <!-- no translation found for dark_ui_scheduler_preference_titles:2 (8842756744447000897) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:0 (8160793372964333729) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:1 (1570862084158925417) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:2 (1527300254382984555) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:3 (5231566512901956369) -->
   <string-array name="lock_after_timeout_entries">
     <item msgid="2223808927866488981">"Веднаш"</item>
     <item msgid="463591454172790676">"5 секунди"</item>
@@ -73,10 +78,10 @@
     <item msgid="1656176059757237036">"Се поврзува..."</item>
     <item msgid="3249903732481917388">"Автентицирање..."</item>
     <item msgid="7789156794775399931">"Добивање ИП адреса..."</item>
-    <item msgid="492518447401534767">"Поврзана"</item>
+    <item msgid="492518447401534767">"Поврзано"</item>
     <item msgid="4322989558568666518">"Суспендирана"</item>
     <item msgid="286164147080824297">"Се исклучува..."</item>
-    <item msgid="1628460745311787730">"Исклучено"</item>
+    <item msgid="1628460745311787730">"Не е поврзано"</item>
     <item msgid="4013828218541488949">"Неуспешна"</item>
     <item msgid="5473541238056528086">"Блокирана"</item>
     <item msgid="1114588261171522603">"Привремено избегнува лоша врска"</item>
@@ -90,18 +95,19 @@
     <item msgid="2227930004124157952">"Поврзано на <xliff:g id="NETWORK_NAME">%1$s</xliff:g>"</item>
     <item msgid="7104168043537022445">"Суспендирана"</item>
     <item msgid="2595938203187002544">"Исклучување од <xliff:g id="NETWORK_NAME">%1$s</xliff:g>..."</item>
-    <item msgid="2435175968703898648">"Исклучено"</item>
+    <item msgid="2435175968703898648">"Не е поврзано"</item>
     <item msgid="4804573668906374228">"Неуспешна"</item>
     <item msgid="4036325515437530221">"Блокирано"</item>
     <item msgid="8883455894013518008">"Привремено избегнува лоша врска"</item>
   </string-array>
     <!-- no translation found for wifi_tether_security:0 (6312112980634811065) -->
     <!-- no translation found for wifi_tether_security:1 (1428294025896439258) -->
+    <!-- no translation found for wifi_tether_security:2 (6851763638266088835) -->
+    <!-- no translation found for wifi_tether_security:3 (5512131148045414341) -->
   <string-array name="eap_ocsp_type">
-    <item msgid="7202884222741437608">"Не потврдувај"</item>
-    <item msgid="5703177653586269306">"Барај статус на сертификатот"</item>
+    <item msgid="8568170800958331461">"Не потврдувај"</item>
+    <item msgid="5703177653586269306">"Побарај статус на сертификатот"</item>
     <item msgid="326388247868439528">"Статусот на сертификатот е задолжителен"</item>
-    <item msgid="1090956283885790552">"Статусите за сите недоверливи сертификати се задолжителни"</item>
   </string-array>
   <string-array name="wifi_p2p_wps_setup">
     <item msgid="1446717102923442720">"Копче „Притисни“"</item>
@@ -137,7 +143,7 @@
     <item msgid="202124107702016530">"Одличен"</item>
   </string-array>
   <string-array name="data_usage_data_range">
-    <item msgid="3528385925116637939">"Последните 30 дена"</item>
+    <item msgid="3528385925116637939">"Минатите 30 дена"</item>
     <item msgid="3356834403629955571">"Пост. цикл. на корист...."</item>
   </string-array>
   <string-array name="usage_stats_display_order_types">
@@ -151,17 +157,23 @@
     <item msgid="9105006864434061405">"TTLS"</item>
     <item msgid="3199281439582632425">"PWD"</item>
   </string-array>
-    <!-- no translation found for wifi_peap_phase2_entries:0 (8082624033981656770) -->
-    <!-- no translation found for wifi_peap_phase2_entries:1 (4182817453412578800) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:0 (5943169794516984261) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:1 (2379904471264702148) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:2 (5248162884898921025) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:3 (3148964951886919224) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:4 (8987072060394684912) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:0 (7970149422845752634) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:1 (5204890303748068014) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:2 (2210309879499032393) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:3 (6686694694122598353) -->
+  <string-array name="wifi_peap_phase2_entries">
+    <item msgid="8082624033981656770">"MSCHAPV2"</item>
+    <item msgid="4182817453412578800">"GTC"</item>
+  </string-array>
+  <string-array name="wifi_peap_phase2_entries_with_sim_auth">
+    <item msgid="5943169794516984261">"MSCHAPV2"</item>
+    <item msgid="2379904471264702148">"GTC"</item>
+    <item msgid="5248162884898921025">"SIM"</item>
+    <item msgid="3148964951886919224">"AKA"</item>
+    <item msgid="8987072060394684912">"AKA\'"</item>
+  </string-array>
+  <string-array name="wifi_ttls_phase2_entries">
+    <item msgid="7970149422845752634">"PAP"</item>
+    <item msgid="5204890303748068014">"MSCHAP"</item>
+    <item msgid="2210309879499032393">"MSCHAPV2"</item>
+    <item msgid="6686694694122598353">"GTC"</item>
+  </string-array>
   <string-array name="wifi_ip_settings">
     <item msgid="6665889765350160154">"DHCP"</item>
     <item msgid="6215795691318745695">"Статична"</item>
@@ -169,7 +181,7 @@
   <string-array name="wifi_proxy_settings">
     <item msgid="4669222334822978847">"Ниедно"</item>
     <item msgid="6242198071587397280">"Рачно"</item>
-    <item msgid="464383874780058242">"Прокси автоконфигурација"</item>
+    <item msgid="464383874780058242">"Прокси: автоконфигурација"</item>
   </string-array>
   <string-array name="apn_auth_entries">
     <item msgid="2900892411844440682">"Ниеден"</item>
@@ -199,6 +211,7 @@
     <item msgid="1396997182108950268">"1xRTT"</item>
     <item msgid="3658086883471544773">"IS95B"</item>
     <item msgid="6208908029106498824">"IS95A"</item>
+    <item msgid="5043127102327682718">"NR"</item>
   </string-array>
   <string-array name="mvno_type_entries">
     <item msgid="1909908032710683029">"Ниедна"</item>
@@ -208,14 +221,14 @@
   </string-array>
   <string-array name="app_install_location_entries">
     <item msgid="3771157789865587832">"Внатрешен капацитет"</item>
-    <item msgid="5501345333507193420">"Пренослива СД картичка"</item>
+    <item msgid="5501345333507193420">"Пренослива SD-картичка"</item>
     <item msgid="2362840341195111674">"Дозволи системот да одлучи"</item>
   </string-array>
   <string-array name="app_ops_categories">
     <item msgid="528483497841471005">"Локација"</item>
     <item msgid="7786376598377098070">"Лични"</item>
     <item msgid="7707692387382449990">"Пораки"</item>
-    <item msgid="2235402926760712958">"Медиуми"</item>
+    <item msgid="2235402926760712958">"Аудиовизуелни содржини"</item>
     <item msgid="1822578131647724167">"Уред"</item>
   </string-array>
   <string-array name="app_ops_summaries">
@@ -323,7 +336,7 @@
     <item msgid="4722479281326245754">"Јачина на звук на глас"</item>
     <item msgid="6749550886745567276">"Јачина на звук на ѕвонење"</item>
     <item msgid="2218685029915863168">"Јачина на аудио/видео звук"</item>
-    <item msgid="4266577290496513640">"Јачина на звук на аларм"</item>
+    <item msgid="4266577290496513640">"Јачина на звук за аларм"</item>
     <item msgid="8608084169623998854">"Јачина на звук на известување"</item>
     <item msgid="7948784184567841794">"Јачина на звук на Bluetooth"</item>
     <item msgid="1148968792599973150">"Остани активен"</item>
@@ -357,6 +370,11 @@
     <item msgid="5118829513010894576">"Средно"</item>
     <item msgid="6740026006576843477">"Долго"</item>
   </string-array>
+  <string-array name="long_press_timeout_selector_list_titles">
+    <item msgid="8908021508913038488">"Кратко"</item>
+    <item msgid="7397961711906421599">"Средно"</item>
+    <item msgid="4079132024502041928">"Долго"</item>
+  </string-array>
   <string-array name="captioning_typeface_selector_titles">
     <item msgid="2166553138528640250">"Стандардни"</item>
     <item msgid="4234707448428002595">"Sans-serif"</item>
@@ -371,7 +389,7 @@
   <string-array name="captioning_font_size_selector_titles">
     <item msgid="923916134548435468">"Многу мали"</item>
     <item msgid="5738147437573674872">"Мали"</item>
-    <item msgid="8111006422178051129">"Нормално"</item>
+    <item msgid="4691660235626027304">"Среден"</item>
     <item msgid="824386705928670045">"Големи"</item>
     <item msgid="2790561781512874585">"Многу големи"</item>
   </string-array>
@@ -390,12 +408,24 @@
     <item msgid="3237802033158517495">"100%"</item>
   </string-array>
   <string-array name="captioning_preset_selector_titles">
-    <item msgid="4180191497452407161">"Користи стандарди на апликација"</item>
+    <item msgid="3880932435325583041">"Поставено од апликација"</item>
     <item msgid="8719204526359229387">"Бели на црно"</item>
     <item msgid="5410164687403735103">"Црни на бело"</item>
     <item msgid="1119043472912497241">"Жолти на црно"</item>
     <item msgid="2836895041823327816">"Жолти на сино"</item>
     <item msgid="747238414788976867">"Приспособено"</item>
+  </string-array>
+  <string-array name="accessibility_button_location_selector_titles">
+    <item msgid="6485511780196327736">"Лебди над други апликации"</item>
+    <item msgid="3605616699204153590">"Лента за навигација"</item>
+  </string-array>
+  <string-array name="accessibility_button_gesture_selector_titles">
+    <item msgid="2370918472773154939">"Копче"</item>
+    <item msgid="6922258575853746220">"Движење"</item>
+  </string-array>
+  <string-array name="accessibility_button_size_selector_titles">
+    <item msgid="7482952318152486459">"Мало"</item>
+    <item msgid="1666628329913333563">"Големо"</item>
   </string-array>
   <string-array name="vpn_types_long">
     <item msgid="6621806338070912611">"PPTP VPN"</item>
@@ -404,13 +434,16 @@
     <item msgid="3792393562235791509">"IPSec VPN со претходно споделени клучеви и Xauth автентикација"</item>
     <item msgid="2484564813864139237">"IPSec VPN со сертификати и Xauth автентикација"</item>
     <item msgid="68918911194507915">"IPSec VPN со сертификати и хибридна автентикација"</item>
+    <item msgid="4631647675167100375">"VPN со IKEv2/IPSec со сертификати и проверка на корисничко име/лозинка"</item>
+    <item msgid="8812228622975052811">"VPN со IKEv2/IPSec со однапред споделени клучеви"</item>
+    <item msgid="6630554779981113046">"VPN со IKEv2/IPSec со сертификати"</item>
   </string-array>
   <string-array name="vpn_proxy_settings">
     <item msgid="7165538292837266997">"Нема"</item>
     <item msgid="2397017538263427575">"Рачно"</item>
   </string-array>
   <string-array name="vpn_states">
-    <item msgid="2262719249581510939">"Исклучена"</item>
+    <item msgid="2262719249581510939">"Не е поврзано"</item>
     <item msgid="9141074028293812365">"Се иницијализира..."</item>
     <item msgid="2234425878608626285">"Се поврзува..."</item>
     <item msgid="27547778933579155">"Поврзано"</item>
@@ -452,12 +485,12 @@
     <item msgid="8186970968968646288">"Кеширана (празна)"</item>
   </string-array>
   <string-array name="color_picker">
-    <item msgid="3230992859486877963">"Тиркизна"</item>
+    <item msgid="7216413848731287689">"Тиркизна"</item>
     <item msgid="5661027589207588703">"Сина"</item>
-    <item msgid="3795787248113275442">"Индиго"</item>
+    <item msgid="1219738214736244749">"Зелена"</item>
     <item msgid="6331809026622602308">"Виолетова"</item>
     <item msgid="6390546163902724700">"Розова"</item>
-    <item msgid="6618900408138432102">"Црвена"</item>
+    <item msgid="6500473130620545980">"Портокалова"</item>
   </string-array>
   <string-array name="automatic_storage_management_days">
     <item msgid="8896644025110620477">"Постари од 30 дена"</item>
@@ -471,7 +504,7 @@
     <item msgid="9080166583718385565">"0"</item>
   </string-array>
   <string-array name="wifi_metered_entries">
-    <item msgid="3237321077949659241">"Откриј автоматски"</item>
+    <item msgid="3237321077949659241">"Откривај автоматски"</item>
     <item msgid="3779092145391320375">"Сметај како ограничена мрежа"</item>
     <item msgid="2047166446768045816">"Сметај како неограничена мрежа"</item>
   </string-array>
@@ -489,7 +522,7 @@
   </string-array>
   <string-array name="autofill_logging_level_entries">
     <item msgid="2263571982739726576">"Исклучено"</item>
-    <item msgid="4295717421282345505">"Отстранување грешка"</item>
+    <item msgid="4295717421282345505">"Отстранување грешки"</item>
     <item msgid="8657797891533816070">"Опширно"</item>
   </string-array>
   <string-array name="cdma_system_select_choices">
@@ -507,7 +540,7 @@
     <item msgid="30756226617172695">"CDMA/EvDo/GSM/WCDMA"</item>
     <item msgid="2847125869624632806">"CDMA + LTE/EvDo"</item>
     <item msgid="2247906254631766720">"GSM/WCDMA/LTE"</item>
-    <item msgid="1091258946200124345">"Глобален"</item>
+    <item msgid="4147872615520331421">"LTE/CDMA/EvDo/GSM/WCDMA"</item>
     <item msgid="2908834445708457736">"LTE"</item>
     <item msgid="2947411877551747693">"LTE/WCDMA"</item>
     <item msgid="7723670142495874534">"Само TDSCDMA"</item>
@@ -524,7 +557,7 @@
     <item msgid="8150548370973671395">"NR/LTE"</item>
     <item msgid="5237423971422723128">"NR/LTE/CDMA/EvDo"</item>
     <item msgid="6856991565745877075">"NR/LTE/GSM/WCDMA"</item>
-    <item msgid="473436147270962091">"NR/LTE/CDMA/EvDo/GSM/WCDMA"</item>
+    <item msgid="8908263949185004366">"Глобален"</item>
     <item msgid="6692179237956480280">"NR/LTE/WCDMA"</item>
     <item msgid="8160757136163231885">"NR/LTE/TDSCDMA"</item>
     <item msgid="2207530656708814396">"NR/LTE/TDSCDMA/GSM"</item>
@@ -536,15 +569,26 @@
     <item msgid="6242790734457941014">"RUIM/SIM"</item>
     <item msgid="8980776035119085660">"NV"</item>
   </string-array>
-  <string-array name="preferred_network_mode_choices_world_mode">
-    <item msgid="8219021147046131771">"Глобален"</item>
-    <item msgid="5291208617720023560">"LTE/CDMA"</item>
-    <item msgid="6742002477816975742">"LTE/GSM/UMTS"</item>
-  </string-array>
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:0 (1841976293698111057) -->
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:1 (6822859933189908133) -->
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:2 (4543171628914168621) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:0 (6624400115590055120) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:1 (5783108243674842461) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:2 (2605068646093321511) -->
+    <!-- no translation found for rtt_setting_mode:1 (7903019313228349427) -->
+    <!-- no translation found for rtt_setting_mode:2 (8525285145696236811) -->
+    <!-- no translation found for rtt_setting_mode:3 (7725394146877517088) -->
+  <string-array name="nfc_payment_favor">
+    <item msgid="9104058551372383947">"Секогаш"</item>
+    <item msgid="5283665583617307336">"Освен кога е отворена друга апликација за плаќање"</item>
+  </string-array>
+  <string-array name="nfc_payment_favor_values">
+    <item msgid="2373999996715432397">"0"</item>
+    <item msgid="5305176997036663262">"1"</item>
+  </string-array>
+  <string-array name="switch_to_user_zero_when_docked_timeout_entries">
+    <item msgid="4844842227131211168">"Никогаш"</item>
+    <item msgid="5065465585332446709">"По 1 минута"</item>
+    <item msgid="622807566366131941">"По 5 минути"</item>
+  </string-array>
 </resources>

@@ -18,14 +18,13 @@ package com.android.settings.system;
 
 import android.app.settings.SettingsEnums;
 import android.content.Context;
-import android.provider.SearchIndexableResource;
 
 import com.android.settings.R;
 import com.android.settings.applications.manageapplications.ResetAppPrefPreferenceController;
 import com.android.settings.dashboard.DashboardFragment;
+import com.android.settings.network.EraseEuiccDataController;
 import com.android.settings.network.NetworkResetPreferenceController;
 import com.android.settings.search.BaseSearchIndexProvider;
-import com.android.settingslib.search.Indexable;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.search.SearchIndexable;
@@ -33,7 +32,8 @@ import com.android.settingslib.search.SearchIndexable;
 import java.util.ArrayList;
 import java.util.List;
 
-@SearchIndexable
+/** Settings fragment containing reset options. */
+@SearchIndexable(forTarget = SearchIndexable.ALL & ~SearchIndexable.ARC)
 public class ResetDashboardFragment extends DashboardFragment {
 
     private static final String TAG = "ResetDashboardFragment";
@@ -56,6 +56,17 @@ public class ResetDashboardFragment extends DashboardFragment {
     @Override
     protected List<AbstractPreferenceController> createPreferenceControllers(Context context) {
         return buildPreferenceControllers(context, getSettingsLifecycle());
+    }
+
+    @Override
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        use(EraseEuiccDataController.class).setFragment(this);
+    }
+
+    @Override
+    protected boolean shouldSkipForInitialSUW() {
+        return true;
     }
 
     private static List<AbstractPreferenceController> buildPreferenceControllers(Context context,

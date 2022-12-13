@@ -20,16 +20,20 @@ import static androidx.lifecycle.Lifecycle.Event.ON_PAUSE;
 import static androidx.lifecycle.Lifecycle.Event.ON_RESUME;
 
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
-import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.OnLifecycleEvent;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 import androidx.preference.SwitchPreference;
 
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.settings.datausage.DataUsageUtils;
+import com.android.settings.network.MobileDataContentObserver;
 import com.android.settings.network.SubscriptionsChangeListener;
 
 public class DataDuringCallsPreferenceController extends TelephonyTogglePreferenceController
@@ -39,50 +43,74 @@ public class DataDuringCallsPreferenceController extends TelephonyTogglePreferen
     private SwitchPreference mPreference;
     private SubscriptionsChangeListener mChangeListener;
     private TelephonyManager mManager;
+    private MobileDataContentObserver mMobileDataContentObserver;
+    private PreferenceScreen mScreen;
 
     public DataDuringCallsPreferenceController(Context context,
             String preferenceKey) {
         super(context, preferenceKey);
-        mChangeListener = new SubscriptionsChangeListener(mContext, this);
     }
 
-    public void init(Lifecycle lifecycle, int subId) {
+    void init(int subId) {
         this.mSubId = subId;
         mManager = mContext.getSystemService(TelephonyManager.class).createForSubscriptionId(subId);
-        lifecycle.addObserver(this);
     }
 
     @OnLifecycleEvent(ON_RESUME)
     public void onResume() {
+        if (mChangeListener == null) {
+            mChangeListener = new SubscriptionsChangeListener(mContext, this);
+        }
         mChangeListener.start();
+        if (mMobileDataContentObserver == null) {
+            mMobileDataContentObserver = new MobileDataContentObserver(
+                    new Handler(Looper.getMainLooper()));
+            mMobileDataContentObserver.setOnMobileDataChangedListener(() -> refreshPreference());
+        }
+        mMobileDataContentObserver.register(mContext, mSubId);
     }
 
     @OnLifecycleEvent(ON_PAUSE)
     public void onPause() {
-        mChangeListener.stop();
+        if (mChangeListener != null) {
+            mChangeListener.stop();
+        }
+        if (mMobileDataContentObserver != null) {
+            mMobileDataContentObserver.unRegister(mContext);
+        }
     }
 
     @Override
     public void displayPreference(PreferenceScreen screen) {
         super.displayPreference(screen);
         mPreference = screen.findPreference(getPreferenceKey());
+        mScreen = screen;
     }
 
     @Override
     public boolean isChecked() {
-        return mManager.isDataAllowedInVoiceCall();
+        return mManager.isMobileDataPolicyEnabled(
+                TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL);
     }
 
     @Override
     public boolean setChecked(boolean isChecked) {
-        mManager.setDataAllowedDuringVoiceCall(isChecked);
+        mManager.setMobileDataPolicyEnabled(
+                TelephonyManager.MOBILE_DATA_POLICY_DATA_ON_NON_DEFAULT_DURING_VOICE_CALL,
+                isChecked);
         return true;
+    }
+
+    @VisibleForTesting
+    protected boolean hasMobileData() {
+        return DataUsageUtils.hasMobileData(mContext);
     }
 
     @Override
     public int getAvailabilityStatus(int subId) {
-        if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID ||
-                SubscriptionManager.getDefaultDataSubscriptionId() == mSubId) {
+        if (!SubscriptionManager.isValidSubscriptionId(subId)
+                || SubscriptionManager.getDefaultDataSubscriptionId() == subId
+                || (!hasMobileData())) {
             return CONDITIONALLY_UNAVAILABLE;
         }
         return AVAILABLE;
@@ -91,6 +119,9 @@ public class DataDuringCallsPreferenceController extends TelephonyTogglePreferen
     @Override
     public void updateState(Preference preference) {
         super.updateState(preference);
+        if (preference == null) {
+            return;
+        }
         preference.setVisible(isAvailable());
     }
 
@@ -100,5 +131,15 @@ public class DataDuringCallsPreferenceController extends TelephonyTogglePreferen
     @Override
     public void onSubscriptionsChanged() {
         updateState(mPreference);
+    }
+
+    /**
+     * Trigger displaying preference when Mobilde data content changed.
+     */
+    @VisibleForTesting
+    public void refreshPreference() {
+        if (mScreen != null) {
+            super.displayPreference(mScreen);
+        }
     }
 }

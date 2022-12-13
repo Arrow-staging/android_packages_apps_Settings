@@ -23,21 +23,26 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.NetworkCapabilities;
 import android.net.wifi.ScanResult;
+import android.net.wifi.SoftApConfiguration;
 import android.net.wifi.WifiConfiguration;
+import android.os.UserHandle;
+import android.os.UserManager;
 import android.provider.Settings;
 import android.text.TextUtils;
 
-import com.android.settingslib.wifi.AccessPoint;
+import com.android.settings.Utils;
+import com.android.wifitrackerlib.WifiEntry;
 
 import java.nio.charset.StandardCharsets;
 
-public class WifiUtils {
+/** A utility class for Wi-Fi functions. */
+public class WifiUtils extends com.android.settingslib.wifi.WifiUtils {
 
     private static final int SSID_ASCII_MIN_LENGTH = 1;
     private static final int SSID_ASCII_MAX_LENGTH = 32;
-    private static final int PASSWORD_MIN_LENGTH = 8;
-    private static final int PASSWORD_MAX_LENGTH = 63;
 
+    private static final int PSK_PASSPHRASE_ASCII_MIN_LENGTH = 8;
+    private static final int PSK_PASSPHRASE_ASCII_MAX_LENGTH = 63;
 
     public static boolean isSSIDTooLong(String ssid) {
         if (TextUtils.isEmpty(ssid)) {
@@ -53,13 +58,24 @@ public class WifiUtils {
         return ssid.length() < SSID_ASCII_MIN_LENGTH;
     }
 
-    public static boolean isHotspotPasswordValid(String password) {
-        if (TextUtils.isEmpty(password)) {
+    /**
+     * Check if the hotspot password is valid.
+     */
+    public static boolean isHotspotPasswordValid(String password, int securityType) {
+        final SoftApConfiguration.Builder configBuilder = new SoftApConfiguration.Builder();
+        try {
+            if (securityType == SoftApConfiguration.SECURITY_TYPE_WPA2_PSK
+                    || securityType == SoftApConfiguration.SECURITY_TYPE_WPA3_SAE_TRANSITION) {
+                if (password.length() < PSK_PASSPHRASE_ASCII_MIN_LENGTH
+                        || password.length() > PSK_PASSPHRASE_ASCII_MAX_LENGTH) {
+                    return false;
+                }
+            }
+            configBuilder.setPassphrase(password, securityType);
+        } catch (Exception e) {
             return false;
         }
-
-        final int length = password.length();
-        return length >= PASSWORD_MIN_LENGTH && length <= PASSWORD_MAX_LENGTH;
+        return true;
     }
 
     /**
@@ -77,6 +93,7 @@ public class WifiUtils {
         final DevicePolicyManager dpm =
                 (DevicePolicyManager) context.getSystemService(Context.DEVICE_POLICY_SERVICE);
         final PackageManager pm = context.getPackageManager();
+        final UserManager um = (UserManager) context.getSystemService(Context.USER_SERVICE);
 
         // Check if device has DPM capability. If it has and dpm is still null, then we
         // treat this case with suspicion and bail out.
@@ -95,6 +112,18 @@ public class WifiUtils {
                     isConfigEligibleForLockdown = deviceOwnerUid == config.creatorUid;
                 } catch (PackageManager.NameNotFoundException e) {
                     // don't care
+                }
+            } else if (dpm.isOrganizationOwnedDeviceWithManagedProfile()) {
+                int profileOwnerUserId = Utils.getManagedProfileId(um, UserHandle.myUserId());
+                final ComponentName profileOwner = dpm.getProfileOwnerAsUser(profileOwnerUserId);
+                if (profileOwner != null) {
+                    try {
+                        final int profileOwnerUid = pm.getPackageUidAsUser(
+                                profileOwner.getPackageName(), profileOwnerUserId);
+                        isConfigEligibleForLockdown = profileOwnerUid == config.creatorUid;
+                    } catch (PackageManager.NameNotFoundException e) {
+                        // don't care
+                    }
                 }
             }
         }
@@ -116,171 +145,99 @@ public class WifiUtils {
 
     /**
      * Provides a simple way to generate a new {@link WifiConfiguration} obj from
-     * {@link ScanResult} or {@link AccessPoint}. Either {@code accessPoint} or {@code scanResult
+     * {@link ScanResult} or {@link WifiEntry}. Either {@code wifiEntry} or {@code scanResult
      * } input should be not null for retrieving information, otherwise will throw
      * IllegalArgumentException.
-     * This method prefers to take {@link AccessPoint} input in priority. Therefore this method
-     * will take {@link AccessPoint} input as preferred data extraction source when you input
-     * both {@link AccessPoint} and {@link ScanResult}, and ignore {@link ScanResult} input.
+     * This method prefers to take {@link WifiEntry} input in priority. Therefore this method
+     * will take {@link WifiEntry} input as preferred data extraction source when you input
+     * both {@link WifiEntry} and {@link ScanResult}, and ignore {@link ScanResult} input.
      *
      * Duplicated and simplified method from {@link WifiConfigController#getConfig()}.
      * TODO(b/120827021): Should be removed if the there is have a common one in shared place (e.g.
      * SettingsLib).
      *
-     * @param accessPoint Input data for retrieving WifiConfiguration.
+     * @param wifiEntry Input data for retrieving WifiConfiguration.
      * @param scanResult  Input data for retrieving WifiConfiguration.
      * @return WifiConfiguration obj based on input.
      */
-    public static WifiConfiguration getWifiConfig(AccessPoint accessPoint, ScanResult scanResult,
-            String password) {
-        if (accessPoint == null && scanResult == null) {
+    public static WifiConfiguration getWifiConfig(WifiEntry wifiEntry, ScanResult scanResult) {
+        if (wifiEntry == null && scanResult == null) {
             throw new IllegalArgumentException(
-                    "At least one of AccessPoint and ScanResult input is required.");
+                    "At least one of WifiEntry and ScanResult input is required.");
         }
 
         final WifiConfiguration config = new WifiConfiguration();
         final int security;
 
-        if (accessPoint == null) {
-            config.SSID = AccessPoint.convertToQuotedString(scanResult.SSID);
-            security = getAccessPointSecurity(scanResult);
+        if (wifiEntry == null) {
+            config.SSID = "\"" + scanResult.SSID + "\"";
+            security = getWifiEntrySecurity(scanResult);
         } else {
-            if (!accessPoint.isSaved()) {
-                config.SSID = AccessPoint.convertToQuotedString(
-                        accessPoint.getSsidStr());
+            if (wifiEntry.getWifiConfiguration() == null) {
+                config.SSID = "\"" + wifiEntry.getSsid() + "\"";
             } else {
-                config.networkId = accessPoint.getConfig().networkId;
-                config.hiddenSSID = accessPoint.getConfig().hiddenSSID;
+                config.networkId = wifiEntry.getWifiConfiguration().networkId;
+                config.hiddenSSID = wifiEntry.getWifiConfiguration().hiddenSSID;
             }
-            security = accessPoint.getSecurity();
+            security = wifiEntry.getSecurity();
         }
 
         switch (security) {
-            case AccessPoint.SECURITY_NONE:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
+            case WifiEntry.SECURITY_NONE:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_OPEN);
                 break;
 
-            case AccessPoint.SECURITY_WEP:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
-                config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.OPEN);
-                config.allowedAuthAlgorithms.set(WifiConfiguration.AuthAlgorithm.SHARED);
-                if (!TextUtils.isEmpty(password)) {
-                    int length = password.length();
-                    // WEP-40, WEP-104, and 256-bit WEP (WEP-232?)
-                    if ((length == 10 || length == 26 || length == 58)
-                            && password.matches("[0-9A-Fa-f]*")) {
-                        config.wepKeys[0] = password;
-                    } else {
-                        config.wepKeys[0] = '"' + password + '"';
-                    }
-                }
+            case WifiEntry.SECURITY_WEP:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_WEP);
                 break;
 
-            case AccessPoint.SECURITY_PSK:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_PSK);
-                if (!TextUtils.isEmpty(password)) {
-                    if (password.matches("[0-9A-Fa-f]{64}")) {
-                        config.preSharedKey = password;
-                    } else {
-                        config.preSharedKey = '"' + password + '"';
-                    }
-                }
+            case WifiEntry.SECURITY_PSK:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_PSK);
                 break;
 
-            case AccessPoint.SECURITY_EAP:
-            case AccessPoint.SECURITY_EAP_SUITE_B:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.WPA_EAP);
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.IEEE8021X);
-                if (security == AccessPoint.SECURITY_EAP_SUITE_B) {
-                    config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.SUITE_B_192);
-                    config.requirePMF = true;
-                    config.allowedPairwiseCiphers.set(WifiConfiguration.PairwiseCipher.GCMP_256);
-                    config.allowedGroupCiphers.set(WifiConfiguration.GroupCipher.GCMP_256);
-                    config.allowedGroupManagementCiphers.set(WifiConfiguration.GroupMgmtCipher
-                            .BIP_GMAC_256);
-                    // allowedSuiteBCiphers will be set according to certificate type
-                }
-
-                if (!TextUtils.isEmpty(password)) {
-                    config.enterpriseConfig.setPassword(password);
-                }
-                break;
-            case AccessPoint.SECURITY_SAE:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.SAE);
-                config.requirePMF = true;
-                if (!TextUtils.isEmpty(password)) {
-                    config.preSharedKey = '"' + password + '"';
-                }
+            case WifiEntry.SECURITY_EAP_SUITE_B:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_EAP_SUITE_B);
                 break;
 
-            case AccessPoint.SECURITY_OWE:
-                config.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.OWE);
-                config.requirePMF = true;
+            case WifiEntry.SECURITY_EAP:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_EAP);
+                break;
+
+            case WifiEntry.SECURITY_SAE:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_SAE);
+                break;
+
+            case WifiEntry.SECURITY_OWE:
+                config.setSecurityParams(WifiConfiguration.SECURITY_TYPE_OWE);
                 break;
 
             default:
                 break;
         }
-
         return config;
     }
-
 
     /**
      * Gets security value from ScanResult.
      *
-     * Duplicated method from {@link AccessPoint#getSecurity(ScanResult)}.
-     * TODO(b/120827021): Should be removed if the there is have a common one in shared place (e.g.
-     * SettingsLib).
-     *
      * @param result ScanResult
-     * @return Related security value based on {@link AccessPoint}.
+     * @return Related security value based on {@link WifiEntry}.
      */
-    public static int getAccessPointSecurity(ScanResult result) {
+    public static int getWifiEntrySecurity(ScanResult result) {
         if (result.capabilities.contains("WEP")) {
-            return AccessPoint.SECURITY_WEP;
+            return WifiEntry.SECURITY_WEP;
         } else if (result.capabilities.contains("SAE")) {
-            return AccessPoint.SECURITY_SAE;
+            return WifiEntry.SECURITY_SAE;
         } else if (result.capabilities.contains("PSK")) {
-            return AccessPoint.SECURITY_PSK;
+            return WifiEntry.SECURITY_PSK;
         } else if (result.capabilities.contains("EAP_SUITE_B_192")) {
-            return AccessPoint.SECURITY_EAP_SUITE_B;
+            return WifiEntry.SECURITY_EAP_SUITE_B;
         } else if (result.capabilities.contains("EAP")) {
-            return AccessPoint.SECURITY_EAP;
+            return WifiEntry.SECURITY_EAP;
         } else if (result.capabilities.contains("OWE")) {
-            return AccessPoint.SECURITY_OWE;
+            return WifiEntry.SECURITY_OWE;
         }
 
-        return AccessPoint.SECURITY_NONE;
-    }
-
-
-    public static final int CONNECT_TYPE_OTHERS = 0;
-    public static final int CONNECT_TYPE_OPEN_NETWORK = 1;
-    public static final int CONNECT_TYPE_SAVED_NETWORK = 2;
-    public static final int CONNECT_TYPE_OSU_PROVISION = 3;
-
-    /**
-     * Gets the connecting type of {@link AccessPoint}.
-     */
-    public static int getConnectingType(AccessPoint accessPoint) {
-        final WifiConfiguration config = accessPoint.getConfig();
-        if (accessPoint.isOsuProvider()) {
-            return CONNECT_TYPE_OSU_PROVISION;
-        } else if ((accessPoint.getSecurity() == AccessPoint.SECURITY_NONE) ||
-                (accessPoint.getSecurity() == AccessPoint.SECURITY_OWE) ||
-                (accessPoint.getSecurity() == AccessPoint.SECURITY_OWE_TRANSITION)) {
-            return CONNECT_TYPE_OPEN_NETWORK;
-        } else if (accessPoint.isSaved() && config != null
-                && config.getNetworkSelectionStatus() != null
-                && config.getNetworkSelectionStatus().getHasEverConnected()) {
-            return CONNECT_TYPE_SAVED_NETWORK;
-        } else if (accessPoint.isPasspoint()) {
-            // Access point provided by an installed Passpoint provider, connect using
-            // the associated config.
-            return CONNECT_TYPE_SAVED_NETWORK;
-        } else {
-            return CONNECT_TYPE_OTHERS;
-        }
+        return WifiEntry.SECURITY_NONE;
     }
 }

@@ -29,6 +29,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.BatteryUsageStats;
 import android.util.ArrayMap;
 import android.view.View;
 
@@ -40,15 +41,14 @@ import androidx.slice.builders.ListBuilder;
 import androidx.slice.builders.ListBuilder.RowBuilder;
 import androidx.slice.builders.SliceAction;
 
-import com.android.internal.os.BatteryStatsHelper;
 import com.android.settings.R;
 import com.android.settings.SubSettings;
 import com.android.settings.Utils;
-import com.android.settings.fuelgauge.BatteryStatsHelperLoader;
-import com.android.settings.fuelgauge.PowerUsageSummary;
 import com.android.settings.fuelgauge.batterytip.BatteryTipLoader;
 import com.android.settings.fuelgauge.batterytip.BatteryTipPreferenceController;
 import com.android.settings.fuelgauge.batterytip.tips.BatteryTip;
+import com.android.settings.fuelgauge.batteryusage.BatteryUsageStatsLoader;
+import com.android.settings.fuelgauge.batteryusage.PowerUsageSummary;
 import com.android.settings.slices.CustomSliceable;
 import com.android.settings.slices.SliceBackgroundWorker;
 import com.android.settings.slices.SliceBuilderUtils;
@@ -72,6 +72,8 @@ public class BatteryFixSlice implements CustomSliceable {
     static {
         UNIMPORTANT_BATTERY_TIPS = new ArrayMap<>();
         UNIMPORTANT_BATTERY_TIPS.put(BatteryTip.TipType.SUMMARY,
+                Arrays.asList(BatteryTip.StateType.NEW, BatteryTip.StateType.HANDLED));
+        UNIMPORTANT_BATTERY_TIPS.put(BatteryTip.TipType.HIGH_DEVICE_USAGE,
                 Arrays.asList(BatteryTip.StateType.NEW, BatteryTip.StateType.HANDLED));
         UNIMPORTANT_BATTERY_TIPS.put(BatteryTip.TipType.BATTERY_SAVER,
                 Arrays.asList(BatteryTip.StateType.HANDLED));
@@ -145,9 +147,15 @@ public class BatteryFixSlice implements CustomSliceable {
         return SliceBuilderUtils.buildSearchResultPageIntent(mContext,
                 PowerUsageSummary.class.getName(), BatteryTipPreferenceController.PREF_NAME,
                 screenTitle,
-                SettingsEnums.SLICE)
+                SettingsEnums.SLICE,
+                this)
                 .setClassName(mContext.getPackageName(), SubSettings.class.getName())
                 .setData(contentUri);
+    }
+
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_battery;
     }
 
     @Override
@@ -161,7 +169,8 @@ public class BatteryFixSlice implements CustomSliceable {
 
     private PendingIntent getPrimaryAction() {
         final Intent intent = getIntent();
-        return PendingIntent.getActivity(mContext, 0  /* requestCode */, intent, 0  /* flags */);
+        return PendingIntent.getActivity(mContext, 0  /* requestCode */, intent,
+                PendingIntent.FLAG_IMMUTABLE);
     }
 
     private Slice buildBatteryGoodSlice(ListBuilder sliceBuilder, boolean isError) {
@@ -203,9 +212,10 @@ public class BatteryFixSlice implements CustomSliceable {
     @WorkerThread
     @VisibleForTesting
     static List<BatteryTip> refreshBatteryTips(Context context) {
-        final BatteryStatsHelperLoader statsLoader = new BatteryStatsHelperLoader(context);
-        final BatteryStatsHelper statsHelper = statsLoader.loadInBackground();
-        final BatteryTipLoader loader = new BatteryTipLoader(context, statsHelper);
+        final BatteryUsageStatsLoader statsLoader = new BatteryUsageStatsLoader(context,
+                /* includeBatteryHistory */ false);
+        final BatteryUsageStats batteryUsageStats = statsLoader.loadInBackground();
+        final BatteryTipLoader loader = new BatteryTipLoader(context, batteryUsageStats);
         final List<BatteryTip> batteryTips = loader.loadInBackground();
         for (BatteryTip batteryTip : batteryTips) {
             if (batteryTip.getState() != BatteryTip.StateType.INVISIBLE) {

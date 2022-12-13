@@ -17,13 +17,16 @@
 package com.android.settings.wifi.dpp;
 
 import android.app.settings.SettingsEnums;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
+import android.os.UserManager;
 import android.provider.Settings;
+import android.util.EventLog;
 import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
@@ -78,8 +81,15 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
     /** The Wi-Fi DPP QR code from intent ACTION_PROCESS_WIFI_EASY_CONNECT_URI */
     private WifiQrCode mWifiDppQrCode;
 
-    /** Secret extra that allows fake networks to show in UI for testing purposes */
-    private boolean mIsTest;
+    /**
+     * The remote device's band support obtained as an (optional) extra
+     * EXTRA_EASY_CONNECT_BAND_LIST from the intent ACTION_PROCESS_WIFI_EASY_CONNECT_URI.
+     *
+     * The band support is provided as IEEE 802.11 Global Operating Classes. There may be a single
+     * or multiple operating classes specified. The array may also be a null if the extra wasn't
+     * specified.
+     */
+    private int[] mWifiDppRemoteBandSupport;
 
     @Override
     public int getMetricsCategory() {
@@ -109,6 +119,13 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
 
     @Override
     protected void handleIntent(Intent intent) {
+        if (isGuestUser(getApplicationContext())) {
+            Log.e(TAG, "Guest user is not allowed to configure Wi-Fi!");
+            EventLog.writeEvent(0x534e4554, "224772890", -1 /* UID */, "User is a guest");
+            finish();
+            return;
+        }
+
         String action = intent != null ? intent.getAction() : null;
         if (action == null) {
             finish();
@@ -137,25 +154,8 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
                 }
                 break;
             case Settings.ACTION_PROCESS_WIFI_EASY_CONNECT_URI:
-                final Uri uri = intent.getData();
-                final String uriString = (uri == null) ? null : uri.toString();
-                mIsTest = intent.getBooleanExtra(WifiDppUtils.EXTRA_TEST, false);
-                mWifiDppQrCode = WifiQrCode.getValidWifiDppQrCodeOrNull(uriString);
-                final boolean isDppSupported = WifiDppUtils.isWifiDppEnabled(this);
-                if (!isDppSupported) {
-                    Log.d(TAG, "Device doesn't support Wifi DPP");
-                }
-                if (mWifiDppQrCode == null || !isDppSupported) {
-                    cancelActivity = true;
-                } else {
-                    final WifiNetworkConfig connectedConfig = getConnectedWifiNetworkConfigOrNull();
-                    if (connectedConfig == null || !connectedConfig.isSupportWifiDpp(this)) {
-                        showChooseSavedWifiNetworkFragment(/* addToBackStack */ false);
-                    } else {
-                        mWifiNetworkConfig = connectedConfig;
-                        showAddDeviceFragment(/* addToBackStack */ false);
-                    }
-                }
+                WifiDppUtils.showLockScreen(this,
+                        () -> handleActionProcessWifiEasyConnectUriIntent(intent));
                 break;
             default:
                 cancelActivity = true;
@@ -167,7 +167,36 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
         }
     }
 
-    private void showQrCodeScannerFragment() {
+    private void handleActionProcessWifiEasyConnectUriIntent(Intent intent) {
+        final Uri uri = intent.getData();
+        final String uriString = (uri == null) ? null : uri.toString();
+        mWifiDppQrCode = WifiQrCode.getValidWifiDppQrCodeOrNull(uriString);
+        mWifiDppRemoteBandSupport = intent.getIntArrayExtra(
+                Settings.EXTRA_EASY_CONNECT_BAND_LIST); // returns null if none
+        final boolean isDppSupported = WifiDppUtils.isWifiDppEnabled(this);
+        if (!isDppSupported) {
+            Log.e(TAG,
+                    "ACTION_PROCESS_WIFI_EASY_CONNECT_URI for a device that doesn't "
+                            + "support Wifi DPP - use WifiManager#isEasyConnectSupported");
+        }
+        if (mWifiDppQrCode == null) {
+            Log.e(TAG, "ACTION_PROCESS_WIFI_EASY_CONNECT_URI with null URI!");
+        }
+        if (mWifiDppQrCode == null || !isDppSupported) {
+            finish();
+        } else {
+            final WifiNetworkConfig connectedConfig = getConnectedWifiNetworkConfigOrNull();
+            if (connectedConfig == null || !connectedConfig.isSupportWifiDpp(this)) {
+                showChooseSavedWifiNetworkFragment(/* addToBackStack */ false);
+            } else {
+                mWifiNetworkConfig = connectedConfig;
+                showAddDeviceFragment(/* addToBackStack */ false);
+            }
+        }
+    }
+
+    @VisibleForTesting
+    void showQrCodeScannerFragment() {
         WifiDppQrCodeScannerFragment fragment =
                 (WifiDppQrCodeScannerFragment) mFragmentManager.findFragmentByTag(
                         WifiDppUtils.TAG_FRAGMENT_QR_CODE_SCANNER);
@@ -222,11 +251,6 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
 
         if (fragment == null) {
             fragment = new WifiDppChooseSavedWifiNetworkFragment();
-            if (mIsTest) {
-                Bundle bundle = new Bundle();
-                bundle.putBoolean(WifiDppUtils.EXTRA_TEST, true);
-                fragment.setArguments(bundle);
-            }
         } else {
             if (fragment.isVisible()) {
                 return;
@@ -370,5 +394,12 @@ public class WifiDppConfiguratorActivity extends WifiDppBaseActivity implements
         }
 
         return null;
+    }
+
+    private static boolean isGuestUser(Context context) {
+        if (context == null) return false;
+        final UserManager userManager = context.getSystemService(UserManager.class);
+        if (userManager == null) return false;
+        return userManager.isGuestUser();
     }
 }

@@ -18,18 +18,14 @@ package com.android.settings.widget;
 
 import android.annotation.IdRes;
 import android.annotation.UserIdInt;
-import android.app.ActionBar;
 import android.app.Activity;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.os.Bundle;
 import android.os.UserHandle;
 import android.text.TextUtils;
-import android.util.IconDrawableFactory;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -49,7 +45,6 @@ import com.android.settings.applications.appinfo.AppInfoDashboardFragment;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.applications.ApplicationsState;
 import com.android.settingslib.core.lifecycle.Lifecycle;
-import com.android.settingslib.widget.ActionBarShadowController;
 import com.android.settingslib.widget.LayoutPreference;
 
 import java.lang.annotation.Retention;
@@ -79,6 +74,7 @@ public class EntityHeaderController {
     private Lifecycle mLifecycle;
     private RecyclerView mRecyclerView;
     private Drawable mIcon;
+    private int mPrefOrder = -1000;
     private String mIconContentDescription;
     private CharSequence mLabel;
     private CharSequence mSummary;
@@ -136,7 +132,8 @@ public class EntityHeaderController {
      */
     public EntityHeaderController setIcon(Drawable icon) {
         if (icon != null) {
-            mIcon = icon.getConstantState().newDrawable(mAppContext.getResources());
+            final Drawable.ConstantState state = icon.getConstantState();
+            mIcon = state != null ? state.newDrawable(mAppContext.getResources()) : icon;
         }
         return this;
     }
@@ -147,7 +144,7 @@ public class EntityHeaderController {
      * accessibility purposes.
      */
     public EntityHeaderController setIcon(ApplicationsState.AppEntry appEntry) {
-        mIcon = IconDrawableFactory.newInstance(mAppContext).getBadgedIcon(appEntry.info);
+        mIcon = Utils.getBadgedIcon(mAppContext, appEntry.info);
         return this;
     }
 
@@ -218,12 +215,18 @@ public class EntityHeaderController {
     }
 
     public EntityHeaderController setIsInstantApp(boolean isInstantApp) {
-        this.mIsInstantApp = isInstantApp;
+        mIsInstantApp = isInstantApp;
         return this;
     }
 
     public EntityHeaderController setEditListener(View.OnClickListener listener) {
-        this.mEditOnClickListener = listener;
+        mEditOnClickListener = listener;
+        return this;
+    }
+
+    /** Sets this preference order. */
+    public EntityHeaderController setOrder(int order) {
+        mPrefOrder = order;
         return this;
     }
 
@@ -233,7 +236,7 @@ public class EntityHeaderController {
     public LayoutPreference done(Activity activity, Context uiContext) {
         final LayoutPreference pref = new LayoutPreference(uiContext, done(activity));
         // Makes sure it's the first preference onscreen.
-        pref.setOrder(-1000);
+        pref.setOrder(mPrefOrder);
         pref.setSelectable(false);
         pref.setKey(PREF_KEY_APP_HEADER);
         pref.setAllowDividerBelow(true);
@@ -244,7 +247,6 @@ public class EntityHeaderController {
      * Done mutating entity header, rebinds everything (optionally skip rebinding buttons).
      */
     public View done(Activity activity, boolean rebindActions) {
-        styleActionBar(activity);
         ImageView iconView = mHeader.findViewById(R.id.entity_header_icon);
         if (iconView != null) {
             iconView.setImageDrawable(mIcon);
@@ -294,38 +296,13 @@ public class EntityHeaderController {
             @Override
             public void onClick(View v) {
                 AppInfoBase.startAppInfoFragment(
-                        AppInfoDashboardFragment.class, R.string.application_info_label,
+                        AppInfoDashboardFragment.class,
+                        mActivity.getString(R.string.application_info_label),
                         mPackageName, mUid, mFragment, 0 /* request */,
                         mMetricsCategory);
             }
         });
         return;
-    }
-
-    /**
-     * Styles the action bar (elevation, scrolling behaviors, color, etc).
-     * <p/>
-     * This method must be called after {@link Fragment#onCreate(Bundle)}.
-     */
-    public EntityHeaderController styleActionBar(Activity activity) {
-        if (activity == null) {
-            Log.w(TAG, "No activity, cannot style actionbar.");
-            return this;
-        }
-        final ActionBar actionBar = activity.getActionBar();
-        if (actionBar == null) {
-            Log.w(TAG, "No actionbar, cannot style actionbar.");
-            return this;
-        }
-        actionBar.setBackgroundDrawable(
-                new ColorDrawable(
-                        Utils.getColorAttrDefaultColor(activity, android.R.attr.colorPrimaryDark)));
-        actionBar.setElevation(0);
-        if (mRecyclerView != null && mLifecycle != null) {
-            ActionBarShadowController.attachToView(mActivity, mLifecycle, mRecyclerView);
-        }
-
-        return this;
     }
 
     /**
@@ -373,7 +350,6 @@ public class EntityHeaderController {
             }
         }
     }
-
 
     private void setText(@IdRes int id, CharSequence text) {
         TextView textView = mHeader.findViewById(id);

@@ -24,6 +24,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.TextView;
@@ -32,12 +33,16 @@ import androidx.annotation.VisibleForTesting;
 
 import com.android.settings.R;
 import com.android.settings.core.InstrumentedFragment;
+import com.android.settings.wifi.dpp.WifiDppQrCodeScannerFragment;
 import com.android.settings.wifi.dpp.WifiDppUtils;
 
-public class AddNetworkFragment extends InstrumentedFragment implements WifiConfigUiBase,
+/**
+ * A full screen UI component for users to edit and add a Wi-Fi network.
+ */
+public class AddNetworkFragment extends InstrumentedFragment implements WifiConfigUiBase2,
         View.OnClickListener {
 
-    final static String WIFI_CONFIG_KEY = "wifi_config_key";
+    public static final String WIFI_CONFIG_KEY = "wifi_config_key";
     @VisibleForTesting
     final static int SUBMIT_BUTTON_ID = android.R.id.button1;
     @VisibleForTesting
@@ -46,7 +51,7 @@ public class AddNetworkFragment extends InstrumentedFragment implements WifiConf
 
     private static final int REQUEST_CODE_WIFI_DPP_ENROLLEE_QR_CODE_SCANNER = 0;
 
-    private WifiConfigController mUIController;
+    private WifiConfigController2 mUIController;
     private Button mSubmitBtn;
     private Button mCancelBtn;
 
@@ -76,9 +81,20 @@ public class AddNetworkFragment extends InstrumentedFragment implements WifiConf
         mSubmitBtn.setOnClickListener(this);
         mCancelBtn.setOnClickListener(this);
         ssidScannerButton.setOnClickListener(this);
-        mUIController = new WifiConfigController(this, rootView, null, getMode());
+        mUIController = new WifiConfigController2(this, rootView, null, getMode());
+
+        // Resize the layout when keyboard opens.
+        getActivity().getWindow().setSoftInputMode(
+                WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         return rootView;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        mUIController.showSecurityFields(
+            /* refreshEapMethods */ false, /* refreshCertificates */ true);
     }
 
     @Override
@@ -98,7 +114,8 @@ public class AddNetworkFragment extends InstrumentedFragment implements WifiConf
             final String ssid = ssidEditText.getText().toString();
 
             // Launch QR code scanner to join a network.
-            startActivityForResult(WifiDppUtils.getEnrolleeQrCodeScannerIntent(ssid),
+            startActivityForResult(
+                    WifiDppUtils.getEnrolleeQrCodeScannerIntent(view.getContext(), ssid),
                     REQUEST_CODE_WIFI_DPP_ENROLLEE_QR_CODE_SCANNER);
         }
     }
@@ -106,25 +123,24 @@ public class AddNetworkFragment extends InstrumentedFragment implements WifiConf
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-
         if (requestCode == REQUEST_CODE_WIFI_DPP_ENROLLEE_QR_CODE_SCANNER) {
             if (resultCode != Activity.RESULT_OK) {
                 return;
             }
 
             final WifiConfiguration config = data.getParcelableExtra(
-                    WifiDialogActivity.KEY_WIFI_CONFIGURATION);
+                    WifiDppQrCodeScannerFragment.KEY_WIFI_CONFIGURATION);
             successfullyFinish(config);
         }
     }
 
     @Override
     public int getMode() {
-        return WifiConfigUiBase.MODE_CONNECT;
+        return WifiConfigUiBase2.MODE_CONNECT;
     }
 
     @Override
-    public WifiConfigController getController() {
+    public WifiConfigController2 getController() {
         return mUIController;
     }
 

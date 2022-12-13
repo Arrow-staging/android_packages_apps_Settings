@@ -22,9 +22,9 @@ import android.content.Context;
 import android.hardware.face.FaceManager;
 import android.provider.Settings;
 
-import com.android.settings.Utils;
-
 import androidx.preference.Preference;
+
+import com.android.settings.Utils;
 
 /**
  * Preference controller for Face settings page controlling the ability to use
@@ -51,7 +51,7 @@ public class FaceSettingsAppPreferenceController extends FaceSettingsPreferenceC
 
     @Override
     public boolean isChecked() {
-        if (!FaceSettings.isAvailable(mContext)) {
+        if (!FaceSettings.isFaceHardwareDetected(mContext)) {
             return false;
         }
         return Settings.Secure.getIntForUser(
@@ -67,7 +67,7 @@ public class FaceSettingsAppPreferenceController extends FaceSettingsPreferenceC
     @Override
     public void updateState(Preference preference) {
         super.updateState(preference);
-        if (!FaceSettings.isAvailable(mContext)) {
+        if (!FaceSettings.isFaceHardwareDetected(mContext)) {
             preference.setEnabled(false);
         } else if (!mFaceManager.hasEnrolledTemplates(getUserId())) {
             preference.setEnabled(false);
@@ -78,6 +78,11 @@ public class FaceSettingsAppPreferenceController extends FaceSettingsPreferenceC
 
     @Override
     public int getAvailabilityStatus() {
+        // When the device supports multiple biometrics auth, this preference will be hidden.
+        if (Utils.isMultipleBiometricsSupported(mContext)) {
+            return UNSUPPORTED_ON_DEVICE;
+        }
+
         if(mFaceManager == null){
             return AVAILABLE_UNSEARCHABLE;
         }

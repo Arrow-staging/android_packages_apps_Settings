@@ -19,37 +19,61 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:settings="http://schemas.android.com/apk/res-auto"
     android:key="privacy_dashboard_page"
-    android:title="@string/privacy_dashboard_title"
-    settings:initialExpandedChildrenCount="4">
-
+    android:title="@string/privacy_dashboard_title">
 
     <!-- Work Policy info -->
     <Preference
         android:key="work_policy_info"
         android:title="@string/work_policy_privacy_settings"
         android:summary="@string/work_policy_privacy_settings_summary"
-        settings:allowDividerAbove="true"
         settings:controller="com.android.settings.privacy.WorkPolicyInfoPreferenceController"/>
+
+    <!-- Connected work and personal apps -->
+    <Preference
+        android:key="interact_across_profiles_privacy"
+        android:title="@string/interact_across_profiles_title"
+        android:fragment="com.android.settings.applications.specialaccess.interactacrossprofiles.InteractAcrossProfilesSettings"
+        settings:searchable="false"
+        settings:controller="com.android.settings.applications.specialaccess.interactacrossprofiles.InteractAcrossProfilesController" />
 
     <!-- Accessibility usage -->
     <Preference
         android:key="privacy_accessibility_usage"
         android:title="@string/accessibility_usage_title"
-        settings:allowDividerAbove="true"
         settings:controller="com.android.settings.privacy.AccessibilityUsagePreferenceController">
         <intent android:action="android.intent.action.REVIEW_ACCESSIBILITY_SERVICES"/>
+    </Preference>
+
+    <!-- Permissions usage -->
+    <Preference
+        android:key="privacy_permissions_usage"
+        android:title="@string/permissions_usage_title"
+        android:summary="@string/permissions_usage_summary"
+        settings:controller="com.android.settings.privacy.PrivacyHubPreferenceController">
+        <intent android:action="android.intent.action.REVIEW_PERMISSION_USAGE"/>
     </Preference>
 
     <!-- App permissions -->
     <Preference
         android:key="privacy_manage_perms"
         android:title="@string/app_permissions"
-        android:summary="@string/summary_placeholder"
-        settings:allowDividerAbove="true"
-        settings:keywords="@string/keywords_app_permissions"
-        settings:controller="com.android.settings.applications.AppPermissionsPreferenceController">
+        android:summary="@string/runtime_permissions_summary_control_app_access">
         <intent android:action="android.intent.action.MANAGE_PERMISSIONS"/>
     </Preference>
+
+    <!-- Camera toggle -->
+    <com.android.settingslib.RestrictedSwitchPreference
+        android:key="privacy_camera_toggle"
+        android:title="@string/camera_toggle_title"
+        android:summary="@string/perm_toggle_description"
+        settings:controller="com.android.settings.privacy.CameraToggleController"/>
+
+    <!-- Microphone toggle -->
+    <com.android.settingslib.RestrictedSwitchPreference
+        android:key="privacy_mic_toggle"
+        android:title="@string/mic_toggle_title"
+        android:summary="@string/mic_toggle_description"
+        settings:controller="com.android.settings.privacy.MicToggleController"/>
 
     <!-- Show passwords -->
     <SwitchPreference
@@ -61,9 +85,17 @@
     <!-- On lock screen notifications -->
     <com.android.settings.RestrictedListPreference
         android:key="privacy_lock_screen_notifications"
-        android:title="@string/lock_screen_notifications_title"
+        android:title="@string/lock_screen_notifs_title"
         android:summary="@string/summary_placeholder"
         settings:searchable="false"/>
+
+    <!-- Show media on lock screen -->
+    <SwitchPreference
+        android:key="privacy_media_controls_lockscreen"
+        android:title="@string/media_controls_lockscreen_title"
+        android:summary="@string/media_controls_lockscreen_description"
+        settings:controller=
+            "com.android.settings.sound.MediaControlsLockScreenPreferenceController" />
 
     <!-- Privacy Service -->
     <PreferenceCategory
@@ -102,11 +134,17 @@
         android:summary="@string/content_capture_summary"
         settings:controller="com.android.settings.privacy.EnableContentCapturePreferenceController"/>
 
-    <com.android.settings.widget.MasterSwitchPreference
+    <com.android.settingslib.PrimarySwitchPreference
         android:key="content_capture_custom_settings"
         android:title="@string/content_capture"
         android:summary="@string/content_capture_summary"
-        settings:controller="com.android.settings.privacy.EnableContentCaptureWithServiceSettingsPreferenceController">
-    </com.android.settings.widget.MasterSwitchPreference>
+        settings:controller="com.android.settings.privacy.EnableContentCaptureWithServiceSettingsPreferenceController"/>
+
+    <!-- Clipboard access notifications -->
+    <SwitchPreference
+        android:key="show_clip_access_notification"
+        android:title="@string/show_clip_access_notification"
+        android:summary="@string/show_clip_access_notification_summary"
+        settings:controller="com.android.settings.privacy.ShowClipAccessNotificationPreferenceController"/>
 
 </PreferenceScreen>

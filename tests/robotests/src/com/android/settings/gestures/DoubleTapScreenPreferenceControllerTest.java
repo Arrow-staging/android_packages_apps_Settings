@@ -22,8 +22,11 @@ import static com.android.settings.core.BasePreferenceController.UNSUPPORTED_ON_
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.hardware.display.AmbientDisplayConfiguration;
@@ -53,6 +56,8 @@ public class DoubleTapScreenPreferenceControllerTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
+        doReturn(mock(DevicePolicyManager.class)).when(mContext)
+                .getSystemService(Context.DEVICE_POLICY_SERVICE);
         mController = new DoubleTapScreenPreferenceController(mContext, KEY_DOUBLE_TAP_SCREEN);
         mController.setConfig(mAmbientDisplayConfiguration);
     }
@@ -128,5 +133,10 @@ public class DoubleTapScreenPreferenceControllerTest {
         final DoubleTapScreenPreferenceController controller =
                 new DoubleTapScreenPreferenceController(mContext, "bad_key");
         assertThat(controller.isSliceable()).isFalse();
+    }
+
+    @Test
+    public void isPublicSlice_returnTrue() {
+        assertThat(mController.isPublicSlice()).isTrue();
     }
 }

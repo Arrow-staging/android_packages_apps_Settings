@@ -12,9 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
-
 package com.android.settings.testutils;
 
 import android.content.Context;
@@ -23,14 +21,14 @@ import android.net.Uri;
 import android.net.wifi.WifiManager;
 import android.provider.Settings;
 
+import com.android.settings.R;
 import com.android.settings.core.TogglePreferenceController;
 import com.android.settings.slices.SliceBackgroundWorker;
-
-import java.io.IOException;
 
 public class FakeToggleController extends TogglePreferenceController {
 
     public static final String AVAILABILITY_KEY = "fake_toggle_availability_key";
+    public static final int HIGHLIGHT_MENU_RES = R.string.menu_key_about_device;
 
     public static final IntentFilter INTENT_FILTER = new IntentFilter(
             WifiManager.WIFI_AP_STATE_CHANGED_ACTION);
@@ -72,6 +70,11 @@ public class FakeToggleController extends TogglePreferenceController {
     @Override
     public boolean isSliceable() {
         return true;
+    }
+
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return HIGHLIGHT_MENU_RES;
     }
 
     @Override

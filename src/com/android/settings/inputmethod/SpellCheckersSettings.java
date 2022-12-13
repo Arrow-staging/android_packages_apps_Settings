@@ -31,17 +31,16 @@ import android.widget.Switch;
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 import androidx.preference.Preference.OnPreferenceChangeListener;
-import androidx.preference.Preference.OnPreferenceClickListener;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
 import com.android.settings.SettingsActivity;
 import com.android.settings.SettingsPreferenceFragment;
-import com.android.settings.widget.SwitchBar;
-import com.android.settings.widget.SwitchBar.OnSwitchChangeListener;
+import com.android.settings.widget.SettingsMainSwitchBar;
+import com.android.settingslib.widget.OnMainSwitchChangeListener;
 
 public class SpellCheckersSettings extends SettingsPreferenceFragment
-        implements OnSwitchChangeListener, OnPreferenceClickListener, OnPreferenceChangeListener {
+        implements OnMainSwitchChangeListener, OnPreferenceChangeListener {
     private static final String TAG = SpellCheckersSettings.class.getSimpleName();
     private static final boolean DBG = false;
 
@@ -49,7 +48,7 @@ public class SpellCheckersSettings extends SettingsPreferenceFragment
     private static final String KEY_DEFAULT_SPELL_CHECKER = "default_spellchecker";
     private static final int ITEM_ID_USE_SYSTEM_LANGUAGE = 0;
 
-    private SwitchBar mSwitchBar;
+    private SettingsMainSwitchBar mSwitchBar;
     private Preference mSpellCheckerLanaguagePref;
     private AlertDialog mDialog = null;
     private SpellCheckerInfo mCurrentSci;
@@ -67,7 +66,6 @@ public class SpellCheckersSettings extends SettingsPreferenceFragment
 
         addPreferencesFromResource(R.xml.spellchecker_prefs);
         mSpellCheckerLanaguagePref = findPreference(KEY_SPELL_CHECKER_LANGUAGE);
-        mSpellCheckerLanaguagePref.setOnPreferenceClickListener(this);
 
         mTsm = (TextServicesManager) getSystemService(Context.TEXT_SERVICES_MANAGER_SERVICE);
         mCurrentSci = mTsm.getCurrentSpellChecker();
@@ -94,9 +92,7 @@ public class SpellCheckersSettings extends SettingsPreferenceFragment
     public void onResume() {
         super.onResume();
         mSwitchBar = ((SettingsActivity) getActivity()).getSwitchBar();
-        mSwitchBar.setSwitchBarText(
-                R.string.spell_checker_master_switch_title,
-                R.string.spell_checker_master_switch_title);
+        mSwitchBar.setTitle(getContext().getString(R.string.spell_checker_primary_switch_title));
         mSwitchBar.show();
         mSwitchBar.addOnSwitchChangeListener(this);
         updatePreferenceScreen();
@@ -155,12 +151,13 @@ public class SpellCheckersSettings extends SettingsPreferenceFragment
     }
 
     @Override
-    public boolean onPreferenceClick(final Preference pref) {
-        if (pref == mSpellCheckerLanaguagePref) {
+    public boolean onPreferenceTreeClick(Preference preference) {
+        if (KEY_SPELL_CHECKER_LANGUAGE.equals(preference.getKey())) {
+            writePreferenceClickMetric(preference);
             showChooseLanguageDialog();
             return true;
         }
-        return false;
+        return super.onPreferenceTreeClick(preference);
     }
 
     @Override

@@ -16,26 +16,17 @@
 
 package com.android.settings.password;
 
-import android.app.Activity;
-import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
-import android.content.DialogInterface;
-import android.hardware.biometrics.BiometricConstants;
 import android.hardware.biometrics.BiometricPrompt;
 import android.hardware.biometrics.BiometricPrompt.AuthenticationCallback;
 import android.hardware.biometrics.BiometricPrompt.AuthenticationResult;
+import android.hardware.biometrics.PromptInfo;
 import android.os.Bundle;
 import android.os.CancellationSignal;
-import android.os.Handler;
-import android.os.Looper;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 
-import com.android.internal.widget.LockPatternUtils;
-import com.android.settings.R;
 import com.android.settings.core.InstrumentedFragment;
-import com.android.settings.overlay.FeatureFactory;
 
 import java.util.concurrent.Executor;
 
@@ -46,6 +37,8 @@ public class BiometricFragment extends InstrumentedFragment {
 
     private static final String TAG = "ConfirmDeviceCredential/BiometricFragment";
 
+    private static final String KEY_PROMPT_INFO = "prompt_info";
+
     // Re-set by the application. Should be done upon orientation changes, etc
     private Executor mClientExecutor;
     private AuthenticationCallback mClientCallback;
@@ -54,16 +47,13 @@ public class BiometricFragment extends InstrumentedFragment {
     private int mUserId;
 
     // Created/Initialized once and retained
-    private Bundle mBundle;
     private BiometricPrompt mBiometricPrompt;
     private CancellationSignal mCancellationSignal;
-    private boolean mAuthenticating;
 
     private AuthenticationCallback mAuthenticationCallback =
             new AuthenticationCallback() {
         @Override
         public void onAuthenticationError(int error, @NonNull CharSequence message) {
-            mAuthenticating = false;
             mClientExecutor.execute(() -> {
                 mClientCallback.onAuthenticationError(error, message);
             });
@@ -72,30 +62,35 @@ public class BiometricFragment extends InstrumentedFragment {
 
         @Override
         public void onAuthenticationSucceeded(AuthenticationResult result) {
-            mAuthenticating = false;
             mClientExecutor.execute(() -> {
                 mClientCallback.onAuthenticationSucceeded(result);
             });
             cleanup();
         }
-    };
 
-    private final DialogInterface.OnClickListener mNegativeButtonListener =
-            new DialogInterface.OnClickListener() {
         @Override
-        public void onClick(DialogInterface dialog, int which) {
-            mAuthenticationCallback.onAuthenticationError(
-                    BiometricConstants.BIOMETRIC_ERROR_NEGATIVE_BUTTON,
-                    mBundle.getString(BiometricPrompt.KEY_NEGATIVE_TEXT));
+        public void onAuthenticationFailed() {
+            mClientExecutor.execute(() -> {
+                mClientCallback.onAuthenticationFailed();
+            });
+        }
+
+        @Override
+        public void onSystemEvent(int event) {
+            mClientExecutor.execute(() -> {
+                mClientCallback.onSystemEvent(event);
+            });
         }
     };
 
     /**
-     * @param bundle Bundle passed from {@link BiometricPrompt.Builder#buildIntent()}
+     * @param promptInfo
      * @return
      */
-    public static BiometricFragment newInstance(Bundle bundle) {
+    public static BiometricFragment newInstance(PromptInfo promptInfo) {
         BiometricFragment biometricFragment = new BiometricFragment();
+        final Bundle bundle = new Bundle();
+        bundle.putParcelable(KEY_PROMPT_INFO, promptInfo);
         biometricFragment.setArguments(bundle);
         return biometricFragment;
     }
@@ -118,12 +113,9 @@ public class BiometricFragment extends InstrumentedFragment {
 
     private void cleanup() {
         if (getActivity() != null) {
-            getActivity().getSupportFragmentManager().beginTransaction().remove(this).commit();
+            getActivity().getSupportFragmentManager().beginTransaction().remove(this)
+                    .commitAllowingStateLoss();
         }
-    }
-
-    boolean isAuthenticating() {
-        return mAuthenticating;
     }
 
     @Override
@@ -131,23 +123,35 @@ public class BiometricFragment extends InstrumentedFragment {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
 
-        mBundle = getArguments();
-        final BiometricPrompt.Builder builder = new BiometricPrompt.Builder(getContext())
-                .setTitle(mBundle.getString(BiometricPrompt.KEY_TITLE))
+        final Bundle bundle = getArguments();
+        final PromptInfo promptInfo = bundle.getParcelable(KEY_PROMPT_INFO);
+
+        mBiometricPrompt = new BiometricPrompt.Builder(getContext())
+                .setTitle(promptInfo.getTitle())
                 .setUseDefaultTitle() // use default title if title is null/empty
                 .setDeviceCredentialAllowed(true)
-                .setSubtitle(mBundle.getString(BiometricPrompt.KEY_SUBTITLE))
-                .setDescription(mBundle.getString(BiometricPrompt.KEY_DESCRIPTION))
-                .setConfirmationRequired(
-                        mBundle.getBoolean(BiometricPrompt.KEY_REQUIRE_CONFIRMATION, true));
+                .setSubtitle(promptInfo.getSubtitle())
+                .setDescription(promptInfo.getDescription())
+                .setTextForDeviceCredential(
+                        promptInfo.getDeviceCredentialTitle(),
+                        promptInfo.getDeviceCredentialSubtitle(),
+                        promptInfo.getDeviceCredentialDescription())
+                .setConfirmationRequired(promptInfo.isConfirmationRequested())
+                .setDisallowBiometricsIfPolicyExists(
+                        promptInfo.isDisallowBiometricsIfPolicyExists())
+                .setReceiveSystemEvents(true)
+                .build();
+    }
 
-        mBiometricPrompt = builder.build();
-        mCancellationSignal = new CancellationSignal();
+    @Override
+    public void onResume() {
+        super.onResume();
 
-        // TODO: CC doesn't use crypto for now
-        mAuthenticating = true;
-        mBiometricPrompt.authenticateUser(mCancellationSignal, mClientExecutor,
-                mAuthenticationCallback, mUserId);
+        if (mCancellationSignal == null) {
+            mCancellationSignal = new CancellationSignal();
+            mBiometricPrompt.authenticateUser(mCancellationSignal, mClientExecutor,
+                    mAuthenticationCallback, mUserId);
+        }
     }
 
     @Override
@@ -155,4 +159,3 @@ public class BiometricFragment extends InstrumentedFragment {
         return SettingsEnums.BIOMETRIC_FRAGMENT;
     }
 }
-

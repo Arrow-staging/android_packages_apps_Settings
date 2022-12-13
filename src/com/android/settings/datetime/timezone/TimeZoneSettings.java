@@ -17,13 +17,15 @@
 package com.android.settings.datetime.timezone;
 
 import android.app.Activity;
-import android.app.AlarmManager;
 import android.app.settings.SettingsEnums;
+import android.app.timezonedetector.ManualTimeZoneSuggestion;
+import android.app.timezonedetector.TimeZoneDetector;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.icu.util.TimeZone;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -38,7 +40,9 @@ import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.datetime.timezone.model.FilteredCountryTimeZones;
 import com.android.settings.datetime.timezone.model.TimeZoneData;
 import com.android.settings.datetime.timezone.model.TimeZoneDataLoader;
+import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.core.AbstractPreferenceController;
+import com.android.settingslib.search.SearchIndexable;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -50,6 +54,7 @@ import java.util.Set;
 /**
  * The class displays a time zone picker either by regions or fixed offset time zones.
  */
+@SearchIndexable
 public class TimeZoneSettings extends DashboardFragment {
 
     private static final String TAG = "TimeZoneSettings";
@@ -119,9 +124,9 @@ public class TimeZoneSettings extends DashboardFragment {
         super.onCreate(icicle);
         // Hide all interactive preferences
         setPreferenceCategoryVisible((PreferenceCategory) findPreference(
-            PREF_KEY_REGION_CATEGORY), false);
+                PREF_KEY_REGION_CATEGORY), false);
         setPreferenceCategoryVisible((PreferenceCategory) findPreference(
-            PREF_KEY_FIXED_OFFSET_CATEGORY), false);
+                PREF_KEY_FIXED_OFFSET_CATEGORY), false);
 
         // Start loading TimeZoneData
         getLoaderManager().initLoader(0, null, new TimeZoneDataLoader.LoaderCreator(
@@ -209,10 +214,11 @@ public class TimeZoneSettings extends DashboardFragment {
                 mTimeZoneData.lookupCountryTimeZones(regionId);
 
         use(RegionZonePreferenceController.class).setTimeZoneInfo(tzInfo);
-        // Only clickable when the region has more than 1 time zones or no time zone is selected.
 
+        // Only clickable when the region has more than 1 time zones or no time zone is selected.
         use(RegionZonePreferenceController.class).setClickable(tzInfo == null ||
-                (countryTimeZones != null && countryTimeZones.getTimeZoneIds().size() > 1));
+                (countryTimeZones != null
+                        && countryTimeZones.getPreferredTimeZoneIds().size() > 1));
         use(TimeZoneInfoPreferenceController.class).setTimeZoneInfo(tzInfo);
 
         updatePreferenceStates();
@@ -233,13 +239,14 @@ public class TimeZoneSettings extends DashboardFragment {
         String tzId = data.getStringExtra(RegionZonePicker.EXTRA_RESULT_TIME_ZONE_ID);
         // Ignore the result if user didn't change the region or time zone.
         if (Objects.equals(regionId, use(RegionPreferenceController.class).getRegionId())
-            && Objects.equals(tzId, mSelectedTimeZoneId)) {
+                && Objects.equals(tzId, mSelectedTimeZoneId)) {
             return;
         }
 
         FilteredCountryTimeZones countryTimeZones =
                 timeZoneData.lookupCountryTimeZones(regionId);
-        if (countryTimeZones == null || !countryTimeZones.getTimeZoneIds().contains(tzId)) {
+        if (countryTimeZones == null
+                || !countryTimeZones.getPreferredTimeZoneIds().contains(tzId)) {
             Log.e(TAG, "Unknown time zone id is selected: " + tzId);
             return;
         }
@@ -270,7 +277,10 @@ public class TimeZoneSettings extends DashboardFragment {
             editor.putString(PREF_KEY_REGION, regionId);
         }
         editor.apply();
-        getActivity().getSystemService(AlarmManager.class).setTimeZone(tzId);
+        ManualTimeZoneSuggestion manualTimeZoneSuggestion =
+                TimeZoneDetector.createManualTimeZoneSuggestion(tzId, "Settings: Set time zone");
+        TimeZoneDetector timeZoneDetector = getActivity().getSystemService(TimeZoneDetector.class);
+        timeZoneDetector.suggestManualTimeZone(manualTimeZoneSuggestion);
     }
 
     @Override
@@ -320,9 +330,9 @@ public class TimeZoneSettings extends DashboardFragment {
     private void setSelectByRegion(boolean selectByRegion) {
         mSelectByRegion = selectByRegion;
         setPreferenceCategoryVisible((PreferenceCategory) findPreference(
-            PREF_KEY_REGION_CATEGORY), selectByRegion);
+                PREF_KEY_REGION_CATEGORY), selectByRegion);
         setPreferenceCategoryVisible((PreferenceCategory) findPreference(
-            PREF_KEY_FIXED_OFFSET_CATEGORY), !selectByRegion);
+                PREF_KEY_FIXED_OFFSET_CATEGORY), !selectByRegion);
         final String localeRegionId = getLocaleRegionId();
         final Set<String> allCountryIsoCodes = mTimeZoneData.getRegionIds();
 
@@ -346,6 +356,7 @@ public class TimeZoneSettings extends DashboardFragment {
      * Find the a region associated with the specified time zone, based on the time zone data.
      * If there are multiple regions associated with the given time zone, the priority will be given
      * to the region the user last picked and the country in user's locale.
+     *
      * @return null if no region associated with the time zone
      */
     private String findRegionIdForTzId(String tzId) {
@@ -371,7 +382,7 @@ public class TimeZoneSettings extends DashboardFragment {
     }
 
     private void setPreferenceCategoryVisible(PreferenceCategory category,
-        boolean isVisible) {
+            boolean isVisible) {
         // Hiding category doesn't hide all the children preference. Set visibility of its children.
         // Do not care grandchildren as time_zone_pref.xml has only 2 levels.
         category.setVisible(isVisible);
@@ -383,4 +394,15 @@ public class TimeZoneSettings extends DashboardFragment {
     private String getLocaleRegionId() {
         return mLocale.getCountry().toUpperCase(Locale.US);
     }
+
+    public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
+            new BaseSearchIndexProvider(R.xml.time_zone_prefs) {
+                @Override
+                protected boolean isPageSearchEnabled(Context context) {
+                    // We can't enter this page if the auto time zone is enabled.
+                    final int autoTimeZone = Settings.Global.getInt(context.getContentResolver(),
+                            Settings.Global.AUTO_TIME_ZONE, 1);
+                    return autoTimeZone == 1 ? false : true;
+                }
+            };
 }

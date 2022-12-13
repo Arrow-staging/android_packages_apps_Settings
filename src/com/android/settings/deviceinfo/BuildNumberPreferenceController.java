@@ -17,6 +17,7 @@
 package com.android.settings.deviceinfo;
 
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.settings.SettingsEnums;
 import android.content.ComponentName;
 import android.content.Context;
@@ -29,6 +30,7 @@ import android.text.BidiFormatter;
 import android.text.TextUtils;
 import android.widget.Toast;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 
 import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
@@ -38,7 +40,6 @@ import com.android.settings.core.BasePreferenceController;
 import com.android.settings.core.InstrumentedPreferenceFragment;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.password.ChooseLockSettingsHelper;
-import com.android.settings.slices.Sliceable;
 import com.android.settingslib.RestrictedLockUtils;
 import com.android.settingslib.RestrictedLockUtilsInternal;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
@@ -98,23 +99,8 @@ public class BuildNumberPreferenceController extends BasePreferenceController im
     }
 
     @Override
-    public boolean isSliceable() {
-        return true;
-    }
-
-    @Override
-    public boolean isCopyableSlice() {
-        return true;
-    }
-
-    @Override
     public boolean useDynamicSliceSummary() {
         return true;
-    }
-
-    @Override
-    public void copy() {
-        Sliceable.setCopyContent(mContext, getSummary(), mContext.getText(R.string.build_number));
     }
 
     @Override
@@ -122,7 +108,7 @@ public class BuildNumberPreferenceController extends BasePreferenceController im
         if (!TextUtils.equals(preference.getKey(), getPreferenceKey())) {
             return false;
         }
-        if (Utils.isMonkeyRunning()) {
+        if (isUserAMonkey()) {
             return false;
         }
         // Don't enable developer options for secondary non-demo users.
@@ -170,11 +156,16 @@ public class BuildNumberPreferenceController extends BasePreferenceController im
             if (mDevHitCountdown == 0 && !mProcessingLastDevHit) {
                 // Add 1 count back, then start password confirmation flow.
                 mDevHitCountdown++;
-                final ChooseLockSettingsHelper helper =
-                        new ChooseLockSettingsHelper(mActivity, mFragment);
-                mProcessingLastDevHit = helper.launchConfirmationActivity(
-                        REQUEST_CONFIRM_PASSWORD_FOR_DEV_PREF,
-                        mContext.getString(R.string.unlock_set_unlock_launch_picker_title));
+
+                final String title = mContext
+                        .getString(R.string.unlock_set_unlock_launch_picker_title);
+                final ChooseLockSettingsHelper.Builder builder =
+                        new ChooseLockSettingsHelper.Builder(mActivity, mFragment);
+                mProcessingLastDevHit = builder
+                        .setRequestCode(REQUEST_CONFIRM_PASSWORD_FOR_DEV_PREF)
+                        .setTitle(title)
+                        .show();
+
                 if (!mProcessingLastDevHit) {
                     enableDevelopmentSettings();
                 }
@@ -249,5 +240,10 @@ public class BuildNumberPreferenceController extends BasePreferenceController im
         mDevHitToast = Toast.makeText(mContext, R.string.show_dev_on,
                 Toast.LENGTH_LONG);
         mDevHitToast.show();
+    }
+
+    @VisibleForTesting
+    protected boolean isUserAMonkey() {
+        return ActivityManager.isUserAMonkey();
     }
 }

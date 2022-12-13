@@ -16,6 +16,14 @@
 
 package com.android.settings.accounts;
 
+import static android.app.admin.DevicePolicyResources.Strings.Settings.ACCESSIBILITY_CATEGORY_PERSONAL;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.ACCESSIBILITY_CATEGORY_WORK;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.MANAGED_BY;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.MANAGED_PROFILE_SETTINGS_TITLE;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.PERSONAL_CATEGORY_HEADER;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.REMOVE_WORK_PROFILE;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.WORK_CATEGORY_HEADER;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.WORK_PROFILE_NOT_AVAILABLE;
 import static android.content.Intent.EXTRA_USER;
 import static android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS;
 import static android.os.UserManager.DISALLOW_REMOVE_MANAGED_PROFILE;
@@ -24,6 +32,7 @@ import static android.provider.Settings.EXTRA_AUTHORITIES;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -49,10 +58,10 @@ import androidx.preference.PreferenceScreen;
 
 import com.android.settings.AccessiblePreferenceCategory;
 import com.android.settings.R;
-import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.Utils;
 import com.android.settings.core.PreferenceControllerMixin;
 import com.android.settings.core.SubSettingLauncher;
+import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.dashboard.profileselector.ProfileSelectFragment;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.RestrictedPreference;
@@ -75,19 +84,24 @@ public class AccountPreferenceController extends AbstractPreferenceController
 
     private static final String TAG = "AccountPrefController";
 
-    private static final int ORDER_ACCOUNT_PROFILES = 1;
+    private static final int ORDER_ACCOUNT_PROFILES = 101;
     private static final int ORDER_LAST = 1002;
     private static final int ORDER_NEXT_TO_LAST = 1001;
     private static final int ORDER_NEXT_TO_NEXT_TO_LAST = 1000;
 
+    private static final String PREF_KEY_ADD_ACCOUNT = "add_account";
+    private static final String PREF_KEY_REMOVE_PROFILE = "remove_profile";
+    private static final String PREF_KEY_WORK_PROFILE_SETTING = "work_profile_setting";
+
     private UserManager mUm;
+    private DevicePolicyManager mDpm;
     private SparseArray<ProfileData> mProfiles = new SparseArray<ProfileData>();
     private ManagedProfileBroadcastReceiver mManagedProfileBroadcastReceiver =
             new ManagedProfileBroadcastReceiver();
     private Preference mProfileNotAvailablePreference;
     private String[] mAuthorities;
     private int mAuthoritiesCount = 0;
-    private SettingsPreferenceFragment mParent;
+    private DashboardFragment mFragment;
     private int mAccountProfileOrder = ORDER_ACCOUNT_PROFILES;
     private AccountRestrictionHelper mHelper;
     private MetricsFeatureProvider mMetricsFeatureProvider;
@@ -131,19 +145,20 @@ public class AccountPreferenceController extends AbstractPreferenceController
         public ArrayMap<String, AccountTypePreference> accountPreferences = new ArrayMap<>();
     }
 
-    public AccountPreferenceController(Context context, SettingsPreferenceFragment parent,
+    public AccountPreferenceController(Context context, DashboardFragment parent,
             String[] authorities, @ProfileSelectFragment.ProfileType int type) {
         this(context, parent, authorities, new AccountRestrictionHelper(context), type);
     }
 
     @VisibleForTesting
-    AccountPreferenceController(Context context, SettingsPreferenceFragment parent,
+    AccountPreferenceController(Context context, DashboardFragment parent,
             String[] authorities, AccountRestrictionHelper helper,
             @ProfileSelectFragment.ProfileType int type) {
         super(context);
         mUm = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        mDpm = context.getSystemService(DevicePolicyManager.class);
         mAuthorities = authorities;
-        mParent = parent;
+        mFragment = parent;
         if (mAuthorities != null) {
             mAuthoritiesCount = mAuthorities.length;
         }
@@ -170,7 +185,7 @@ public class AccountPreferenceController extends AbstractPreferenceController
     }
 
     @Override
-    public void updateRawDataToIndex(List<SearchIndexableRaw> rawData) {
+    public void updateDynamicRawDataToIndex(List<SearchIndexableRaw> rawData) {
         if (!isAvailable()) {
             return;
         }
@@ -178,29 +193,24 @@ public class AccountPreferenceController extends AbstractPreferenceController
         final String screenTitle = res.getString(R.string.account_settings_title);
 
         List<UserInfo> profiles = mUm.getProfiles(UserHandle.myUserId());
-        final int profilesCount = profiles.size();
-        for (int i = 0; i < profilesCount; i++) {
-            UserInfo userInfo = profiles.get(i);
-            if (userInfo.isEnabled()) {
-                if (!mHelper.hasBaseUserRestriction(DISALLOW_MODIFY_ACCOUNTS, userInfo.id)) {
-                    SearchIndexableRaw data = new SearchIndexableRaw(mContext);
-                    data.title = res.getString(R.string.add_account_label);
+        for (final UserInfo userInfo : profiles) {
+            if (userInfo.isEnabled() && userInfo.isManagedProfile()) {
+                if (!mHelper.hasBaseUserRestriction(DISALLOW_REMOVE_MANAGED_PROFILE,
+                        UserHandle.myUserId())) {
+                    final SearchIndexableRaw data = new SearchIndexableRaw(mContext);
+                    data.key = PREF_KEY_REMOVE_PROFILE;
+                    data.title = mDpm.getResources().getString(
+                            REMOVE_WORK_PROFILE,
+                            () -> res.getString(R.string.remove_managed_profile_label));
                     data.screenTitle = screenTitle;
                     rawData.add(data);
                 }
-                if (userInfo.isManagedProfile()) {
-                    if (!mHelper.hasBaseUserRestriction(DISALLOW_REMOVE_MANAGED_PROFILE,
-                            UserHandle.myUserId())) {
-                        SearchIndexableRaw data = new SearchIndexableRaw(mContext);
-                        data.title = res.getString(R.string.remove_managed_profile_label);
-                        data.screenTitle = screenTitle;
-                        rawData.add(data);
-                    }
-                    SearchIndexableRaw data = new SearchIndexableRaw(mContext);
-                    data.title = res.getString(R.string.managed_profile_settings_title);
-                    data.screenTitle = screenTitle;
-                    rawData.add(data);
-                }
+                final SearchIndexableRaw data = new SearchIndexableRaw(mContext);
+                data.key = PREF_KEY_WORK_PROFILE_SETTING;
+                data.title = mDpm.getResources().getString(MANAGED_PROFILE_SETTINGS_TITLE,
+                        () -> res.getString(R.string.managed_profile_settings_title));
+                data.screenTitle = screenTitle;
+                rawData.add(data);
             }
         }
     }
@@ -230,11 +240,13 @@ public class AccountPreferenceController extends AbstractPreferenceController
 
     @Override
     public boolean onPreferenceClick(Preference preference) {
+        final int metricsCategory = mFragment.getMetricsCategory();
         // Check the preference
         final int count = mProfiles.size();
         for (int i = 0; i < count; i++) {
             ProfileData profileData = mProfiles.valueAt(i);
             if (preference == profileData.addAccountPreference) {
+                mMetricsFeatureProvider.logClickedPreference(preference, metricsCategory);
                 Intent intent = new Intent(ACTION_ADD_ACCOUNT);
                 intent.putExtra(EXTRA_USER, profileData.userInfo.getUserHandle());
                 intent.putExtra(EXTRA_AUTHORITIES, mAuthorities);
@@ -242,18 +254,21 @@ public class AccountPreferenceController extends AbstractPreferenceController
                 return true;
             }
             if (preference == profileData.removeWorkProfilePreference) {
+                mMetricsFeatureProvider.logClickedPreference(preference, metricsCategory);
                 final int userId = profileData.userInfo.id;
-                RemoveUserFragment.newInstance(userId).show(mParent.getFragmentManager(),
+                RemoveUserFragment.newInstance(userId).show(mFragment.getFragmentManager(),
                         "removeUser");
                 return true;
             }
             if (preference == profileData.managedProfilePreference) {
+                mMetricsFeatureProvider.logClickedPreference(preference, metricsCategory);
                 Bundle arguments = new Bundle();
                 arguments.putParcelable(Intent.EXTRA_USER, profileData.userInfo.getUserHandle());
                 new SubSettingLauncher(mContext)
-                        .setSourceMetricsCategory(mParent.getMetricsCategory())
+                        .setSourceMetricsCategory(metricsCategory)
                         .setDestination(ManagedProfileSettings.class.getName())
-                        .setTitleRes(R.string.managed_profile_settings_title)
+                        .setTitleText(mDpm.getResources().getString(MANAGED_PROFILE_SETTINGS_TITLE,
+                                () -> mContext.getString(R.string.managed_profile_settings_title)))
                         .setArguments(arguments)
                         .launch();
 
@@ -282,10 +297,10 @@ public class AccountPreferenceController extends AbstractPreferenceController
             final int profilesCount = profiles.size();
             for (int i = 0; i < profilesCount; i++) {
                 if (profiles.get(i).isManagedProfile()
-                        && (mType & ProfileSelectFragment.WORK) != 0) {
+                        && (mType & ProfileSelectFragment.ProfileType.WORK) != 0) {
                     updateProfileUi(profiles.get(i));
                 } else if (!profiles.get(i).isManagedProfile()
-                        && (mType & ProfileSelectFragment.PERSONAL) != 0) {
+                        && (mType & ProfileSelectFragment.ProfileType.PERSONAL) != 0) {
                     updateProfileUi(profiles.get(i));
                 }
             }
@@ -299,10 +314,13 @@ public class AccountPreferenceController extends AbstractPreferenceController
         for (int i = 0; i < profilesCount; i++) {
             updateAccountTypes(mProfiles.valueAt(i));
         }
+
+        // Refresh for the auto-sync preferences
+        mFragment.forceUpdatePreferences();
     }
 
     private void updateProfileUi(final UserInfo userInfo) {
-        if (mParent.getPreferenceManager() == null) {
+        if (mFragment.getPreferenceManager() == null) {
             return;
         }
         final ProfileData data = mProfiles.get(userInfo.id);
@@ -321,33 +339,41 @@ public class AccountPreferenceController extends AbstractPreferenceController
         profileData.userInfo = userInfo;
         AccessiblePreferenceCategory preferenceGroup =
                 mHelper.createAccessiblePreferenceCategory(
-                        mParent.getPreferenceManager().getContext());
+                        mFragment.getPreferenceManager().getContext());
         preferenceGroup.setOrder(mAccountProfileOrder++);
+        preferenceGroup.setTitle(R.string.account_settings); // default title; may be modified below
         if (isSingleProfile()) {
-            preferenceGroup.setTitle(context.getString(R.string.account_for_section_header,
-                    BidiFormatter.getInstance().unicodeWrap(userInfo.name)));
-            preferenceGroup.setContentDescription(
-                    mContext.getString(R.string.account_settings));
+            final String title = context.getString(R.string.account_for_section_header,
+                    BidiFormatter.getInstance().unicodeWrap(userInfo.name));
+            preferenceGroup.setTitle(title);
+            preferenceGroup.setContentDescription(title);
         } else if (userInfo.isManagedProfile()) {
-            if (mType == ProfileSelectFragment.ALL) {
-                preferenceGroup.setTitle(R.string.category_work);
+            if (mType == ProfileSelectFragment.ProfileType.ALL) {
+                preferenceGroup.setTitle(
+                        mDpm.getResources().getString(WORK_CATEGORY_HEADER,
+                                () -> mContext.getString(R.string.category_work)));
                 final String workGroupSummary = getWorkGroupSummary(context, userInfo);
                 preferenceGroup.setSummary(workGroupSummary);
                 preferenceGroup.setContentDescription(
-                        mContext.getString(R.string.accessibility_category_work, workGroupSummary));
+                        mDpm.getResources().getString(ACCESSIBILITY_CATEGORY_WORK, () ->
+                        mContext.getString(
+                                R.string.accessibility_category_work, workGroupSummary)));
             }
             profileData.removeWorkProfilePreference = newRemoveWorkProfilePreference();
             mHelper.enforceRestrictionOnPreference(profileData.removeWorkProfilePreference,
                     DISALLOW_REMOVE_MANAGED_PROFILE, UserHandle.myUserId());
             profileData.managedProfilePreference = newManagedProfileSettings();
         } else {
-            if (mType == ProfileSelectFragment.ALL) {
-                preferenceGroup.setTitle(R.string.category_personal);
+            if (mType == ProfileSelectFragment.ProfileType.ALL) {
+                preferenceGroup.setTitle(
+                        mDpm.getResources().getString(PERSONAL_CATEGORY_HEADER,
+                                () -> mContext.getString(R.string.category_personal)));
                 preferenceGroup.setContentDescription(
-                        mContext.getString(R.string.accessibility_category_personal));
+                        mDpm.getResources().getString(ACCESSIBILITY_CATEGORY_PERSONAL, () ->
+                        mContext.getString(R.string.accessibility_category_personal)));
             }
         }
-        final PreferenceScreen screen = mParent.getPreferenceScreen();
+        final PreferenceScreen screen = mFragment.getPreferenceScreen();
         if (screen != null) {
             screen.addPreference(preferenceGroup);
         }
@@ -364,7 +390,8 @@ public class AccountPreferenceController extends AbstractPreferenceController
 
     private RestrictedPreference newAddAccountPreference() {
         RestrictedPreference preference =
-                new RestrictedPreference(mParent.getPreferenceManager().getContext());
+                new RestrictedPreference(mFragment.getPreferenceManager().getContext());
+        preference.setKey(PREF_KEY_ADD_ACCOUNT);
         preference.setTitle(R.string.add_account_label);
         preference.setIcon(R.drawable.ic_add_24dp);
         preference.setOnPreferenceClickListener(this);
@@ -374,18 +401,22 @@ public class AccountPreferenceController extends AbstractPreferenceController
 
     private RestrictedPreference newRemoveWorkProfilePreference() {
         RestrictedPreference preference = new RestrictedPreference(
-                mParent.getPreferenceManager().getContext());
-        preference.setTitle(R.string.remove_managed_profile_label);
+                mFragment.getPreferenceManager().getContext());
+        preference.setKey(PREF_KEY_REMOVE_PROFILE);
+        preference.setTitle(
+                mDpm.getResources().getString(REMOVE_WORK_PROFILE,
+                        () -> mContext.getString(R.string.remove_managed_profile_label)));
         preference.setIcon(R.drawable.ic_delete);
         preference.setOnPreferenceClickListener(this);
         preference.setOrder(ORDER_LAST);
         return preference;
     }
 
-
     private Preference newManagedProfileSettings() {
-        Preference preference = new Preference(mParent.getPreferenceManager().getContext());
-        preference.setTitle(R.string.managed_profile_settings_title);
+        Preference preference = new Preference(mFragment.getPreferenceManager().getContext());
+        preference.setKey(PREF_KEY_WORK_PROFILE_SETTING);
+        preference.setTitle(mDpm.getResources().getString(MANAGED_PROFILE_SETTINGS_TITLE,
+                () -> mContext.getString(R.string.managed_profile_settings_title)));
         preference.setIcon(R.drawable.ic_settings_24dp);
         preference.setOnPreferenceClickListener(this);
         preference.setOrder(ORDER_NEXT_TO_LAST);
@@ -399,11 +430,12 @@ public class AccountPreferenceController extends AbstractPreferenceController
             return null;
         }
         CharSequence appLabel = packageManager.getApplicationLabel(adminApplicationInfo);
-        return mContext.getString(R.string.managing_admin, appLabel);
+        return mDpm.getResources().getString(MANAGED_BY,
+                () -> mContext.getString(R.string.managing_admin, appLabel), appLabel);
     }
 
     void cleanUpPreferences() {
-        PreferenceScreen screen = mParent.getPreferenceScreen();
+        PreferenceScreen screen = mFragment.getPreferenceScreen();
         if (screen == null) {
             return;
         }
@@ -438,7 +470,7 @@ public class AccountPreferenceController extends AbstractPreferenceController
     }
 
     private void updateAccountTypes(ProfileData profileData) {
-        if (mParent.getPreferenceManager() == null
+        if (mFragment.getPreferenceManager() == null
                 || profileData.preferenceGroup.getPreferenceManager() == null) {
             // This could happen if activity is finishing
             return;
@@ -472,13 +504,15 @@ public class AccountPreferenceController extends AbstractPreferenceController
             // Put a label instead of the accounts list
             if (mProfileNotAvailablePreference == null) {
                 mProfileNotAvailablePreference =
-                        new Preference(mParent.getPreferenceManager().getContext());
+                        new Preference(mFragment.getPreferenceManager().getContext());
             }
             mProfileNotAvailablePreference.setEnabled(false);
             mProfileNotAvailablePreference.setIcon(R.drawable.empty_icon);
             mProfileNotAvailablePreference.setTitle(null);
             mProfileNotAvailablePreference.setSummary(
-                    R.string.managed_profile_not_available_label);
+                    mDpm.getResources().getString(
+                            WORK_PROFILE_NOT_AVAILABLE, () -> mContext.getString(
+                    R.string.managed_profile_not_available_label)));
             profileData.preferenceGroup.addPreference(mProfileNotAvailablePreference);
         }
         if (profileData.removeWorkProfilePreference != null) {
@@ -511,7 +545,7 @@ public class AccountPreferenceController extends AbstractPreferenceController
             final Account[] accounts = AccountManager.get(mContext)
                     .getAccountsByTypeAsUser(accountType, userHandle);
             final Drawable icon = helper.getDrawableForType(mContext, accountType);
-            final Context prefContext = mParent.getPreferenceManager().getContext();
+            final Context prefContext = mFragment.getPreferenceManager().getContext();
 
             // Add a preference row for each individual account
             for (Account account : accounts) {
@@ -539,7 +573,7 @@ public class AccountPreferenceController extends AbstractPreferenceController
                         titleResId);
                 fragmentArguments.putParcelable(EXTRA_USER, userHandle);
                 accountTypePreferences.add(new AccountTypePreference(
-                        prefContext, mMetricsFeatureProvider.getMetricsCategory(mParent),
+                        prefContext, mMetricsFeatureProvider.getMetricsCategory(mFragment),
                         account, titleResPackageName, titleResId, label,
                         AccountDetailDashboardFragment.class.getName(), fragmentArguments, icon));
             }
@@ -590,11 +624,21 @@ public class AccountPreferenceController extends AbstractPreferenceController
             Log.v(TAG, "Received broadcast: " + action);
             if (action.equals(Intent.ACTION_MANAGED_PROFILE_REMOVED)
                     || action.equals(Intent.ACTION_MANAGED_PROFILE_ADDED)) {
-                // Clean old state
-                stopListeningToAccountUpdates();
-                // Build new state
-                updateUi();
-                listenToAccountUpdates();
+                if (mFragment instanceof AccountWorkProfileDashboardFragment) {
+                    new SubSettingLauncher(context)
+                            .setDestination(AccountDashboardFragment.class.getName())
+                            .setSourceMetricsCategory(mFragment.getMetricsCategory())
+                            .setTitleRes(-1)
+                            .setIsSecondLayerPage(true)
+                            .launch();
+                    mFragment.getActivity().finish();
+                } else {
+                    // Clean old state
+                    stopListeningToAccountUpdates();
+                    // Build new state
+                    updateUi();
+                    listenToAccountUpdates();
+                }
                 return;
             }
             Log.w(TAG, "Cannot handle received broadcast: " + intent.getAction());

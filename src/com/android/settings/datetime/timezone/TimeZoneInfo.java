@@ -149,22 +149,40 @@ public class TimeZoneInfo {
          * @return TimeZoneInfo containing time zone names, exemplar locations and GMT offset
          */
         public TimeZoneInfo format(TimeZone timeZone) {
-            final String id = timeZone.getID();
+            String canonicalZoneId = getCanonicalZoneId(timeZone);
             final TimeZoneNames timeZoneNames = mTimeZoneFormat.getTimeZoneNames();
-            final java.util.TimeZone javaTimeZone = java.util.TimeZone.getTimeZone(id);
+            final java.util.TimeZone javaTimeZone = toJavaTimeZone(canonicalZoneId);
             final CharSequence gmtOffset = ZoneGetter.getGmtOffsetText(mTimeZoneFormat, mLocale,
                 javaTimeZone, mNow);
             return new TimeZoneInfo.Builder(timeZone)
-                    .setGenericName(timeZoneNames.getDisplayName(id,
+                    .setGenericName(timeZoneNames.getDisplayName(canonicalZoneId,
                             TimeZoneNames.NameType.LONG_GENERIC, mNow.getTime()))
-                    .setStandardName(timeZoneNames.getDisplayName(id,
+                    .setStandardName(timeZoneNames.getDisplayName(canonicalZoneId,
                             TimeZoneNames.NameType.LONG_STANDARD, mNow.getTime()))
-                    .setDaylightName(timeZoneNames.getDisplayName(id,
+                    .setDaylightName(timeZoneNames.getDisplayName(canonicalZoneId,
                             TimeZoneNames.NameType.LONG_DAYLIGHT, mNow.getTime()))
-                    .setExemplarLocation(timeZoneNames.getExemplarLocationName(id))
+                    .setExemplarLocation(timeZoneNames.getExemplarLocationName(canonicalZoneId))
                     .setGmtOffset(gmtOffset)
                     .build();
         }
+    }
+
+    /* package-private */ java.util.TimeZone getJavaTimeZone() {
+        String canonicalZoneId = getCanonicalZoneId(mTimeZone);
+        return toJavaTimeZone(canonicalZoneId);
+    }
+
+    private static java.util.TimeZone toJavaTimeZone(String canonicalZoneId) {
+        return java.util.TimeZone.getTimeZone(canonicalZoneId);
+    }
+
+    private static String getCanonicalZoneId(TimeZone timeZone) {
+        final String id = timeZone.getID();
+        final String canonicalId = TimeZone.getCanonicalID(id);
+        if (canonicalId != null) {
+            return canonicalId;
+        }
+        return id;
     }
 
 }

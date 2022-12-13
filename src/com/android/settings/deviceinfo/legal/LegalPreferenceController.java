@@ -27,7 +27,6 @@ import com.android.settings.core.BasePreferenceController;
 
 import java.util.List;
 
-
 public abstract class LegalPreferenceController extends BasePreferenceController {
     private final PackageManager mPackageManager;
     private Preference mPreference;
@@ -88,9 +87,9 @@ public abstract class LegalPreferenceController extends BasePreferenceController
         }
 
         // Replace the intent with this specific activity
-        mPreference.setIntent(new Intent().setClassName(
-                resolveInfo.activityInfo.packageName,
-                resolveInfo.activityInfo.name));
+        mPreference.setIntent(new Intent()
+                .setClassName(resolveInfo.activityInfo.packageName, resolveInfo.activityInfo.name)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
 
         mPreference.setTitle(resolveInfo.loadLabel(mPackageManager));
     }

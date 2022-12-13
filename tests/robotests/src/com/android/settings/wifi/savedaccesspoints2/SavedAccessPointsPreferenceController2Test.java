@@ -21,8 +21,12 @@ import static com.android.settings.core.BasePreferenceController.CONDITIONALLY_U
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +35,7 @@ import android.content.Context;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settingslib.wifi.WifiEntryPreference;
+import com.android.settings.wifi.WifiEntryPreference;
 import com.android.wifitrackerlib.WifiEntry;
 
 import org.junit.Before;
@@ -102,5 +106,40 @@ public class SavedAccessPointsPreferenceController2Test {
         final List<WifiEntryPreference> prefs = captor.getAllValues();
         assertThat(prefs.size()).isEqualTo(1);
         assertThat(prefs.get(0).getTitle()).isEqualTo(title);
+    }
+
+    @Test
+    public void displayPreference_noAccessPoint_shouldRemoveIt() {
+        final String title = "ssid_title";
+        final String key = "key";
+        final WifiEntry mockWifiEntry = mock(WifiEntry.class);
+        when(mockWifiEntry.getTitle()).thenReturn(title);
+        when(mockWifiEntry.getKey()).thenReturn(key);
+        final WifiEntryPreference preference = new WifiEntryPreference(mContext, mockWifiEntry);
+        preference.setKey(key);
+        mPreferenceCategory.addPreference(preference);
+
+        mController.displayPreference(mPreferenceScreen, new ArrayList<>());
+
+        assertThat(mPreferenceCategory.getPreferenceCount()).isEqualTo(0);
+    }
+
+    @Test
+    public void onPreferenceClick_shouldCallShowWifiPage() {
+        mContext = spy(RuntimeEnvironment.application);
+        doNothing().when(mContext).startActivity(any());
+        doReturn(mContext).when(mSettings).getContext();
+
+        final String title = "ssid_title";
+        final String key = "key";
+        final WifiEntry mockWifiEntry = mock(WifiEntry.class);
+        when(mockWifiEntry.getTitle()).thenReturn(title);
+        when(mockWifiEntry.getKey()).thenReturn(key);
+        final WifiEntryPreference preference = new WifiEntryPreference(mContext, mockWifiEntry);
+        preference.setKey(key);
+
+        mController.onPreferenceClick(preference);
+
+        verify(mSettings, times(1)).showWifiPage(key, title);
     }
 }

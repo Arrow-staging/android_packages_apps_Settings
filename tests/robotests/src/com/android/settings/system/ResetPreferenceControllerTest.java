@@ -22,7 +22,6 @@ import android.content.Context;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
@@ -37,7 +36,6 @@ public class ResetPreferenceControllerTest {
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
         mContext = RuntimeEnvironment.application;
         mController = new ResetPreferenceController(mContext, KEY_RESET_DASHBOARD);
     }

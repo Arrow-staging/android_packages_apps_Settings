@@ -19,27 +19,35 @@ package com.android.settings.applications.appinfo;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.hardware.usb.IUsbManager;
-import android.os.ServiceManager;
+import android.content.pm.verify.domain.DomainVerificationManager;
+import android.content.pm.verify.domain.DomainVerificationUserState;
+import android.os.UserHandle;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.SettingsPreferenceFragment;
-import com.android.settings.applications.AppLaunchSettings;
+import com.android.settings.applications.intentpicker.AppLaunchSettings;
+import com.android.settings.applications.intentpicker.IntentPickerUtils;
+import com.android.settingslib.R;
 import com.android.settingslib.applications.AppUtils;
 import com.android.settingslib.applications.ApplicationsState;
 
 public class AppOpenByDefaultPreferenceController extends AppInfoPreferenceControllerBase {
 
-    private IUsbManager mUsbManager;
-    private PackageManager mPackageManager;
+    private final DomainVerificationManager mDomainVerificationManager;
+    private String mPackageName;
 
     public AppOpenByDefaultPreferenceController(Context context, String key) {
         super(context, key);
-        mUsbManager = IUsbManager.Stub.asInterface(ServiceManager.getService(Context.USB_SERVICE));
-        mPackageManager = context.getPackageManager();
+        mDomainVerificationManager = context.getSystemService(DomainVerificationManager.class);
+    }
+
+    /** Set a package name for this controller. */
+    public AppOpenByDefaultPreferenceController setPackageName(String packageName) {
+        mPackageName = packageName;
+        return this;
     }
 
     @Override
@@ -57,10 +65,11 @@ public class AppOpenByDefaultPreferenceController extends AppInfoPreferenceContr
     @Override
     public void updateState(Preference preference) {
         final PackageInfo packageInfo = mParent.getPackageInfo();
-        if (packageInfo != null && !AppUtils.isInstant(packageInfo.applicationInfo)) {
+        if (packageInfo != null && !AppUtils.isInstant(packageInfo.applicationInfo)
+                && !AppUtils.isBrowserApp(mContext, packageInfo.packageName,
+                UserHandle.myUserId())) {
             preference.setVisible(true);
-            preference.setSummary(AppUtils.getLaunchByDefaultSummary(mParent.getAppEntry(),
-                    mUsbManager, mPackageManager, mContext));
+            preference.setSummary(getSubtext());
         } else {
             preference.setVisible(false);
         }
@@ -71,4 +80,17 @@ public class AppOpenByDefaultPreferenceController extends AppInfoPreferenceContr
         return AppLaunchSettings.class;
     }
 
+    @VisibleForTesting
+    CharSequence getSubtext() {
+        return mContext.getText(isLinkHandlingAllowed()
+                ? R.string.app_link_open_always : R.string.app_link_open_never);
+    }
+
+    @VisibleForTesting
+    boolean isLinkHandlingAllowed() {
+        final DomainVerificationUserState userState =
+                IntentPickerUtils.getDomainVerificationUserState(mDomainVerificationManager,
+                        mPackageName);
+        return userState == null ? false : userState.isLinkHandlingAllowed();
+    }
 }

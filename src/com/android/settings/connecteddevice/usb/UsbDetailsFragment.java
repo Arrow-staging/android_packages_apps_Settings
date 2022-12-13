@@ -16,12 +16,18 @@
 
 package com.android.settings.connecteddevice.usb;
 
+import static com.android.settingslib.RestrictedLockUtilsInternal.checkIfUsbDataSignalingIsDisabled;
+
 import android.app.settings.SettingsEnums;
 import android.content.Context;
+import android.os.Bundle;
+import android.os.UserHandle;
+import android.view.View;
 
 import androidx.annotation.VisibleForTesting;
 
 import com.android.settings.R;
+import com.android.settings.Utils;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settingslib.core.AbstractPreferenceController;
@@ -44,11 +50,17 @@ public class UsbDetailsFragment extends DashboardFragment {
     UsbConnectionBroadcastReceiver mUsbReceiver;
 
     private UsbConnectionBroadcastReceiver.UsbConnectionListener mUsbConnectionListener =
-            (connected, functions, powerRole, dataRole) -> {
+            (connected, functions, powerRole, dataRole, isUsbFigured) -> {
                 for (UsbDetailsController controller : mControllers) {
                     controller.refresh(connected, functions, powerRole, dataRole);
                 }
             };
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        Utils.setActionBarShadowAnimation(getActivity(), getSettingsLifecycle(), getListView());
+    }
 
     @Override
     public int getMetricsCategory() {
@@ -83,6 +95,7 @@ public class UsbDetailsFragment extends DashboardFragment {
         ret.add(new UsbDetailsDataRoleController(context, fragment, usbBackend));
         ret.add(new UsbDetailsFunctionsController(context, fragment, usbBackend));
         ret.add(new UsbDetailsPowerRoleController(context, fragment, usbBackend));
+        ret.add(new UsbDetailsTranscodeMtpController(context, fragment, usbBackend));
         return ret;
     }
 
@@ -91,6 +104,11 @@ public class UsbDetailsFragment extends DashboardFragment {
      */
     public static final BaseSearchIndexProvider SEARCH_INDEX_DATA_PROVIDER =
             new BaseSearchIndexProvider(R.xml.usb_details_fragment) {
+                @Override
+                protected boolean isPageSearchEnabled(Context context) {
+                    return checkIfUsbDataSignalingIsDisabled(
+                            context, UserHandle.myUserId()) == null;
+                }
 
                 @Override
                 public List<AbstractPreferenceController> createPreferenceControllers(

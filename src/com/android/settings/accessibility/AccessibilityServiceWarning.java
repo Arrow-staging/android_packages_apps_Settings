@@ -19,12 +19,10 @@ package com.android.settings.accessibility;
 import static android.view.WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS;
 
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.graphics.drawable.Drawable;
-import android.os.storage.StorageManager;
 import android.text.BidiFormatter;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
@@ -36,6 +34,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 
@@ -61,10 +60,19 @@ public class AccessibilityServiceWarning {
         return false;
     };
 
-    public static Dialog createCapabilitiesDialog(Activity parentActivity,
-            AccessibilityServiceInfo info, View.OnClickListener listener) {
-        final AlertDialog ad = new AlertDialog.Builder(parentActivity)
-                .setView(createEnableDialogContentView(parentActivity, info, listener))
+    /**
+     * The interface to execute the uninstallation action.
+     */
+    interface UninstallActionPerformer {
+        void uninstallPackage();
+    }
+
+    /** Returns a {@link Dialog} to be shown to confirm that they want to enable a service. */
+    public static Dialog createCapabilitiesDialog(@NonNull Context context,
+            @NonNull AccessibilityServiceInfo info, @NonNull View.OnClickListener listener,
+            @NonNull UninstallActionPerformer performer) {
+        final AlertDialog ad = new AlertDialog.Builder(context)
+                .setView(createEnableDialogContentView(context, info, listener, performer))
                 .create();
 
         Window window = ad.getWindow();
@@ -77,57 +85,14 @@ public class AccessibilityServiceWarning {
         return ad;
     }
 
-    public static Dialog createDisableDialog(Activity parentActivity,
-            AccessibilityServiceInfo info, DialogInterface.OnClickListener listener) {
-        final AlertDialog ad = new AlertDialog.Builder(parentActivity)
-                .setTitle(parentActivity.getString(R.string.disable_service_title,
-                        info.getResolveInfo().loadLabel(parentActivity.getPackageManager())))
-                .setMessage(parentActivity.getString(R.string.disable_service_message,
-                        parentActivity.getString(R.string.accessibility_dialog_button_stop),
-                        getServiceName(parentActivity, info)))
-                .setCancelable(true)
-                .setPositiveButton(R.string.accessibility_dialog_button_stop, listener)
-                .setNegativeButton(R.string.accessibility_dialog_button_cancel, listener)
-                .create();
-
-        return ad;
-    }
-
-    /**
-     * Return whether the device is encrypted with legacy full disk encryption. Newer devices
-     * should be using File Based Encryption.
-     *
-     * @return true if device is encrypted
-     */
-    private static boolean isFullDiskEncrypted() {
-        return StorageManager.isNonDefaultBlockEncrypted();
-    }
-
-    /**
-     * Get a content View for a dialog to confirm that they want to enable a service.
-     *
-     * @param context A valid context
-     * @param info The info about a service
-     * @return A content view suitable for viewing
-     */
     private static View createEnableDialogContentView(Context context,
-            AccessibilityServiceInfo info, View.OnClickListener listener) {
+            @NonNull AccessibilityServiceInfo info, View.OnClickListener listener,
+            UninstallActionPerformer performer) {
         LayoutInflater inflater = (LayoutInflater) context.getSystemService(
                 Context.LAYOUT_INFLATER_SERVICE);
 
         View content = inflater.inflate(R.layout.enable_accessibility_service_dialog_content,
                 null);
-
-        TextView encryptionWarningView = (TextView) content.findViewById(
-                R.id.encryption_warning);
-        if (isFullDiskEncrypted()) {
-            String text = context.getString(R.string.enable_service_encryption_warning,
-                    getServiceName(context, info));
-            encryptionWarningView.setText(text);
-            encryptionWarningView.setVisibility(View.VISIBLE);
-        } else {
-            encryptionWarningView.setVisibility(View.GONE);
-        }
 
         final Drawable icon;
         if (info.getResolveInfo().getIconResource() == 0) {
@@ -152,7 +117,32 @@ public class AccessibilityServiceWarning {
         permissionAllowButton.setOnTouchListener(filterTouchListener);
         permissionDenyButton.setOnClickListener(listener);
 
+        final Button uninstallButton = content.findViewById(
+                R.id.permission_enable_uninstall_button);
+        // Shows an uninstall button to help users quickly remove the non-system App due to the
+        // required permissions.
+        if (!AccessibilityUtil.isSystemApp(info)) {
+            uninstallButton.setVisibility(View.VISIBLE);
+            uninstallButton.setOnClickListener(v -> performer.uninstallPackage());
+        }
         return content;
+    }
+
+    /** Returns a {@link Dialog} to be shown to confirm that they want to disable a service. */
+    public static Dialog createDisableDialog(Context context,
+            AccessibilityServiceInfo info, DialogInterface.OnClickListener listener) {
+        final AlertDialog dialog = new AlertDialog.Builder(context)
+                .setTitle(context.getString(R.string.disable_service_title,
+                        info.getResolveInfo().loadLabel(context.getPackageManager())))
+                .setMessage(context.getString(R.string.disable_service_message,
+                        context.getString(R.string.accessibility_dialog_button_stop),
+                        getServiceName(context, info)))
+                .setCancelable(true)
+                .setPositiveButton(R.string.accessibility_dialog_button_stop, listener)
+                .setNegativeButton(R.string.accessibility_dialog_button_cancel, listener)
+                .create();
+
+        return dialog;
     }
 
     // Get the service name and bidi wrap it to protect from bidi side effects.

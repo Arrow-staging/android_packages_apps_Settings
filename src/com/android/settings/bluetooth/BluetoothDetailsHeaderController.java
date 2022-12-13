@@ -16,10 +16,9 @@
 
 package com.android.settings.bluetooth;
 
-import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothProfile;
 import android.content.Context;
 import android.graphics.drawable.Drawable;
-import android.provider.DeviceConfig;
 import android.text.TextUtils;
 import android.util.Pair;
 
@@ -27,7 +26,6 @@ import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
-import com.android.settings.core.SettingsUIDeviceConfig;
 import com.android.settings.widget.EntityHeaderController;
 import com.android.settingslib.bluetooth.BluetoothUtils;
 import com.android.settingslib.bluetooth.CachedBluetoothDevice;
@@ -56,11 +54,10 @@ public class BluetoothDetailsHeaderController extends BluetoothDetailsController
 
     @Override
     public boolean isAvailable() {
-        final boolean advancedEnabled = DeviceConfig.getBoolean(DeviceConfig.NAMESPACE_SETTINGS_UI,
-                SettingsUIDeviceConfig.BT_ADVANCED_HEADER_ENABLED, true);
-        return !advancedEnabled
-                || !BluetoothUtils.getBooleanMetaData(mCachedDevice.getDevice(),
-                        BluetoothDevice.METADATA_IS_UNTETHERED_HEADSET);
+        boolean hasLeAudio = mCachedDevice.getConnectableProfiles()
+                .stream()
+                .anyMatch(profile -> profile.getProfileId() == BluetoothProfile.LE_AUDIO);
+        return !Utils.isAdvancedDetailsHeader(mCachedDevice.getDevice()) && !hasLeAudio;
     }
 
     @Override
@@ -78,10 +75,8 @@ public class BluetoothDetailsHeaderController extends BluetoothDetailsController
         if (TextUtils.isEmpty(summaryText)) {
             // If first summary is unavailable, not to show second summary.
             mHeaderController.setSecondSummary((CharSequence)null);
-        } else {
-            // If both the hearing aids are connected, two device status should be shown.
-            mHeaderController.setSecondSummary(mDeviceManager.getSubDeviceSummary(mCachedDevice));
         }
+
         mHeaderController.setLabel(mCachedDevice.getName());
         mHeaderController.setIcon(pair.first);
         mHeaderController.setIconContentDescription(pair.second);

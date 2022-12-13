@@ -24,6 +24,7 @@ import android.os.UserManager;
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 
+import com.android.internal.telephony.CellBroadcastUtils;
 import com.android.settings.accounts.AccountRestrictionHelper;
 import com.android.settings.core.PreferenceControllerMixin;
 import com.android.settingslib.RestrictedPreference;
@@ -85,10 +86,16 @@ public class EmergencyBroadcastPreferenceController extends AbstractPreferenceCo
     private boolean isCellBroadcastAppLinkEnabled() {
         // Enable link to CMAS app settings depending on the value in config.xml.
         boolean enabled = mContext.getResources().getBoolean(
-                com.android.internal.R.bool.config_cellBroadcastAppLinks);
+            com.android.internal.R.bool.config_cellBroadcastAppLinks) &&
+            // For data-only tablet devices which need to not forwarding any WEA-alert and hide from
+            // settings menu.
+            !mContext.getResources().getBoolean(
+                com.android.internal.R.bool.config_disable_all_cb_messages);
         if (enabled) {
             try {
-                if (mPm.getApplicationEnabledSetting("com.android.cellbroadcastreceiver")
+                String packageName = CellBroadcastUtils
+                        .getDefaultCellBroadcastReceiverPackageName(mContext);
+                if (packageName == null || mPm.getApplicationEnabledSetting(packageName)
                         == PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
                     enabled = false;  // CMAS app disabled
                 }

@@ -25,7 +25,6 @@
 
         <Preference
             android:key="memory"
-            android:icon="@drawable/ic_settings_memory"
             android:title="@string/memory_settings_title"
             android:summary="@string/summary_placeholder"
             android:fragment="com.android.settings.applications.ProcessStatsSummary" />
@@ -36,8 +35,18 @@
             android:dialogTitle="@*android:string/bugreport_title" />
 
         <Preference
+            android:key="bug_report_handler"
+            android:title="@string/bug_report_handler_title"
+            android:summary="@string/summary_placeholder"
+            android:fragment="com.android.settings.bugreporthandler.BugReportHandlerPicker" />
+
+        <Preference
             android:key="system_server_heap_dump"
             android:title="@string/capture_system_heap_dump_title" />
+
+        <Preference
+            android:key="reboot_with_mte"
+            android:title="@string/reboot_with_mte_title" />
 
         <Preference
             android:key="local_backup_password"
@@ -59,6 +68,7 @@
         <ListPreference
             android:key="hdcp_checking"
             android:title="@string/hdcp_checking_title"
+            android:summary="@string/summary_placeholder"
             android:dialogTitle="@string/hdcp_checking_dialog_title"
             android:entries="@array/hdcp_checking_titles"
             android:entryValues="@array/hdcp_checking_values" />
@@ -82,12 +92,6 @@
             android:summary="@string/runningservices_settings_summary"
             android:fragment="com.android.settings.applications.RunningServices" />
 
-        <Preference
-            android:key="convert_to_file_encryption"
-            android:title="@string/convert_to_file_encryption"
-            android:summary="@string/convert_to_file_encryption_enabled"
-            android:fragment="com.android.settings.applications.ConvertToFbe" />
-
         <com.android.settings.development.ColorModePreference
             android:key="picture_color_mode"
             android:title="@string/picture_color_mode"
@@ -108,6 +112,9 @@
             android:title="@string/ota_disable_automatic_update"
             android:summary="@string/ota_disable_automatic_update_summary" />
 
+        <Preference android:key="dsu_loader"
+                    android:title="@string/dsu_loader_title" />
+
         <Preference
             android:key="demo_mode"
             android:title="@string/demo_mode">
@@ -117,8 +124,7 @@
         <Preference
             android:key="quick_settings_tiles"
             android:title="@string/quick_settings_developer_tiles"
-            android:fragment="com.android.settings.development.qstile.DevelopmentTileConfigFragment"
-            settings:searchable="false" />
+            android:fragment="com.android.settings.development.qstile.DevelopmentTileConfigFragment" />
     </PreferenceCategory>
 
     <PreferenceCategory
@@ -126,13 +132,25 @@
         android:title="@string/debug_debugging_category"
         android:order="200">
 
-        <SwitchPreference
+        <com.android.settingslib.RestrictedSwitchPreference
             android:key="enable_adb"
             android:title="@string/enable_adb"
             android:summary="@string/enable_adb_summary" />
 
         <Preference android:key="clear_adb_keys"
                     android:title="@string/clear_adb_keys" />
+
+        <com.android.settingslib.PrimarySwitchPreference
+            android:fragment="com.android.settings.development.WirelessDebuggingFragment"
+            android:key="toggle_adb_wireless"
+            android:title="@string/enable_adb_wireless"
+            android:summary="@string/enable_adb_wireless_summary"
+            settings:keywords="@string/keywords_adb_wireless" />
+
+        <SwitchPreference
+            android:key="adb_authorization_timeout"
+            android:title="@string/adb_authorization_timeout_title"
+            android:summary="@string/adb_authorization_timeout_summary" />
 
         <SwitchPreference
             android:key="enable_terminal"
@@ -145,17 +163,14 @@
             android:summary="@string/bugreport_in_power_summary" />
 
         <SwitchPreference
+            android:key="enable_verbose_vendor_logging"
+            android:title="@string/enable_verbose_vendor_logging"
+            android:summary="@string/enable_verbose_vendor_logging_summary" />
+
+        <SwitchPreference
             android:key="automatic_system_server_heap_dumps"
             android:title="@string/automatic_system_heap_dump_title"
             android:summary="@string/automatic_system_heap_dump_summary" />
-
-        <Preference android:key="mock_location_app"
-                    android:title="@string/mock_location_app" />
-
-        <SwitchPreference
-            android:key="enable_gnss_raw_meas_full_tracking"
-            android:title="@string/enable_gnss_raw_meas_full_tracking"
-            android:summary="@string/enable_gnss_raw_meas_full_tracking_summary" />
 
         <SwitchPreference
             android:key="debug_view_attributes"
@@ -200,8 +215,7 @@
         <Preference
             android:key="feature_flags_dashboard"
             android:title="@string/feature_flags_dashboard_title"
-            android:fragment="com.android.settings.development.featureflags.FeatureFlagsDashboard"
-            settings:searchable="false" />
+            android:fragment="com.android.settings.development.featureflags.FeatureFlagsDashboard" />
 
         <SwitchPreference
             android:key="enable_gpu_debug_layers"
@@ -209,11 +223,37 @@
             android:summary="@string/enable_gpu_debug_layers_summary" />
 
         <Preference
-            android:key="game_driver_dashboard"
-            android:title="@string/game_driver_dashboard_title"
-            android:summary="@string/game_driver_dashboard_summary"
-            android:fragment="com.android.settings.development.gamedriver.GameDriverDashboard"
-            settings:searchable="false" />
+            android:key="graphics_driver_dashboard"
+            android:title="@string/graphics_driver_dashboard_title"
+            android:summary="@string/graphics_driver_dashboard_summary"
+            android:fragment="com.android.settings.development.graphicsdriver.GraphicsDriverDashboard" />
+
+        <Preference
+            android:key="platform_compat_dashboard"
+            android:title="@string/platform_compat_dashboard_title"
+            android:summary="@string/platform_compat_dashboard_summary"
+            android:fragment="com.android.settings.development.compat.PlatformCompatDashboard"
+            />
+
+        <SwitchPreference
+            android:key="show_refresh_rate"
+            android:title="@string/show_refresh_rate"
+            android:summary="@string/show_refresh_rate_summary" />
+
+        <SwitchPreference
+            android:key="overlay_settings"
+            android:title="@string/overlay_settings_title"
+            android:summary="@string/overlay_settings_summary" />
+
+        <SwitchPreference
+            android:key="pref_key_peak_refresh_rate"
+            android:title="@string/force_high_refresh_rate_toggle"
+            android:summary="@string/force_high_refresh_rate_desc" />
+
+        <SwitchPreference
+            android:key="allow_mock_modem"
+            android:title="@string/allow_mock_modem"
+            android:summary="@string/allow_mock_modem_summary" />
 
     </PreferenceCategory>
 
@@ -242,6 +282,11 @@
             android:summary="@string/wifi_scan_throttling_summary" />
 
         <SwitchPreference
+            android:key="wifi_non_persistent_mac_randomization"
+            android:title="@string/wifi_non_persistent_mac_randomization"
+            android:summary="@string/wifi_non_persistent_mac_randomization_summary" />
+
+        <SwitchPreference
             android:key="mobile_data_always_on"
             android:title="@string/mobile_data_always_on"
             android:summary="@string/mobile_data_always_on_summary" />
@@ -251,10 +296,17 @@
             android:title="@string/tethering_hardware_offload"
             android:summary="@string/tethering_hardware_offload_summary" />
 
-        <Preference
+        <ListPreference
+            android:key="ingress_rate_limit"
+            android:title="@string/ingress_rate_limit_title"
+            android:summary="@string/ingress_rate_limit_summary"
+            android:dialogTitle="@string/ingress_rate_limit_dialog_title"
+            android:entries="@array/ingress_rate_limit_entries"
+            android:entryValues="@array/ingress_rate_limit_values" />
+
+        <com.android.settingslib.RestrictedPreference
             android:key="default_usb_configuration"
             android:fragment="com.android.settings.connecteddevice.usb.UsbDefaultFragment"
-            android:icon="@drawable/ic_usb"
             android:title="@string/usb_default_label"/>
 
         <SwitchPreference
@@ -268,6 +320,15 @@
             android:summary="@string/bluetooth_disable_absolute_volume_summary" />
 
         <SwitchPreference
+            android:key="bluetooth_enable_leaudio"
+            android:title="@string/bluetooth_enable_leaudio"
+            android:summary="@string/bluetooth_enable_leaudio_summary" />
+
+        <SwitchPreference
+            android:key="bluetooth_disable_le_audio_hw_offload"
+            android:title="@string/bluetooth_disable_le_audio_hw_offload" />
+
+        <SwitchPreference
             android:key="bluetooth_disable_a2dp_hw_offload"
             android:title="@string/bluetooth_disable_a2dp_hw_offload" />
 
@@ -279,39 +340,55 @@
             android:entryValues="@array/bluetooth_avrcp_version_values" />
 
         <ListPreference
-            android:key="bluetooth_select_a2dp_codec"
+            android:key="bluetooth_select_map_version"
+            android:title="@string/bluetooth_select_map_version_string"
+            android:dialogTitle="@string/bluetooth_select_map_version_dialog_title"
+            android:entries="@array/bluetooth_map_versions"
+            android:entryValues="@array/bluetooth_map_version_values" />
+
+        <SwitchPreference
+            android:key="bluetooth_hd_audio_settings"
+            android:title="@string/bluetooth_profile_a2dp_high_quality_unknown_codec"/>
+
+        <com.android.settings.development.bluetooth.BluetoothCodecDialogPreference
+            android:key="bluetooth_audio_codec_settings"
             android:title="@string/bluetooth_select_a2dp_codec_type"
             android:dialogTitle="@string/bluetooth_select_a2dp_codec_type_dialog_title"
-            android:entries="@array/bluetooth_a2dp_codec_titles"
-            android:entryValues="@array/bluetooth_a2dp_codec_values" />
+            android:dialogLayout="@layout/bluetooth_audio_codec_dialog"
+            android:positiveButtonText=""
+            android:negativeButtonText="@string/dlg_ok"/>
 
-        <ListPreference
-            android:key="bluetooth_select_a2dp_sample_rate"
+        <com.android.settings.development.bluetooth.BluetoothSampleRateDialogPreference
+            android:key="bluetooth_sample_rate_settings"
             android:title="@string/bluetooth_select_a2dp_codec_sample_rate"
             android:dialogTitle="@string/bluetooth_select_a2dp_codec_sample_rate_dialog_title"
-            android:entries="@array/bluetooth_a2dp_codec_sample_rate_titles"
-            android:entryValues="@array/bluetooth_a2dp_codec_sample_rate_values" />
+            android:dialogLayout="@layout/bluetooth_audio_sample_rate_dialog"
+            android:positiveButtonText=""
+            android:negativeButtonText="@string/dlg_ok"/>
 
-        <ListPreference
-            android:key="bluetooth_select_a2dp_bits_per_sample"
+        <com.android.settings.development.bluetooth.BluetoothBitPerSampleDialogPreference
+            android:key="bluetooth_bit_per_sample_settings"
             android:title="@string/bluetooth_select_a2dp_codec_bits_per_sample"
             android:dialogTitle="@string/bluetooth_select_a2dp_codec_bits_per_sample_dialog_title"
-            android:entries="@array/bluetooth_a2dp_codec_bits_per_sample_titles"
-            android:entryValues="@array/bluetooth_a2dp_codec_bits_per_sample_values" />
+            android:dialogLayout="@layout/bluetooth_audio_bit_per_sample_dialog"
+            android:positiveButtonText=""
+            android:negativeButtonText="@string/dlg_ok"/>
 
-        <ListPreference
-            android:key="bluetooth_select_a2dp_channel_mode"
+        <com.android.settings.development.bluetooth.BluetoothChannelModeDialogPreference
+            android:key="bluetooth_channel_mode_settings"
             android:title="@string/bluetooth_select_a2dp_codec_channel_mode"
             android:dialogTitle="@string/bluetooth_select_a2dp_codec_channel_mode_dialog_title"
-            android:entries="@array/bluetooth_a2dp_codec_channel_mode_titles"
-            android:entryValues="@array/bluetooth_a2dp_codec_channel_mode_values" />
+            android:dialogLayout="@layout/bluetooth_audio_channel_mode_dialog"
+            android:positiveButtonText=""
+            android:negativeButtonText="@string/dlg_ok"/>
 
-        <ListPreference
-            android:key="bluetooth_select_a2dp_ldac_playback_quality"
+        <com.android.settings.development.bluetooth.BluetoothQualityDialogPreference
+            android:key="bluetooth_a2dp_ldac_playback_quality"
             android:title="@string/bluetooth_select_a2dp_codec_ldac_playback_quality"
             android:dialogTitle="@string/bluetooth_select_a2dp_codec_ldac_playback_quality_dialog_title"
-            android:entries="@array/bluetooth_a2dp_codec_ldac_playback_quality_titles"
-            android:entryValues="@array/bluetooth_a2dp_codec_ldac_playback_quality_values" />
+            android:dialogLayout="@layout/bluetooth_audio_quality_dialog"
+            android:positiveButtonText=""
+            android:negativeButtonText="@string/dlg_ok"/>
 
         <ListPreference
             android:key="bluetooth_max_connected_audio_devices"
@@ -319,6 +396,11 @@
             android:dialogTitle="@string/bluetooth_max_connected_audio_devices_dialog_title"
             android:entries="@array/bluetooth_max_connected_audio_devices"
             android:entryValues="@array/bluetooth_max_connected_audio_devices_values" />
+
+        <SwitchPreference
+            android:key="nfc_stack_debuglog_enabled"
+            android:title="@string/nfc_stack_debuglog_title"
+            android:summary="@string/nfc_stack_debuglog_summary" />
 
     </PreferenceCategory>
 
@@ -427,6 +509,10 @@
             android:summary="@string/hwui_force_dark_summary" />
 
         <SwitchPreference
+            android:key="enable_blurs_on_windows"
+            android:title="@string/window_blurs"/>
+
+        <SwitchPreference
             android:key="force_msaa"
             android:title="@string/force_msaa"
             android:summary="@string/force_msaa_summary" />
@@ -450,10 +536,15 @@
         android:title="@string/media_category"
         android:order="800">
 
-        <SwitchPreference
+        <com.android.settingslib.RestrictedSwitchPreference
             android:key="usb_audio"
             android:title="@string/usb_audio_disable_routing"
             android:summary="@string/usb_audio_disable_routing_summary" />
+
+        <Preference
+            android:key="transcode_settings"
+            android:title="@string/transcode_settings_title"
+            android:fragment="com.android.settings.development.transcode.TranscodeSettingsFragment" />
 
     </PreferenceCategory>
 
@@ -507,20 +598,36 @@
             android:title="@string/show_all_anrs"
             android:summary="@string/show_all_anrs_summary" />
 
+        <ListPreference
+            android:key="cached_apps_freezer"
+            android:title="@string/cached_apps_freezer"
+            android:entries="@array/cached_apps_freezer_entries"
+            android:entryValues="@array/cached_apps_freezer_values" />
+
         <SwitchPreference
             android:key="show_notification_channel_warnings"
             android:title="@string/show_notification_channel_warnings"
             android:summary="@string/show_notification_channel_warnings_summary" />
 
-        <SwitchPreference
-            android:key="asst_capability_prioritizer"
-            android:title="@string/asst_capability_prioritizer_title"
-            settings:controller="com.android.settings.notification.AssistantCapabilityPreferenceController" />
+        <com.android.settingslib.widget.LayoutPreference
+            android:key="asst_importance_reset"
+            android:title="@string/asst_importance_reset_title"
+            android:selectable="false"
+            android:layout="@layout/reset_importance_button"
+            settings:controller="com.android.settings.notification.ImportanceResetPreferenceController" />
 
         <Preference
             android:key="inactive_apps"
             android:title="@string/inactive_apps_title"
             android:fragment="com.android.settings.fuelgauge.InactiveApps" />
+
+        <Preference
+            android:key="tare"
+            android:title="@string/tare_title" >
+            <intent
+                android:targetPackage="com.android.settings"
+                android:targetClass="com.android.settings.development.tare.TareHomePage" />
+        </Preference>
 
         <SwitchPreference
             android:key="force_allow_on_external"
@@ -543,24 +650,24 @@
             android:summary="@string/force_desktop_mode_summary" />
 
         <SwitchPreference
-            android:key="enable_sizecompat_freeform"
-            android:title="@string/enable_sizecompat_freeform"
-            android:summary="@string/enable_sizecompat_freeform_summary" />
+            android:key="enable_non_resizable_multi_window"
+            android:title="@string/enable_non_resizable_multi_window"
+            android:summary="@string/enable_non_resizable_multi_window_summary" />
+
+        <SwitchPreference
+            android:key="back_navigation_animation"
+            android:title="@string/back_navigation_animation"
+            android:summary="@string/back_navigation_animation_summary" />
 
         <Preference
             android:key="reset_shortcut_manager_throttling"
             android:title="@string/reset_shortcut_manager_throttling" />
-
-        <SwitchPreference
-            android:key="notification_bubbles"
-            android:title="@string/notification_bubbles_title"
-            android:summary="@string/notification_bubbles_developer_setting_summary"/>
-
     </PreferenceCategory>
 
-    <com.android.settings.development.autofill.AutofillPreferenceCategory
+    <PreferenceCategory
         android:key="debug_autofill_category"
         android:title="@string/debug_autofill_category"
+        settings:searchable="false"
         android:order="1100"> <!-- Incremented by 100 from last order (i.e. 1000) -->
 
         <ListPreference
@@ -581,5 +688,52 @@
             android:key="autofill_reset_developer_options"
             android:title="@string/autofill_reset_developer_options" />
 
-    </com.android.settings.development.autofill.AutofillPreferenceCategory>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="storage_category"
+        android:title="@string/storage_category"
+        android:order="1200">
+
+        <Preference
+            android:key="shared_data"
+            android:title="@string/shared_data_title"
+            android:summary="@string/shared_data_summary">
+            <intent
+                android:targetPackage="com.android.settings"
+                android:targetClass="com.android.settings.development.storage.BlobInfoListView" />
+        </Preference>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="location_category"
+        android:title="@string/location_category"
+        android:order="1300">
+
+        <Preference android:key="mock_location_app"
+                    android:title="@string/mock_location_app" />
+
+        <SwitchPreference
+            android:key="enable_gnss_raw_meas_full_tracking"
+            android:title="@string/enable_gnss_raw_meas_full_tracking"
+            android:summary="@string/enable_gnss_raw_meas_full_tracking_summary" />
+
+        <SwitchPreference
+            android:title="@string/location_indicator_settings_title"
+            android:summary="@string/location_indicator_settings_description"
+            android:defaultValue="true"
+            android:key="location_indicator_settings"
+            settings:controller="com.android.settings.location.LocationIndicatorsPreferenceController"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:key="input_method_category"
+        android:title="@string/input_method_category"
+        android:order="1400">
+
+        <SwitchPreference
+            android:key="stylus_handwriting"
+            android:title="@string/stylus_handwriting"
+            android:summary="@string/stylus_handwriting_summary" />
+    </PreferenceCategory>
 </PreferenceScreen>

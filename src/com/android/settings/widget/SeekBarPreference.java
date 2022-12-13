@@ -16,6 +16,10 @@
 
 package com.android.settings.widget;
 
+import static android.view.HapticFeedbackConstants.CLOCK_TICK;
+
+import static com.android.internal.jank.InteractionJankMonitor.CUJ_SETTINGS_SLIDER;
+
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.os.Parcel;
@@ -31,6 +35,7 @@ import android.widget.SeekBar.OnSeekBarChangeListener;
 import androidx.core.content.res.TypedArrayUtils;
 import androidx.preference.PreferenceViewHolder;
 
+import com.android.internal.jank.InteractionJankMonitor;
 import com.android.settingslib.RestrictedPreference;
 
 /**
@@ -39,18 +44,26 @@ import com.android.settingslib.RestrictedPreference;
 public class SeekBarPreference extends RestrictedPreference
         implements OnSeekBarChangeListener, View.OnKeyListener {
 
+    public static final int HAPTIC_FEEDBACK_MODE_NONE = 0;
+    public static final int HAPTIC_FEEDBACK_MODE_ON_TICKS = 1;
+    public static final int HAPTIC_FEEDBACK_MODE_ON_ENDS = 2;
+
+    private final InteractionJankMonitor mJankMonitor = InteractionJankMonitor.getInstance();
     private int mProgress;
     private int mMax;
     private int mMin;
     private boolean mTrackingTouch;
 
     private boolean mContinuousUpdates;
+    private int mHapticFeedbackMode = HAPTIC_FEEDBACK_MODE_NONE;
     private int mDefaultProgress = -1;
 
     private SeekBar mSeekBar;
     private boolean mShouldBlink;
     private int mAccessibilityRangeInfoType = AccessibilityNodeInfo.RangeInfo.RANGE_TYPE_INT;
+    private CharSequence mOverrideSeekBarStateDescription;
     private CharSequence mSeekBarContentDescription;
+    private CharSequence mSeekBarStateDescription;
 
     public SeekBarPreference(
             Context context, AttributeSet attrs, int defStyleAttr, int defStyleRes) {
@@ -69,12 +82,7 @@ public class SeekBarPreference extends RestrictedPreference
                 com.android.internal.R.layout.preference_widget_seekbar);
         a.recycle();
 
-        a = context.obtainStyledAttributes(
-                attrs, com.android.internal.R.styleable.Preference, defStyleAttr, defStyleRes);
-        final boolean isSelectable = a.getBoolean(
-                com.android.settings.R.styleable.Preference_android_selectable, false);
-        setSelectable(isSelectable);
-        a.recycle();
+        setSelectable(false);
 
         setLayoutResource(layoutResId);
     }
@@ -124,6 +132,9 @@ public class SeekBarPreference extends RestrictedPreference
         } else if (!TextUtils.isEmpty(title)) {
             mSeekBar.setContentDescription(title);
         }
+        if (!TextUtils.isEmpty(mSeekBarStateDescription)) {
+            mSeekBar.setStateDescription(mSeekBarStateDescription);
+        }
         if (mSeekBar instanceof DefaultIndicatorSeekBar) {
             ((DefaultIndicatorSeekBar) mSeekBar).setDefaultProgress(mDefaultProgress);
         }
@@ -151,13 +162,11 @@ public class SeekBarPreference extends RestrictedPreference
                                     mAccessibilityRangeInfoType, rangeInfo.getMin(),
                                     rangeInfo.getMax(), rangeInfo.getCurrent()));
                 }
+                if (mOverrideSeekBarStateDescription != null) {
+                    info.setStateDescription(mOverrideSeekBarStateDescription);
+                }
             }
         });
-    }
-
-    @Override
-    public CharSequence getSummary() {
-        return null;
     }
 
     @Override
@@ -231,6 +240,17 @@ public class SeekBarPreference extends RestrictedPreference
         mContinuousUpdates = continuousUpdates;
     }
 
+    /**
+     * Sets the haptic feedback mode. HAPTIC_FEEDBACK_MODE_ON_TICKS means to perform haptic feedback
+     * as the SeekBar's progress is updated; HAPTIC_FEEDBACK_MODE_ON_ENDS means to perform haptic
+     * feedback as the SeekBar's progress value is equal to the min/max value.
+     *
+     * @param hapticFeedbackMode the haptic feedback mode.
+     */
+    public void setHapticFeedbackMode(int hapticFeedbackMode) {
+        mHapticFeedbackMode = hapticFeedbackMode;
+    }
+
     private void setProgress(int progress, boolean notifyChanged) {
         if (progress > mMax) {
             progress = mMax;
@@ -260,6 +280,16 @@ public class SeekBarPreference extends RestrictedPreference
         if (progress != mProgress) {
             if (callChangeListener(progress)) {
                 setProgress(progress, false);
+                switch (mHapticFeedbackMode) {
+                    case HAPTIC_FEEDBACK_MODE_ON_TICKS:
+                        seekBar.performHapticFeedback(CLOCK_TICK);
+                        break;
+                    case HAPTIC_FEEDBACK_MODE_ON_ENDS:
+                        if (progress == mMax || progress == mMin) {
+                            seekBar.performHapticFeedback(CLOCK_TICK);
+                        }
+                        break;
+                }
             } else {
                 seekBar.setProgress(mProgress);
             }
@@ -276,6 +306,9 @@ public class SeekBarPreference extends RestrictedPreference
     @Override
     public void onStartTrackingTouch(SeekBar seekBar) {
         mTrackingTouch = true;
+        mJankMonitor.begin(InteractionJankMonitor.Configuration.Builder
+                .withView(CUJ_SETTINGS_SLIDER, seekBar)
+                .setTag(getKey()));
     }
 
     @Override
@@ -284,6 +317,7 @@ public class SeekBarPreference extends RestrictedPreference
         if (seekBar.getProgress() != mProgress) {
             syncProgress(seekBar);
         }
+        mJankMonitor.end(CUJ_SETTINGS_SLIDER);
     }
 
     /**
@@ -302,6 +336,25 @@ public class SeekBarPreference extends RestrictedPreference
         if (mSeekBar != null) {
             mSeekBar.setContentDescription(contentDescription);
         }
+    }
+
+    /**
+     * Specify the state description for this seek bar represents.
+     *
+     * @param stateDescription the state description of seek bar
+     */
+    public void setSeekBarStateDescription(CharSequence stateDescription) {
+        mSeekBarStateDescription = stateDescription;
+        if (mSeekBar != null) {
+            mSeekBar.setStateDescription(stateDescription);
+        }
+    }
+
+    /**
+     * Overrides the state description of {@link SeekBar} with given content.
+     */
+    public void overrideSeekBarStateDescription(CharSequence stateDescription) {
+        mOverrideSeekBarStateDescription = stateDescription;
     }
 
     @Override

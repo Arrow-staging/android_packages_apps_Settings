@@ -56,14 +56,14 @@
                 layout="@layout/preference_widget_dialog_radiobutton"/>
 
             <include
-                android:id="@+id/bluetooth_audio_codec_enable_optional"
+                android:id="@+id/bluetooth_audio_codec_lc3"
                 layout="@layout/preference_widget_dialog_radiobutton"/>
 
             <include
-                android:id="@+id/bluetooth_audio_codec_disable_optional"
+                android:id="@+id/bluetooth_audio_codec_opus"
                 layout="@layout/preference_widget_dialog_radiobutton"/>
-        </RadioGroup>
 
+        </RadioGroup>
 
         <include
                 android:id="@+id/bluetooth_audio_codec_help_info"

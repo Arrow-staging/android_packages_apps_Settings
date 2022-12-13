@@ -22,22 +22,26 @@ import static androidx.lifecycle.Lifecycle.Event.ON_RESUME;
 import android.content.Context;
 import android.telephony.SubscriptionManager;
 
-import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.OnLifecycleEvent;
 import androidx.preference.PreferenceCategory;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.core.BasePreferenceController;
 import com.android.settings.network.SubscriptionsChangeListener;
 
-public class DisabledSubscriptionController extends BasePreferenceController implements
+/**
+ * Preference controller group which can hide UI option from visible when SIM is no longer in
+ * active.
+ */
+public class DisabledSubscriptionController extends TelephonyBasePreferenceController implements
         SubscriptionsChangeListener.SubscriptionsChangeListenerClient, LifecycleObserver {
     private PreferenceCategory mCategory;
-    private int mSubId;
     private SubscriptionsChangeListener mChangeListener;
     private SubscriptionManager mSubscriptionManager;
 
+    /**
+     * Constructor of preference controller
+     */
     public DisabledSubscriptionController(Context context, String preferenceKey) {
         super(context, preferenceKey);
         mSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
@@ -45,8 +49,10 @@ public class DisabledSubscriptionController extends BasePreferenceController imp
         mChangeListener = new SubscriptionsChangeListener(context, this);
     }
 
-    public void init(Lifecycle lifecycle, int subId) {
-        lifecycle.addObserver(this);
+    /**
+     * Re-initialize the configuration based on subscription id provided
+     */
+    public void init(int subId) {
         mSubId = subId;
     }
 
@@ -69,15 +75,15 @@ public class DisabledSubscriptionController extends BasePreferenceController imp
     }
 
     private void update() {
-        if (mCategory == null || mSubId ==  SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+        if (mCategory == null || !SubscriptionManager.isValidSubscriptionId(mSubId)) {
             return;
         }
         // TODO b/135222940: re-evaluate whether to use mSubscriptionManager#isSubscriptionEnabled
-        mCategory.setVisible(mSubscriptionManager.isActiveSubId(mSubId));
+        mCategory.setVisible(mSubscriptionManager.isActiveSubscriptionId(mSubId));
     }
 
     @Override
-    public int getAvailabilityStatus() {
+    public int getAvailabilityStatus(int subId) {
         return AVAILABLE_UNSEARCHABLE;
     }
 

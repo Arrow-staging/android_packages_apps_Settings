@@ -16,14 +16,21 @@
 
 package com.android.settings.wifi.dpp;
 
+import static android.provider.Settings.EXTRA_EASY_CONNECT_ATTEMPTED_SSID;
+import static android.provider.Settings.EXTRA_EASY_CONNECT_BAND_LIST;
+import static android.provider.Settings.EXTRA_EASY_CONNECT_CHANNEL_LIST;
+import static android.provider.Settings.EXTRA_EASY_CONNECT_ERROR_CODE;
+
 import android.app.Activity;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
+import android.content.Intent;
 import android.net.wifi.EasyConnectStatusCallback;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,6 +40,11 @@ import android.widget.ImageView;
 import androidx.lifecycle.ViewModelProviders;
 
 import com.android.settings.R;
+
+import com.google.android.setupcompat.template.FooterButton;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * After getting Wi-Fi network information and(or) QR code, this fragment config a device to connect
@@ -61,10 +73,25 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
         }
 
         @Override
-        public void onFailure(int code) {
-            Log.d(TAG, "EasyConnectConfiguratorStatusCallback.onFailure " + code);
+        public void onFailure(int code, String ssid, SparseArray<int[]> channelListArray,
+                int[] operatingClassArray) {
+            Log.d(TAG, "EasyConnectConfiguratorStatusCallback.onFailure: " + code);
+            if (!TextUtils.isEmpty(ssid)) {
+                Log.d(TAG, "Tried SSID: " + ssid);
+            }
+            if (channelListArray.size() != 0) {
+                Log.d(TAG, "Tried channels: " + channelListArray);
+            }
+            if (operatingClassArray != null && operatingClassArray.length > 0) {
+                StringBuilder sb = new StringBuilder("Supported bands: ");
+                for (int i = 0; i < operatingClassArray.length; i++) {
+                    sb.append(operatingClassArray[i] + " ");
+                }
+                Log.d(TAG, sb.toString());
+            }
 
-            showErrorUi(code, /* isConfigurationChange */ false);
+            showErrorUi(code, getResultIntent(code, ssid, channelListArray,
+                    operatingClassArray), /* isConfigurationChange */ false);
         }
 
         @Override
@@ -95,7 +122,53 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
         }
     }
 
-    private void showErrorUi(int code, boolean isConfigurationChange) {
+    private Intent getResultIntent(int code, String ssid, SparseArray<int[]> channelListArray,
+            int[] operatingClassArray) {
+        Intent intent = new Intent();
+        intent.putExtra(EXTRA_EASY_CONNECT_ERROR_CODE, code);
+
+        if (!TextUtils.isEmpty(ssid)) {
+            intent.putExtra(EXTRA_EASY_CONNECT_ATTEMPTED_SSID, ssid);
+        }
+        if (channelListArray != null && channelListArray.size() != 0) {
+            int key;
+            int index = 0;
+            JSONObject formattedChannelList = new JSONObject();
+
+            // Build a JSON array of operating classes, with an array of channels for each
+            // operating class.
+            do {
+                try {
+                    key = channelListArray.keyAt(index);
+                } catch (java.lang.ArrayIndexOutOfBoundsException e) {
+                    break;
+                }
+                JSONArray channelsInClassArray = new JSONArray();
+
+                int[] output = channelListArray.get(key);
+                for (int i = 0; i < output.length; i++) {
+                    channelsInClassArray.put(output[i]);
+                }
+                try {
+                    formattedChannelList.put(Integer.toString(key), channelsInClassArray);
+                } catch (org.json.JSONException e) {
+                    formattedChannelList = new JSONObject();
+                    break;
+                }
+                index++;
+            } while (true);
+
+            intent.putExtra(EXTRA_EASY_CONNECT_CHANNEL_LIST,
+                    formattedChannelList.toString());
+        }
+        if (operatingClassArray != null && operatingClassArray.length != 0) {
+            intent.putExtra(EXTRA_EASY_CONNECT_BAND_LIST, operatingClassArray);
+        }
+
+        return intent;
+    }
+
+    private void showErrorUi(int code, Intent resultIntent, boolean isConfigurationChange) {
         CharSequence summaryCharSequence;
         switch (code) {
             case EasyConnectStatusCallback.EASY_CONNECT_EVENT_FAILURE_INVALID_URI:
@@ -150,6 +223,20 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
                 throw(new IllegalStateException("Wi-Fi DPP configurator used a non-PSK/non-SAE"
                         + "network to handshake"));
 
+            case EasyConnectStatusCallback.EASY_CONNECT_EVENT_FAILURE_CANNOT_FIND_NETWORK:
+                summaryCharSequence = getText(R.string.wifi_dpp_failure_cannot_find_network);
+                break;
+
+            case EasyConnectStatusCallback.EASY_CONNECT_EVENT_FAILURE_ENROLLEE_AUTHENTICATION:
+                summaryCharSequence = getText(R.string.wifi_dpp_failure_enrollee_authentication);
+                break;
+
+            case EasyConnectStatusCallback
+                    .EASY_CONNECT_EVENT_FAILURE_ENROLLEE_REJECTED_CONFIGURATION:
+                summaryCharSequence =
+                        getText(R.string.wifi_dpp_failure_enrollee_rejected_configuration);
+                break;
+
             default:
                 throw(new IllegalStateException("Unexpected Wi-Fi DPP error"));
         }
@@ -158,13 +245,18 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
         mSummary.setText(summaryCharSequence);
         mWifiApPictureView.setImageResource(R.drawable.wifi_dpp_error);
         mChooseDifferentNetwork.setVisibility(View.INVISIBLE);
+        FooterButton finishingButton = mLeftButton;
         if (hasRetryButton(code)) {
             mRightButton.setText(getContext(), R.string.retry);
         } else {
             mRightButton.setText(getContext(), R.string.done);
-            mRightButton.setOnClickListener(v -> getActivity().finish());
+            finishingButton = mRightButton;
             mLeftButton.setVisibility(View.INVISIBLE);
         }
+        finishingButton.setOnClickListener(v -> {
+            getActivity().setResult(Activity.RESULT_CANCELED, resultIntent);
+            getActivity().finish();
+        });
 
         if (isEasyConnectHandshaking()) {
             mSummary.setText(R.string.wifi_dpp_sharing_wifi_with_this_device);
@@ -218,7 +310,8 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
             if (code == WifiDppUtils.EASY_CONNECT_EVENT_SUCCESS) {
                 new EasyConnectConfiguratorStatusCallback().onConfiguratorSuccess(code);
             } else {
-                new EasyConnectConfiguratorStatusCallback().onFailure(code);
+                new EasyConnectConfiguratorStatusCallback().onFailure(code, model.getTriedSsid(),
+                        model.getTriedChannels(), model.getBandArray());
             }
         });
     }
@@ -272,7 +365,8 @@ public class WifiDppAddDeviceFragment extends WifiDppQrCodeBaseFragment {
                 mRightButton.setVisibility(isEasyConnectHandshaking() ?
                         View.INVISIBLE : View.VISIBLE);
             } else {
-                showErrorUi(mLatestStatusCode, /* isConfigurationChange */ true);
+                showErrorUi(mLatestStatusCode, /* reslutIntent */ null, /* isConfigurationChange */
+                        true);
             }
         }
     }

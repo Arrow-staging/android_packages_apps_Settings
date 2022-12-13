@@ -16,19 +16,30 @@
 
 package com.android.settings.wifi.addappnetworks;
 
+import android.app.ActivityManager;
+import android.app.IActivityManager;
+import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.RemoteException;
+import android.os.UserManager;
+import android.provider.Settings;
+import android.text.TextUtils;
+import android.util.EventLog;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.Window;
 import android.view.WindowManager;
 
 import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.settings.R;
-import com.android.settings.core.HideNonSystemOverlayMixin;
+import com.android.settingslib.core.lifecycle.HideNonSystemOverlayMixin;
+import com.android.settingslib.wifi.WifiEnterpriseRestrictionUtils;
 
 /**
  * When apps send a new intent with a WifiConfiguration list extra to Settings APP. Settings APP
@@ -46,37 +57,93 @@ public class AddAppNetworksActivity extends FragmentActivity {
 
     @VisibleForTesting
     final Bundle mBundle = new Bundle();
+    @VisibleForTesting
+    IActivityManager mActivityManager = ActivityManager.getService();
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.settings_panel);
-        showAddNetworksFragment();
+        if (!showAddNetworksFragment()) {
+            finish();
+            return;
+        }
         getLifecycle().addObserver(new HideNonSystemOverlayMixin(this));
+
+        // Move the window to the bottom of screen, and make it take up the entire screen width.
+        final Window window = getWindow();
+        window.setGravity(Gravity.BOTTOM);
+        window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        showAddNetworksFragment();
+        if (!showAddNetworksFragment()) {
+            finish();
+            return;
+        }
     }
 
     @VisibleForTesting
-    void showAddNetworksFragment() {
-        // Move the window to the bottom of screen, and make it take up the entire screen width.
-        final Window window = getWindow();
-        window.setGravity(Gravity.BOTTOM);
-        window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
-                WindowManager.LayoutParams.WRAP_CONTENT);
+    boolean showAddNetworksFragment() {
+        if (isGuestUser(getApplicationContext())) {
+            Log.e(TAG, "Guest user is not allowed to configure Wi-Fi!");
+            EventLog.writeEvent(0x534e4554, "224772678", -1 /* UID */, "User is a guest");
+            return false;
+        }
 
-        // TODO: check the new intent status
-        mBundle.putString(KEY_CALLING_PACKAGE_NAME, getCallingPackage());
+        if (!isAddWifiConfigAllow()) {
+            Log.d(TAG, "Not allowed by Enterprise Restriction");
+            return false;
+        }
+        String packageName = getCallingAppPackageName();
+        if (TextUtils.isEmpty(packageName)) {
+            Log.d(TAG, "Package name is null");
+            return false;
+        }
+
+        // TODO: Check the new intent status.
+        mBundle.putString(KEY_CALLING_PACKAGE_NAME, packageName);
+        mBundle.putParcelableArrayList(Settings.EXTRA_WIFI_NETWORK_LIST,
+                getIntent().getParcelableArrayListExtra(Settings.EXTRA_WIFI_NETWORK_LIST));
+
         final FragmentManager fragmentManager = getSupportFragmentManager();
-        if (fragmentManager.findFragmentByTag(TAG) == null) {
-            final AddAppNetworksFragment fragment = new AddAppNetworksFragment();
+        Fragment fragment = fragmentManager.findFragmentByTag(TAG);
+        if (fragment == null) {
+            fragment = new AddAppNetworksFragment();
             fragment.setArguments(mBundle);
             fragmentManager.beginTransaction().add(R.id.main_content, fragment, TAG).commit();
+        } else {
+            ((AddAppNetworksFragment) fragment).createContent(mBundle);
         }
+
+        return true;
+    }
+
+    @VisibleForTesting
+    protected String getCallingAppPackageName() {
+        String packageName;
+        try {
+            packageName = mActivityManager.getLaunchedFromPackage(getActivityToken());
+        } catch (RemoteException e) {
+            Log.e(TAG, "Can not get the package from activity manager");
+            return null;
+        }
+        return packageName;
+    }
+
+    @VisibleForTesting
+    boolean isAddWifiConfigAllow() {
+        return WifiEnterpriseRestrictionUtils.isAddWifiConfigAllowed(this);
+    }
+
+    private static boolean isGuestUser(Context context) {
+        if (context == null) return false;
+        final UserManager userManager = context.getSystemService(UserManager.class);
+        if (userManager == null) return false;
+        return userManager.isGuestUser();
     }
 }

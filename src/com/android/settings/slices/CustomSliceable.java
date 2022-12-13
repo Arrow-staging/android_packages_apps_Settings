@@ -95,13 +95,16 @@ public interface CustomSliceable extends Sliceable {
                 .setData(getUri())
                 .setClass(context, SliceBroadcastReceiver.class);
         return PendingIntent.getBroadcast(context, 0 /* requestCode */, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
     }
 
     @Override
     default boolean isSliceable() {
         return true;
     }
+
+    @Override
+    int getSliceHighlightMenuRes();
 
     /**
      * Build an instance of a {@link CustomSliceable} which has a {@link Context}-only constructor.

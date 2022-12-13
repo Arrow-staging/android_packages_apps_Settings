@@ -54,7 +54,7 @@ public class RoamingDialogFragment extends InstrumentedDialogFragment implements
         super.onAttach(context);
         final Bundle args = getArguments();
         mSubId = args.getInt(SUB_ID_KEY);
-        mCarrierConfigManager = new CarrierConfigManager(context);
+        mCarrierConfigManager = context.getSystemService(CarrierConfigManager.class);
     }
 
     @Override
@@ -72,7 +72,9 @@ public class RoamingDialogFragment extends InstrumentedDialogFragment implements
                 .setIconAttribute(android.R.attr.alertDialogIcon)
                 .setPositiveButton(android.R.string.yes, this)
                 .setNegativeButton(android.R.string.no, this);
-        return builder.create();
+        AlertDialog dialog = builder.create();
+        dialog.setCanceledOnTouchOutside(false);
+        return dialog;
     }
 
     @Override

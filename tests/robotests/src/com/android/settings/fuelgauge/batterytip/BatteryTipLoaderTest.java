@@ -24,15 +24,14 @@ import static org.mockito.Mockito.spy;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.BatteryUsageStats;
 import android.os.PowerManager;
 
-import com.android.internal.os.BatteryStatsHelper;
 import com.android.settings.fuelgauge.BatteryInfo;
 import com.android.settings.fuelgauge.BatteryUtils;
 import com.android.settings.fuelgauge.batterytip.tips.AppLabelPredicate;
 import com.android.settings.fuelgauge.batterytip.tips.AppRestrictionPredicate;
 import com.android.settings.fuelgauge.batterytip.tips.BatteryTip;
-import com.android.settings.testutils.BatteryTestUtils;
 
 import org.junit.After;
 import org.junit.Before;
@@ -43,22 +42,21 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.util.ReflectionHelpers;
 
 import java.util.List;
-import org.robolectric.util.ReflectionHelpers;
 
 @RunWith(RobolectricTestRunner.class)
 public class BatteryTipLoaderTest {
 
     private static final int[] TIP_ORDER = {
-            BatteryTip.TipType.APP_RESTRICTION,
             BatteryTip.TipType.BATTERY_SAVER,
-            BatteryTip.TipType.HIGH_DEVICE_USAGE,
             BatteryTip.TipType.LOW_BATTERY,
-            BatteryTip.TipType.SUMMARY,
+            BatteryTip.TipType.BATTERY_DEFENDER,
+            BatteryTip.TipType.HIGH_DEVICE_USAGE,
             BatteryTip.TipType.SMART_BATTERY_MANAGER};
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private BatteryStatsHelper mBatteryStatsHelper;
+    private BatteryUsageStats mBatteryUsageStats;
     @Mock
     private PowerManager mPowerManager;
     @Mock
@@ -78,8 +76,8 @@ public class BatteryTipLoaderTest {
         doReturn(mContext).when(mContext).getApplicationContext();
         doReturn(mPowerManager).when(mContext).getSystemService(Context.POWER_SERVICE);
         doReturn(mIntent).when(mContext).registerReceiver(any(), any());
-        doReturn(mBatteryInfo).when(mBatteryUtils).getBatteryInfo(any(), any());
-        mBatteryTipLoader = new BatteryTipLoader(mContext, mBatteryStatsHelper);
+        doReturn(mBatteryInfo).when(mBatteryUtils).getBatteryInfo(any());
+        mBatteryTipLoader = new BatteryTipLoader(mContext, mBatteryUsageStats);
         mBatteryTipLoader.mBatteryUtils = mBatteryUtils;
     }
 

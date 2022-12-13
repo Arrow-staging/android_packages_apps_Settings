@@ -16,15 +16,18 @@
 
 package com.android.settings.panel;
 
-import static com.android.settingslib.media.MediaOutputSliceConstants.EXTRA_PACKAGE_NAME;
+import static com.android.settingslib.media.MediaOutputConstants.EXTRA_PACKAGE_NAME;
 
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.Window;
 import android.view.WindowManager;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentActivity;
@@ -32,17 +35,21 @@ import androidx.fragment.app.FragmentManager;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.settings.R;
-import com.android.settings.core.HideNonSystemOverlayMixin;
+import com.android.settingslib.core.lifecycle.HideNonSystemOverlayMixin;
 
 /**
  * Dialog Activity to host Settings Slices.
  */
 public class SettingsPanelActivity extends FragmentActivity {
 
-    private final String TAG = "panel_activity";
+    private static final String TAG = "SettingsPanelActivity";
 
     @VisibleForTesting
     final Bundle mBundle = new Bundle();
+    @VisibleForTesting
+    boolean mForceCreation = false;
+    @VisibleForTesting
+    PanelFragment mPanelFragment;
 
     /**
      * Key specifying which Panel the app is requesting.
@@ -59,11 +66,10 @@ public class SettingsPanelActivity extends FragmentActivity {
      */
     public static final String KEY_MEDIA_PACKAGE_NAME = "PANEL_MEDIA_PACKAGE_NAME";
 
-    private boolean mForceCreation = false;
-
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        getApplicationContext().getTheme().rebase();
         createOrUpdatePanel(true /* shouldForceCreation */);
         getLifecycle().addObserver(new HideNonSystemOverlayMixin(this));
     }
@@ -84,6 +90,14 @@ public class SettingsPanelActivity extends FragmentActivity {
     @Override
     protected void onStop() {
         super.onStop();
+        if (mPanelFragment != null && !mPanelFragment.isPanelCreating()) {
+            mForceCreation = true;
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
         mForceCreation = true;
     }
 
@@ -95,10 +109,10 @@ public class SettingsPanelActivity extends FragmentActivity {
             return;
         }
 
+        final String action = callingIntent.getAction();
         // We will use it once media output switch panel support remote device.
         final String mediaPackageName = callingIntent.getStringExtra(EXTRA_PACKAGE_NAME);
-
-        mBundle.putString(KEY_PANEL_TYPE_ARGUMENT, callingIntent.getAction());
+        mBundle.putString(KEY_PANEL_TYPE_ARGUMENT, action);
         mBundle.putString(KEY_CALLING_PACKAGE_NAME, getCallingPackage());
         mBundle.putString(KEY_MEDIA_PACKAGE_NAME, mediaPackageName);
 
@@ -107,9 +121,21 @@ public class SettingsPanelActivity extends FragmentActivity {
 
         // If fragment already exists and visible, we will need to update panel with animation.
         if (!shouldForceCreation && fragment != null && fragment instanceof PanelFragment) {
-            final PanelFragment panelFragment = (PanelFragment) fragment;
-            panelFragment.setArguments(mBundle);
-            ((PanelFragment) fragment).updatePanelWithAnimation();
+            mPanelFragment = (PanelFragment) fragment;
+            if (mPanelFragment.isPanelCreating()) {
+                Log.w(TAG, "A panel is creating, skip " + action);
+                return;
+            }
+
+            final Bundle bundle = fragment.getArguments();
+            if (bundle != null
+                    && TextUtils.equals(action, bundle.getString(KEY_PANEL_TYPE_ARGUMENT))) {
+                Log.w(TAG, "Panel is showing the same action, skip " + action);
+                return;
+            }
+
+            mPanelFragment.setArguments(new Bundle(mBundle));
+            mPanelFragment.updatePanelWithAnimation();
         } else {
             setContentView(R.layout.settings_panel);
 
@@ -118,9 +144,9 @@ public class SettingsPanelActivity extends FragmentActivity {
             window.setGravity(Gravity.BOTTOM);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.WRAP_CONTENT);
-            final PanelFragment panelFragment = new PanelFragment();
-            panelFragment.setArguments(mBundle);
-            fragmentManager.beginTransaction().add(R.id.main_content, panelFragment).commit();
+            mPanelFragment = new PanelFragment();
+            mPanelFragment.setArguments(new Bundle(mBundle));
+            fragmentManager.beginTransaction().add(R.id.main_content, mPanelFragment).commit();
         }
     }
 }

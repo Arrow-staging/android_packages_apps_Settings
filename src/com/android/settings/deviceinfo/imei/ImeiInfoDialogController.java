@@ -21,17 +21,11 @@ import android.content.res.Resources;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
-import android.text.Spannable;
-import android.text.SpannableStringBuilder;
-import android.text.Spanned;
-import android.text.TextUtils;
-import android.text.style.TtsSpan;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
-import com.android.internal.telephony.PhoneConstants;
 import com.android.settings.R;
 
 public class ImeiInfoDialogController {
@@ -53,19 +47,6 @@ public class ImeiInfoDialogController {
     static final int ID_CDMA_SETTINGS = R.id.cdma_settings;
     @VisibleForTesting
     static final int ID_GSM_SETTINGS = R.id.gsm_settings;
-
-    private static CharSequence getTextAsDigits(CharSequence text) {
-        if (TextUtils.isEmpty(text)) {
-            return "";
-        }
-        if (TextUtils.isDigitsOnly(text)) {
-            final Spannable spannable = new SpannableStringBuilder(text);
-            final TtsSpan span = new TtsSpan.DigitsBuilder(text.toString()).build();
-            spannable.setSpan(span, 0, spannable.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            text = spannable;
-        }
-        return text;
-    }
 
     private final ImeiInfoDialogFragment mDialog;
     private final TelephonyManager mTelephonyManager;
@@ -119,12 +100,12 @@ public class ImeiInfoDialogController {
 
         mDialog.setText(ID_PRL_VERSION_VALUE, getCdmaPrlVersion());
 
-        if (mSubscriptionInfo != null && isCdmaLteEnabled()) {
+        if ((mSubscriptionInfo != null && isCdmaLteEnabled()) ||
+                    (mSubscriptionInfo == null && isSimPresent(mSlotId))) {
             // Show IMEI for LTE device
-            mDialog.setText(ID_IMEI_VALUE,
-                    getTextAsDigits(mTelephonyManager.getImei(mSlotId)));
+            mDialog.setText(ID_IMEI_VALUE, mTelephonyManager.getImei(mSlotId));
             mDialog.setText(ID_IMEI_SV_VALUE,
-                    getTextAsDigits(mTelephonyManager.getDeviceSoftwareVersion(mSlotId)));
+                    mTelephonyManager.getDeviceSoftwareVersion(mSlotId));
         } else {
             // device is not GSM/UMTS, do not display GSM/UMTS features
             mDialog.removeViewFromScreen(ID_GSM_SETTINGS);
@@ -132,9 +113,9 @@ public class ImeiInfoDialogController {
     }
 
     private void updateDialogForGsmPhone() {
-        mDialog.setText(ID_IMEI_VALUE, getTextAsDigits(mTelephonyManager.getImei(mSlotId)));
+        mDialog.setText(ID_IMEI_VALUE, mTelephonyManager.getImei(mSlotId));
         mDialog.setText(ID_IMEI_SV_VALUE,
-                getTextAsDigits(mTelephonyManager.getDeviceSoftwareVersion(mSlotId)));
+                mTelephonyManager.getDeviceSoftwareVersion(mSlotId));
         // device is not CDMA, do not display CDMA features
         mDialog.removeViewFromScreen(ID_CDMA_SETTINGS);
     }
@@ -147,8 +128,16 @@ public class ImeiInfoDialogController {
 
     @VisibleForTesting
     boolean isCdmaLteEnabled() {
-        return mTelephonyManager.getLteOnCdmaMode(mSubscriptionInfo.getSubscriptionId())
-                == PhoneConstants.LTE_ON_CDMA_TRUE;
+        return mTelephonyManager.isLteCdmaEvdoGsmWcdmaEnabled();
+    }
+
+    boolean isSimPresent(int slotId) {
+        final int simState = mTelephonyManager.getSimState(slotId);
+        if ((simState != TelephonyManager.SIM_STATE_ABSENT) &&
+                (simState != TelephonyManager.SIM_STATE_UNKNOWN)) {
+            return true;
+        }
+        return false;
     }
 
     @VisibleForTesting

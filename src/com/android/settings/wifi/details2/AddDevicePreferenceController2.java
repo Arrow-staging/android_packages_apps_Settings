@@ -25,7 +25,7 @@ import androidx.preference.Preference;
 
 import com.android.settings.core.BasePreferenceController;
 import com.android.settings.wifi.dpp.WifiDppUtils;
-import com.android.settingslib.wifi.AccessPoint;
+import com.android.wifitrackerlib.WifiEntry;
 
 /**
  * {@link BasePreferenceController} that launches Wi-Fi Easy Connect configurator flow
@@ -36,7 +36,7 @@ public class AddDevicePreferenceController2 extends BasePreferenceController {
 
     private static final String KEY_ADD_DEVICE = "add_device_to_network";
 
-    private AccessPoint mAccessPoint;
+    private WifiEntry mWifiEntry;
     private WifiManager mWifiManager;
 
     public AddDevicePreferenceController2(Context context) {
@@ -45,22 +45,13 @@ public class AddDevicePreferenceController2 extends BasePreferenceController {
         mWifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
     }
 
-    /**
-     * Initiate with an {@link AccessPoint}.
-     */
-    public AddDevicePreferenceController2 init(AccessPoint accessPoint) {
-        mAccessPoint = accessPoint;
-
-        return this;
+    public void setWifiEntry(WifiEntry wifiEntry) {
+        mWifiEntry = wifiEntry;
     }
 
     @Override
     public int getAvailabilityStatus() {
-        if (WifiDppUtils.isSupportConfiguratorQrCodeScanner(mContext, mAccessPoint)) {
-            return AVAILABLE;
-        } else {
-            return CONDITIONALLY_UNAVAILABLE;
-        }
+        return mWifiEntry.canEasyConnect() ? AVAILABLE : CONDITIONALLY_UNAVAILABLE;
     }
 
     @Override
@@ -75,7 +66,7 @@ public class AddDevicePreferenceController2 extends BasePreferenceController {
 
     private void launchWifiDppConfiguratorQrCodeScanner() {
         final Intent intent = WifiDppUtils.getConfiguratorQrCodeScannerIntentOrNull(mContext,
-                mWifiManager, mAccessPoint);
+                mWifiManager, mWifiEntry);
 
         if (intent == null) {
             Log.e(TAG, "Launch Wi-Fi QR code scanner with a wrong Wi-Fi network!");

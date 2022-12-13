@@ -19,19 +19,23 @@ package com.android.settings.wifi.tether;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.admin.DevicePolicyManager;
+import android.app.settings.SettingsEnums;
 import android.content.Context;
-import android.net.ConnectivityManager;
-import android.net.wifi.WifiConfiguration;
-import android.net.wifi.WifiConfiguration.KeyMgmt;
+import android.net.TetheringManager;
+import android.net.wifi.SoftApConfiguration;
 import android.net.wifi.WifiManager;
 
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.widget.ValidatedEditTextPreference;
+import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -48,13 +52,15 @@ public class WifiTetherSSIDPreferenceControllerTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Context mContext;
     @Mock
-    private ConnectivityManager mConnectivityManager;
+    private TetheringManager mTetheringManager;
     @Mock
     private WifiManager mWifiManager;
     @Mock
     private WifiTetherBasePreferenceController.OnTetherConfigUpdateListener mListener;
     @Mock
     private PreferenceScreen mScreen;
+    @Mock
+    private MetricsFeatureProvider mMetricsFeatureProvider;
 
     private WifiTetherSSIDPreferenceController mController;
     private WifiTetherSsidPreference mPreference;
@@ -64,19 +70,20 @@ public class WifiTetherSSIDPreferenceControllerTest {
         MockitoAnnotations.initMocks(this);
         mPreference = new WifiTetherSsidPreference(RuntimeEnvironment.application);
 
-        when(mContext.getSystemService(Context.WIFI_SERVICE)).thenReturn(mWifiManager);
-        when(mContext.getSystemService(Context.CONNECTIVITY_SERVICE))
-                .thenReturn(mConnectivityManager);
-        when(mConnectivityManager.getTetherableWifiRegexs()).thenReturn(new String[]{"1", "2"});
+        doReturn(mock(DevicePolicyManager.class)).when(mContext)
+                .getSystemService(Context.DEVICE_POLICY_SERVICE);
+        doReturn(mWifiManager).when(mContext).getSystemService(WifiManager.class);
+        doReturn(mTetheringManager).when(mContext).getSystemService(TetheringManager.class);
+        when(mTetheringManager.getTetherableWifiRegexs()).thenReturn(new String[]{"1", "2"});
         when(mContext.getResources()).thenReturn(RuntimeEnvironment.application.getResources());
         when(mScreen.findPreference(anyString())).thenReturn(mPreference);
-
-        mController = new WifiTetherSSIDPreferenceController(mContext, mListener);
+        mController = new WifiTetherSSIDPreferenceController(mContext, mListener,
+                mMetricsFeatureProvider);
     }
 
     @Test
     public void displayPreference_noWifiConfig_shouldDisplayDefaultSSID() {
-        when(mWifiManager.getWifiApConfiguration()).thenReturn(null);
+        when(mWifiManager.getSoftApConfiguration()).thenReturn(null);
 
         mController.displayPreference(mScreen);
         assertThat(mController.getSSID())
@@ -85,12 +92,12 @@ public class WifiTetherSSIDPreferenceControllerTest {
 
     @Test
     public void displayPreference_hasCustomWifiConfig_shouldDisplayCustomSSID() {
-        final WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "test_1234";
-        when(mWifiManager.getWifiApConfiguration()).thenReturn(config);
+        final SoftApConfiguration config = new SoftApConfiguration.Builder()
+                .setSsid("test_1234").build();
+        when(mWifiManager.getSoftApConfiguration()).thenReturn(config);
 
         mController.displayPreference(mScreen);
-        assertThat(mController.getSSID()).isEqualTo(config.SSID);
+        assertThat(mController.getSSID()).isEqualTo(config.getSsid());
     }
 
     @Test
@@ -106,6 +113,23 @@ public class WifiTetherSSIDPreferenceControllerTest {
     }
 
     @Test
+    public void changePreference_shouldLogActionWhenChanged() {
+        mController.displayPreference(mScreen);
+        mController.onPreferenceChange(mPreference, "1");
+        verify(mMetricsFeatureProvider).action(mContext,
+                SettingsEnums.ACTION_SETTINGS_CHANGE_WIFI_HOTSPOT_NAME);
+    }
+
+    @Test
+    public void changePreference_shouldNotLogActionWhenNotChanged() {
+        mController.displayPreference(mScreen);
+        mController.onPreferenceChange(mPreference,
+                WifiTetherSSIDPreferenceController.DEFAULT_SSID);
+        verify(mMetricsFeatureProvider, never()).action(mContext,
+                SettingsEnums.ACTION_SETTINGS_CHANGE_WIFI_HOTSPOT_NAME);
+    }
+
+    @Test
     public void updateDisplay_shouldUpdateValue() {
         // Set controller ssid to anything and verify is set.
         mController.displayPreference(mScreen);
@@ -113,23 +137,23 @@ public class WifiTetherSSIDPreferenceControllerTest {
         assertThat(mController.getSSID()).isEqualTo("1");
 
         // Create a new config using different SSID
-        final WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "test_1234";
-        when(mWifiManager.getWifiApConfiguration()).thenReturn(config);
+        final SoftApConfiguration config = new SoftApConfiguration.Builder()
+                .setSsid("test_1234").build();
+        when(mWifiManager.getSoftApConfiguration()).thenReturn(config);
 
         // Call updateDisplay and verify it's changed.
         mController.updateDisplay();
-        assertThat(mController.getSSID()).isEqualTo(config.SSID);
-        assertThat(mPreference.getSummary()).isEqualTo(config.SSID);
+        assertThat(mController.getSSID()).isEqualTo(config.getSsid());
+        assertThat(mPreference.getSummary()).isEqualTo(config.getSsid());
     }
 
     @Test
     public void displayPreference_wifiApDisabled_shouldHideQrCodeIcon() {
         when(mWifiManager.isWifiApEnabled()).thenReturn(false);
-        final WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "test_1234";
-        config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
-        when(mWifiManager.getWifiApConfiguration()).thenReturn(config);
+        final SoftApConfiguration config = new SoftApConfiguration.Builder()
+                .setSsid("test_1234").setPassphrase("test_password",
+                SoftApConfiguration.SECURITY_TYPE_WPA2_PSK).build();
+        when(mWifiManager.getSoftApConfiguration()).thenReturn(config);
 
         mController.displayPreference(mScreen);
         assertThat(mController.isQrCodeButtonAvailable()).isEqualTo(false);
@@ -138,10 +162,10 @@ public class WifiTetherSSIDPreferenceControllerTest {
     @Test
     public void displayPreference_wifiApEnabled_shouldShowQrCodeIcon() {
         when(mWifiManager.isWifiApEnabled()).thenReturn(true);
-        final WifiConfiguration config = new WifiConfiguration();
-        config.SSID = "test_1234";
-        config.allowedKeyManagement.set(KeyMgmt.WPA2_PSK);
-        when(mWifiManager.getWifiApConfiguration()).thenReturn(config);
+        final SoftApConfiguration config = new SoftApConfiguration.Builder()
+                .setSsid("test_1234").setPassphrase("test_password",
+                SoftApConfiguration.SECURITY_TYPE_WPA2_PSK).build();
+        when(mWifiManager.getSoftApConfiguration()).thenReturn(config);
 
         mController.displayPreference(mScreen);
         assertThat(mController.isQrCodeButtonAvailable()).isEqualTo(true);

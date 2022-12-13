@@ -19,6 +19,7 @@ package com.android.settings.accounts;
 
 import android.accounts.Account;
 import android.accounts.AuthenticatorDescription;
+import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -57,7 +58,6 @@ public class AccountTypePreferenceLoader {
     // the location settings.
     private static final String LAUNCHING_LOCATION_SETTINGS =
         "com.android.settings.accounts.LAUNCHING_LOCATION_SETTINGS";
-
 
     private AuthenticatorHelper mAuthenticatorHelper;
     private UserHandle mUserHandle;
@@ -165,6 +165,9 @@ public class AccountTypePreferenceLoader {
                                  * exploiting the fact that settings has system privileges.
                                  */
                             if (isSafeIntent(pm, prefIntent, acccountType)) {
+                                // Explicitly set an empty ClipData to ensure that we don't offer to
+                                // promote any Uris contained inside for granting purposes
+                                prefIntent.setClipData(ClipData.newPlainText(null, null));
                                 mFragment.getActivity().startActivityAsUser(
                                     prefIntent, mUserHandle);
                             } else {
@@ -197,14 +200,7 @@ public class AccountTypePreferenceLoader {
         ActivityInfo resolvedActivityInfo = resolveInfo.activityInfo;
         ApplicationInfo resolvedAppInfo = resolvedActivityInfo.applicationInfo;
         try {
-            if (resolvedActivityInfo.exported) {
-                if (resolvedActivityInfo.permission == null) {
-                    return true; // exported activity without permission.
-                } else if (pm.checkPermission(resolvedActivityInfo.permission,
-                    authDesc.packageName) == PackageManager.PERMISSION_GRANTED) {
-                    return true;
-                }
-            }
+            // Allows to launch only authenticator owned activities.
             ApplicationInfo authenticatorAppInf = pm.getApplicationInfo(authDesc.packageName, 0);
             return resolvedAppInfo.uid == authenticatorAppInf.uid;
         } catch (NameNotFoundException e) {

@@ -22,6 +22,7 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.provider.Settings.Global;
 import android.text.TextUtils;
+
 import com.android.settingslib.fuelgauge.BatterySaverUtils;
 
 /**
@@ -39,7 +40,7 @@ public class BatterySaverScheduleRadioButtonsController {
     public static final String KEY_NO_SCHEDULE = "key_battery_saver_no_schedule";
     public static final String KEY_ROUTINE = "key_battery_saver_routine";
     public static final String KEY_PERCENTAGE = "key_battery_saver_percentage";
-    public static final int TRIGGER_LEVEL_MIN = 5;
+    public static final int TRIGGER_LEVEL_MIN = 10;
 
     private Context mContext;
     private BatterySaverScheduleSeekBarController mSeekBarController;
@@ -72,7 +73,7 @@ public class BatterySaverScheduleRadioButtonsController {
         if (key == null) {
             return false;
         }
-        
+
         final ContentResolver resolver = mContext.getContentResolver();
         int mode = PowerManager.POWER_SAVE_MODE_TRIGGER_PERCENTAGE;
         int triggerLevel = 0;
@@ -111,6 +112,10 @@ public class BatterySaverScheduleRadioButtonsController {
         Settings.Global.putInt(resolver, Global.AUTOMATIC_POWER_SAVE_MODE, mode);
         if (mode != PowerManager.POWER_SAVE_MODE_TRIGGER_DYNAMIC) {
             Settings.Global.putInt(resolver, Global.LOW_POWER_MODE_TRIGGER_LEVEL, triggerLevel);
+        }
+        // Suppress battery saver suggestion notification if enabling scheduling battery saver.
+        if (mode == PowerManager.POWER_SAVE_MODE_TRIGGER_DYNAMIC || triggerLevel != 0) {
+            BatterySaverUtils.suppressAutoBatterySaver(mContext);
         }
         mSeekBarController.updateSeekBar();
         return true;

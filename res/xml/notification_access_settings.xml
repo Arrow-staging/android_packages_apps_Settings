@@ -20,4 +20,14 @@
     xmlns:settings="http://schemas.android.com/apk/res-auto"
     android:key="notification_access_screen"
     android:title="@string/manage_notification_access_title"
-    settings:controller="com.android.settings.applications.specialaccess.notificationaccess.NotificationAccessScreenPreferenceController" />
+    settings:searchable="false"
+    settings:controller="com.android.settings.applications.specialaccess.notificationaccess.NotificationAccessScreenPreferenceController">
+
+    <PreferenceCategory
+        android:key="allowed"
+        android:title="@string/notification_listener_allowed"/>
+
+    <PreferenceCategory
+        android:key="not_allowed"
+        android:title="@string/notification_listener_not_allowed"/>
+</PreferenceScreen>

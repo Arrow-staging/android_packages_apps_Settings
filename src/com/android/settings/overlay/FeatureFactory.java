@@ -23,13 +23,18 @@ import android.util.Log;
 import androidx.annotation.Nullable;
 
 import com.android.settings.R;
+import com.android.settings.accessibility.AccessibilityMetricsFeatureProvider;
+import com.android.settings.accessibility.AccessibilitySearchFeatureProvider;
 import com.android.settings.accounts.AccountFeatureProvider;
 import com.android.settings.applications.ApplicationFeatureProvider;
 import com.android.settings.aware.AwareFeatureProvider;
+import com.android.settings.biometrics.face.FaceFeatureProvider;
 import com.android.settings.bluetooth.BluetoothFeatureProvider;
 import com.android.settings.dashboard.DashboardFeatureProvider;
 import com.android.settings.dashboard.suggestions.SuggestionFeatureProvider;
 import com.android.settings.enterprise.EnterprisePrivacyFeatureProvider;
+import com.android.settings.fuelgauge.BatterySettingsFeatureProvider;
+import com.android.settings.fuelgauge.BatteryStatusFeatureProvider;
 import com.android.settings.fuelgauge.PowerUsageFeatureProvider;
 import com.android.settings.gestures.AssistGestureFeatureProvider;
 import com.android.settings.homepage.contextualcards.ContextualCardFeatureProvider;
@@ -37,8 +42,11 @@ import com.android.settings.localepicker.LocaleFeatureProvider;
 import com.android.settings.panel.PanelFeatureProvider;
 import com.android.settings.search.SearchFeatureProvider;
 import com.android.settings.security.SecurityFeatureProvider;
+import com.android.settings.security.SecuritySettingsFeatureProvider;
 import com.android.settings.slices.SlicesFeatureProvider;
 import com.android.settings.users.UserFeatureProvider;
+import com.android.settings.vpn2.AdvancedVpnFeatureProvider;
+import com.android.settings.wifi.WifiTrackerLibProvider;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
 /**
@@ -102,6 +110,18 @@ public abstract class FeatureFactory {
 
     public abstract PowerUsageFeatureProvider getPowerUsageFeatureProvider(Context context);
 
+    /**
+     * Retrieves implementation for Battery Status feature.
+     */
+    public abstract BatteryStatusFeatureProvider getBatteryStatusFeatureProvider(
+            Context context);
+
+    /**
+     * Gets implementation for Battery Settings provider.
+     */
+    public abstract BatterySettingsFeatureProvider getBatterySettingsFeatureProvider(
+            Context context);
+
     public abstract DashboardFeatureProvider getDashboardFeatureProvider(Context context);
 
     public abstract DockUpdaterFeatureProvider getDockUpdaterFeatureProvider();
@@ -129,9 +149,39 @@ public abstract class FeatureFactory {
 
     public abstract ContextualCardFeatureProvider getContextualCardFeatureProvider(Context context);
 
-    public abstract BluetoothFeatureProvider getBluetoothFeatureProvider(Context context);
+    /**
+     * Retrieves implementation for Bluetooth feature.
+     */
+    public abstract BluetoothFeatureProvider getBluetoothFeatureProvider();
 
     public abstract AwareFeatureProvider getAwareFeatureProvider();
+
+    public abstract FaceFeatureProvider getFaceFeatureProvider();
+
+    /**
+     * Gets implementation for the WifiTrackerLib.
+     */
+    public abstract WifiTrackerLibProvider getWifiTrackerLibProvider();
+
+    /**
+     * Retrieves implementation for SecuritySettings feature.
+     */
+    public abstract SecuritySettingsFeatureProvider getSecuritySettingsFeatureProvider();
+
+    /**
+     * Retrieves implementation for Accessibility search index feature.
+     */
+    public abstract AccessibilitySearchFeatureProvider getAccessibilitySearchFeatureProvider();
+
+    /**
+     * Retrieves implementation for Accessibility metrics category feature.
+     */
+    public abstract AccessibilityMetricsFeatureProvider getAccessibilityMetricsFeatureProvider();
+
+    /**
+     * Retrieves implementation for advanced vpn feature.
+     */
+    public abstract AdvancedVpnFeatureProvider getAdvancedVpnFeatureProvider();
 
     public static final class FactoryNotFoundException extends RuntimeException {
         public FactoryNotFoundException(Throwable throwable) {

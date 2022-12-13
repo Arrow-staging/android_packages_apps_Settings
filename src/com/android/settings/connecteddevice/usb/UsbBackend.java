@@ -28,7 +28,7 @@ import android.content.pm.PackageManager;
 import android.hardware.usb.UsbManager;
 import android.hardware.usb.UsbPort;
 import android.hardware.usb.UsbPortStatus;
-import android.net.ConnectivityManager;
+import android.net.TetheringManager;
 import android.os.UserHandle;
 import android.os.UserManager;
 
@@ -41,7 +41,10 @@ import java.util.List;
  */
 public class UsbBackend {
 
-    static final int PD_ROLE_SWAP_TIMEOUT_MS = 3000;
+    // extend this value from 3s to 4s because of switching data role
+    // in USB driver side takes about 3s in some devices, plus the usb
+    // port change event dispatching time, 3s is not enough.
+    static final int PD_ROLE_SWAP_TIMEOUT_MS = 4000;
     static final int NONPD_ROLE_SWAP_TIMEOUT_MS = 15000;
 
     private final boolean mFileTransferRestricted;
@@ -50,6 +53,7 @@ public class UsbBackend {
     private final boolean mTetheringRestrictedBySystem;
     private final boolean mMidiSupported;
     private final boolean mTetheringSupported;
+    private final boolean mIsAdminUser;
 
     private UsbManager mUsbManager;
 
@@ -70,11 +74,11 @@ public class UsbBackend {
         mFileTransferRestrictedBySystem = isUsbFileTransferRestrictedBySystem(userManager);
         mTetheringRestricted = isUsbTetheringRestricted(userManager);
         mTetheringRestrictedBySystem = isUsbTetheringRestrictedBySystem(userManager);
+        mIsAdminUser = userManager.isAdminUser();
 
         mMidiSupported = context.getPackageManager().hasSystemFeature(PackageManager.FEATURE_MIDI);
-        ConnectivityManager cm =
-                (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-        mTetheringSupported = cm.isTetheringSupported();
+        final TetheringManager tm = context.getSystemService(TetheringManager.class);
+        mTetheringSupported = tm.isTetheringSupported();
 
         updatePorts();
     }
@@ -100,7 +104,8 @@ public class UsbBackend {
                 || (!mTetheringSupported && (functions & UsbManager.FUNCTION_RNDIS) != 0)) {
             return false;
         }
-        return !(areFunctionDisallowed(functions) || areFunctionsDisallowedBySystem(functions));
+        return !(areFunctionDisallowed(functions) || areFunctionsDisallowedBySystem(functions)
+                || areFunctionsDisallowedByNonAdminUser(functions));
     }
 
     public int getPowerRole() {
@@ -205,6 +210,11 @@ public class UsbBackend {
         return (mFileTransferRestrictedBySystem && ((functions & UsbManager.FUNCTION_MTP) != 0
                 || (functions & UsbManager.FUNCTION_PTP) != 0))
                 || (mTetheringRestrictedBySystem && ((functions & UsbManager.FUNCTION_RNDIS) != 0));
+    }
+
+    @VisibleForTesting
+    boolean areFunctionsDisallowedByNonAdminUser(long functions) {
+        return !mIsAdminUser && (functions & UsbManager.FUNCTION_RNDIS) != 0;
     }
 
     private void updatePorts() {

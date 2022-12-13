@@ -36,6 +36,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.ResolveInfo;
 import android.content.pm.ShortcutInfo;
 import android.content.pm.ShortcutManager;
+import android.os.SystemProperties;
 
 import com.android.settings.Settings;
 import com.android.settings.testutils.shadow.ShadowConnectivityManager;
@@ -61,6 +62,8 @@ import java.util.List;
 @RunWith(RobolectricTestRunner.class)
 @Config(shadows = ShadowConnectivityManager.class)
 public class CreateShortcutPreferenceControllerTest {
+
+    static final String SUPPORT_ONE_HANDED_MODE = "ro.support_one_handed_mode";
 
     @Mock
     private ShortcutManager mShortcutManager;
@@ -93,7 +96,7 @@ public class CreateShortcutPreferenceControllerTest {
         final Intent intent = new Intent(CreateShortcutPreferenceController.SHORTCUT_PROBE)
                 .setClass(mContext, Settings.ManageApplicationsActivity.class);
         final ResolveInfo ri = mContext.getPackageManager().resolveActivity(intent, 0);
-        final Intent result = mController.createResultIntent(intent, ri, "dummy");
+        final Intent result = mController.createResultIntent(intent, ri, "mock");
 
         assertThat(result.getStringExtra("d1")).isEqualTo("d2");
         assertThat((Object) result.getParcelableExtra(Intent.EXTRA_SHORTCUT_INTENT)).isNotNull();
@@ -151,5 +154,37 @@ public class CreateShortcutPreferenceControllerTest {
         assertThat(info).hasSize(2);
         assertThat(info.get(0).activityInfo).isEqualTo(ri2.activityInfo);
         assertThat(info.get(1).activityInfo).isEqualTo(ri1.activityInfo);
+    }
+
+    @Test
+    public void queryShortcuts_setSupportOneHandedMode_ShouldEnableShortcuts() {
+        SystemProperties.set(SUPPORT_ONE_HANDED_MODE, "true");
+
+        setupOneHandedModeActivityInfo();
+        final List<ResolveInfo> info = mController.queryShortcuts();
+
+        assertThat(info).hasSize(1);
+    }
+
+    @Test
+    public void queryShortcuts_setUnsupportOneHandedMode_ShouldDisableShortcuts() {
+        SystemProperties.set(SUPPORT_ONE_HANDED_MODE, "false");
+
+        setupOneHandedModeActivityInfo();
+        final List<ResolveInfo> info = mController.queryShortcuts();
+
+        assertThat(info).hasSize(0);
+    }
+
+    private void setupOneHandedModeActivityInfo() {
+        final ResolveInfo ri = new ResolveInfo();
+        ri.activityInfo = new ActivityInfo();
+        ri.activityInfo.name = Settings.OneHandedSettingsActivity.class.getSimpleName();
+        ri.activityInfo.applicationInfo = new ApplicationInfo();
+        ri.activityInfo.applicationInfo.flags = ApplicationInfo.FLAG_SYSTEM;
+
+        mPackageManager.setResolveInfosForIntent(
+                new Intent(CreateShortcutPreferenceController.SHORTCUT_PROBE),
+                Arrays.asList(ri));
     }
 }

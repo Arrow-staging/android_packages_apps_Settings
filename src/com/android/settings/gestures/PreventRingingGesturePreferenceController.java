@@ -30,16 +30,15 @@ import androidx.preference.PreferenceScreen;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.settings.R;
 import com.android.settings.core.PreferenceControllerMixin;
-import com.android.settings.widget.VideoPreference;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnPause;
 import com.android.settingslib.core.lifecycle.events.OnResume;
-import com.android.settingslib.widget.RadioButtonPreference;
+import com.android.settingslib.widget.SelectorWithWidgetPreference;
 
 public class PreventRingingGesturePreferenceController extends AbstractPreferenceController
-        implements RadioButtonPreference.OnClickListener, LifecycleObserver,
+        implements SelectorWithWidgetPreference.OnClickListener, LifecycleObserver,
         OnResume, OnPause, PreferenceControllerMixin {
 
     @VisibleForTesting
@@ -52,14 +51,12 @@ public class PreventRingingGesturePreferenceController extends AbstractPreferenc
     private final String KEY = "gesture_prevent_ringing_category";
     private final Context mContext;
 
-    private VideoPreference mVideoPreference;
-
     @VisibleForTesting
     PreferenceCategory mPreferenceCategory;
     @VisibleForTesting
-    RadioButtonPreference mVibratePref;
+    SelectorWithWidgetPreference mVibratePref;
     @VisibleForTesting
-    RadioButtonPreference mMutePref;
+    SelectorWithWidgetPreference mMutePref;
 
     private SettingObserver mSettingObserver;
 
@@ -85,8 +82,6 @@ public class PreventRingingGesturePreferenceController extends AbstractPreferenc
         if (mPreferenceCategory != null) {
             mSettingObserver = new SettingObserver(mPreferenceCategory);
         }
-
-        mVideoPreference = screen.findPreference(getVideoPrefKey());
     }
 
     @Override
@@ -105,7 +100,7 @@ public class PreventRingingGesturePreferenceController extends AbstractPreferenc
     }
 
     @Override
-    public void onRadioButtonClicked(RadioButtonPreference preference) {
+    public void onRadioButtonClicked(SelectorWithWidgetPreference preference) {
         int preventRingingSetting = keyToSetting(preference.getKey());
         if (preventRingingSetting != Settings.Secure.getInt(mContext.getContentResolver(),
                 Settings.Secure.VOLUME_HUSH_GESTURE, Settings.Secure.VOLUME_HUSH_VIBRATE)) {
@@ -142,20 +137,12 @@ public class PreventRingingGesturePreferenceController extends AbstractPreferenc
             mSettingObserver.register(mContext.getContentResolver());
             mSettingObserver.onChange(false, null);
         }
-
-        if (mVideoPreference != null) {
-            mVideoPreference.onViewVisible();
-        }
     }
 
     @Override
     public void onPause() {
         if (mSettingObserver != null) {
             mSettingObserver.unregister(mContext.getContentResolver());
-        }
-
-        if (mVideoPreference != null) {
-            mVideoPreference.onViewInvisible();
         }
     }
 
@@ -170,8 +157,9 @@ public class PreventRingingGesturePreferenceController extends AbstractPreferenc
         }
     }
 
-    private RadioButtonPreference makeRadioPreference(String key, int titleId) {
-        RadioButtonPreference pref = new RadioButtonPreference(mPreferenceCategory.getContext());
+    private SelectorWithWidgetPreference makeRadioPreference(String key, int titleId) {
+        SelectorWithWidgetPreference pref = new SelectorWithWidgetPreference(
+                mPreferenceCategory.getContext());
         pref.setKey(key);
         pref.setTitle(titleId);
         pref.setOnClickListener(this);

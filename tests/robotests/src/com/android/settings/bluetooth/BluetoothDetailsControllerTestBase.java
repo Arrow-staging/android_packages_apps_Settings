@@ -41,7 +41,7 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
 @RunWith(RobolectricTestRunner.class)
-public class BluetoothDetailsControllerTestBase {
+public abstract class BluetoothDetailsControllerTestBase {
 
     protected Context mContext;
     private LifecycleOwner mLifecycleOwner;
@@ -76,7 +76,7 @@ public class BluetoothDetailsControllerTestBase {
         when(mFragment.getPreferenceScreen()).thenReturn(mScreen);
         mLifecycleOwner = () -> mLifecycle;
         mLifecycle = spy(new Lifecycle(mLifecycleOwner));
-        mBluetoothManager = new BluetoothManager(mContext);
+        mBluetoothManager = mContext.getSystemService(BluetoothManager.class);
         mBluetoothAdapter = mBluetoothManager.getAdapter();
     }
 
@@ -155,6 +155,7 @@ public class BluetoothDetailsControllerTestBase {
         mDevice = mBluetoothAdapter.getRemoteDevice(config.getAddress());
         when(mCachedDevice.getDevice()).thenReturn(mDevice);
         when(mCachedDevice.getAddress()).thenReturn(config.getAddress());
+        when(mCachedDevice.getIdentityAddress()).thenReturn(config.getAddress());
     }
 
     /**

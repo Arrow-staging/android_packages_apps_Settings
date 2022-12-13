@@ -43,14 +43,6 @@
                 style="@style/AccessibilityDialogTitle" />
 
             <TextView
-                android:id="@+id/encryption_warning"
-                android:layout_width="fill_parent"
-                android:layout_height="wrap_content"
-                android:padding="10dip"
-                android:textAlignment="viewStart"
-                android:textAppearance="?android:attr/textAppearanceMedium"/>
-
-            <TextView
                 android:id="@+id/permissionDialog_description"
                 android:text="@string/accessibility_service_warning_description"
                 style="@style/AccessibilityDialogDescription" />
@@ -134,6 +126,11 @@
                 android:text="@string/accessibility_dialog_button_deny"
                 style="@style/AccessibilityDialogButton" />
 
+            <Button
+                android:id="@+id/permission_enable_uninstall_button"
+                android:text="@string/uninstall_text"
+                android:visibility="gone"
+                style="@style/AccessibilityDialogButton" />
         </LinearLayout>
     </LinearLayout>
 

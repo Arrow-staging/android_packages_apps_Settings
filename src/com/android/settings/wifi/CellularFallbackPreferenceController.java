@@ -22,6 +22,7 @@ import android.provider.Settings;
 import android.telephony.SubscriptionManager;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.settings.R;
 import com.android.settings.core.TogglePreferenceController;
 
 /**
@@ -51,6 +52,11 @@ public class CellularFallbackPreferenceController extends TogglePreferenceContro
                 Settings.Global.NETWORK_AVOID_BAD_WIFI, isChecked ? "1" : null);
     }
 
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_network;
+    }
+
     private boolean avoidBadWifiConfig() {
         final int activeDataSubscriptionId = getActiveDataSubscriptionId();
         if (activeDataSubscriptionId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
@@ -68,8 +74,7 @@ public class CellularFallbackPreferenceController extends TogglePreferenceContro
 
     @VisibleForTesting
     Resources getResourcesForSubId(int subscriptionId) {
-        return SubscriptionManager.getResourcesForSubId(mContext, subscriptionId,
-                false /* useRootLocale */);
+        return SubscriptionManager.getResourcesForSubId(mContext, subscriptionId);
     }
 
     private boolean avoidBadWifiCurrentSettings() {

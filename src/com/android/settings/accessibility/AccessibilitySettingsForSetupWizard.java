@@ -16,11 +16,17 @@
 
 package com.android.settings.accessibility;
 
+import static com.android.settings.Utils.getAdaptiveIcon;
+import static com.android.settings.accessibility.AccessibilityUtil.AccessibilityServiceFragmentType.VOLUME_SHORTCUT_TOGGLE;
+import static com.android.settingslib.widget.TwoTargetPreference.ICON_SIZE_MEDIUM;
+
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.app.settings.SettingsEnums;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.ServiceInfo;
+import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
@@ -32,7 +38,8 @@ import androidx.preference.Preference;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.settings.R;
-import com.android.settings.SettingsPreferenceFragment;
+import com.android.settings.dashboard.DashboardFragment;
+import com.android.settingslib.RestrictedPreference;
 
 import com.google.android.setupdesign.GlifPreferenceLayout;
 
@@ -41,15 +48,15 @@ import java.util.List;
 /**
  * Activity with the accessibility settings specific to Setup Wizard.
  */
-public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragment
+public class AccessibilitySettingsForSetupWizard extends DashboardFragment
         implements Preference.OnPreferenceChangeListener {
+    private static final String TAG = "AccessibilitySettingsForSetupWizard";
 
     // Preferences.
     private static final String DISPLAY_MAGNIFICATION_PREFERENCE =
             "screen_magnification_preference";
     private static final String SCREEN_READER_PREFERENCE = "screen_reader_preference";
     private static final String SELECT_TO_SPEAK_PREFERENCE = "select_to_speak_preference";
-    private static final String FONT_SIZE_PREFERENCE = "font_size_preference";
 
     // Package names and service names used to identify screen reader and SelectToSpeak services.
     private static final String SCREEN_READER_PACKAGE_NAME = "com.google.android.marvin.talkback";
@@ -61,8 +68,8 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
 
     // Preference controls.
     private Preference mDisplayMagnificationPreference;
-    private Preference mScreenReaderPreference;
-    private Preference mSelectToSpeakPreference;
+    private RestrictedPreference mScreenReaderPreference;
+    private RestrictedPreference mSelectToSpeakPreference;
 
     @Override
     public int getMetricsCategory() {
@@ -73,24 +80,24 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        GlifPreferenceLayout layout = (GlifPreferenceLayout) view;
-        layout.setDividerInsets(Integer.MAX_VALUE, 0);
-
-        layout.setHeaderText(R.string.vision_settings_title);
+        final GlifPreferenceLayout layout = (GlifPreferenceLayout) view;
+        final String title = getContext().getString(R.string.vision_settings_title);
+        final String description = getContext().getString(R.string.vision_settings_description);
+        final Drawable icon = getContext().getDrawable(R.drawable.ic_accessibility_visibility);
+        AccessibilitySetupWizardUtils.updateGlifPreferenceLayout(getContext(), layout, title,
+                description, icon);
     }
 
     @Override
     public RecyclerView onCreateRecyclerView(LayoutInflater inflater, ViewGroup parent,
         Bundle savedInstanceState) {
-        GlifPreferenceLayout layout = (GlifPreferenceLayout) parent;
+        final GlifPreferenceLayout layout = (GlifPreferenceLayout) parent;
         return layout.onCreateRecyclerView(inflater, parent, savedInstanceState);
     }
 
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
-        addPreferencesFromResource(R.xml.accessibility_settings_for_setup_wizard);
-
         mDisplayMagnificationPreference = findPreference(DISPLAY_MAGNIFICATION_PREFERENCE);
         mScreenReaderPreference = findPreference(SCREEN_READER_PREFERENCE);
         mSelectToSpeakPreference = findPreference(SELECT_TO_SPEAK_PREFERENCE);
@@ -100,9 +107,11 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
     public void onResume() {
         super.onResume();
         updateAccessibilityServicePreference(mScreenReaderPreference,
-                findService(SCREEN_READER_PACKAGE_NAME, SCREEN_READER_SERVICE_NAME));
+                SCREEN_READER_PACKAGE_NAME, SCREEN_READER_SERVICE_NAME,
+                VolumeShortcutToggleScreenReaderPreferenceFragmentForSetupWizard.class.getName());
         updateAccessibilityServicePreference(mSelectToSpeakPreference,
-                findService(SELECT_TO_SPEAK_PACKAGE_NAME, SELECT_TO_SPEAK_SERVICE_NAME));
+                SELECT_TO_SPEAK_PACKAGE_NAME, SELECT_TO_SPEAK_SERVICE_NAME,
+                VolumeShortcutToggleSelectToSpeakPreferenceFragmentForSetupWizard.class.getName());
         configureMagnificationPreferenceIfNeeded(mDisplayMagnificationPreference);
     }
 
@@ -127,6 +136,23 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
         return super.onPreferenceTreeClick(preference);
     }
 
+    @Override
+    protected int getPreferenceScreenResId() {
+        return R.xml.accessibility_settings_for_setup_wizard;
+    }
+
+    @Override
+    protected String getLogTag() {
+        return TAG;
+    }
+
+    /**
+     * Returns accessibility service info by given package name and service name.
+     *
+     * @param packageName Package of accessibility service
+     * @param serviceName Class of accessibility service
+     * @return {@link AccessibilityServiceInfo} instance if available, null otherwise.
+     */
     private AccessibilityServiceInfo findService(String packageName, String serviceName) {
         final AccessibilityManager manager =
                 getActivity().getSystemService(AccessibilityManager.class);
@@ -134,8 +160,8 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
                 manager.getInstalledAccessibilityServiceList();
         for (AccessibilityServiceInfo info : accessibilityServices) {
             ServiceInfo serviceInfo = info.getResolveInfo().serviceInfo;
-            if (packageName.equals(serviceInfo.packageName)
-                    && serviceName.equals(serviceInfo.name)) {
+            if (TextUtils.equals(packageName, serviceInfo.packageName)
+                    && TextUtils.equals(serviceName, serviceInfo.name)) {
                 return info;
             }
         }
@@ -143,45 +169,50 @@ public class AccessibilitySettingsForSetupWizard extends SettingsPreferenceFragm
         return null;
     }
 
-    private void updateAccessibilityServicePreference(Preference preference,
-            AccessibilityServiceInfo info) {
+    private void updateAccessibilityServicePreference(RestrictedPreference preference,
+            String packageName, String serviceName, String targetFragment) {
+        final AccessibilityServiceInfo info = findService(packageName, serviceName);
         if (info == null) {
             getPreferenceScreen().removePreference(preference);
             return;
         }
 
-        ServiceInfo serviceInfo = info.getResolveInfo().serviceInfo;
-        String title = info.getResolveInfo().loadLabel(getPackageManager()).toString();
+        final ServiceInfo serviceInfo = info.getResolveInfo().serviceInfo;
+        final Drawable icon = info.getResolveInfo().loadIcon(getPackageManager());
+        preference.setIcon(getAdaptiveIcon(getContext(), icon, Color.WHITE));
+        preference.setIconSize(ICON_SIZE_MEDIUM);
+        final String title = info.getResolveInfo().loadLabel(getPackageManager()).toString();
         preference.setTitle(title);
-        ComponentName componentName = new ComponentName(serviceInfo.packageName, serviceInfo.name);
+        final ComponentName componentName =
+                new ComponentName(serviceInfo.packageName, serviceInfo.name);
         preference.setKey(componentName.flattenToString());
+        if (AccessibilityUtil.getAccessibilityServiceFragmentType(info) == VOLUME_SHORTCUT_TOGGLE) {
+            preference.setFragment(targetFragment);
+        }
 
         // Update the extras.
-        Bundle extras = preference.getExtras();
+        final Bundle extras = preference.getExtras();
         extras.putParcelable(AccessibilitySettings.EXTRA_COMPONENT_NAME, componentName);
 
         extras.putString(AccessibilitySettings.EXTRA_PREFERENCE_KEY,
             preference.getKey());
         extras.putString(AccessibilitySettings.EXTRA_TITLE, title);
 
-        String description = info.loadDescription(getPackageManager());
-        if (TextUtils.isEmpty(description)) {
-            description = getString(R.string.accessibility_service_default_description);
-        }
+        final String description = info.loadDescription(getPackageManager());
         extras.putString(AccessibilitySettings.EXTRA_SUMMARY, description);
+
+        extras.putInt(AccessibilitySettings.EXTRA_ANIMATED_IMAGE_RES, info.getAnimatedImageRes());
+
+        final String htmlDescription = info.loadHtmlDescription(getPackageManager());
+        extras.putString(AccessibilitySettings.EXTRA_HTML_DESCRIPTION, htmlDescription);
     }
 
     private static void configureMagnificationPreferenceIfNeeded(Preference preference) {
-        // Some devices support only a single magnification mode. In these cases, we redirect to
-        // the magnification mode's UI directly, rather than showing a PreferenceScreen with a
-        // single list item.
         final Context context = preference.getContext();
-        if (!MagnificationPreferenceFragment.isApplicable(context.getResources())) {
-            preference.setFragment(
-                    ToggleScreenMagnificationPreferenceFragmentForSetupWizard.class.getName());
-            final Bundle extras = preference.getExtras();
-            MagnificationGesturesPreferenceController
-                    .populateMagnificationGesturesPreferenceExtras(extras, context);
-        }
+        preference.setFragment(
+                ToggleScreenMagnificationPreferenceFragmentForSetupWizard.class.getName());
+        final Bundle extras = preference.getExtras();
+        MagnificationGesturesPreferenceController
+                .populateMagnificationGesturesPreferenceExtras(extras, context);
     }
 }

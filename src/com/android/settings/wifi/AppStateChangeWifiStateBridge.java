@@ -27,6 +27,7 @@ import com.android.settingslib.applications.ApplicationsState.AppEntry;
 import com.android.settingslib.applications.ApplicationsState.AppFilter;
 
 import java.util.List;
+
 /*
  * Connects info of apps that change wifi state to the ApplicationsState. Wraps around the generic
  * AppStateAppOpsBridge class to tailor to the semantics of CHANGE_WIFI_STATE. Also provides app
@@ -83,7 +84,8 @@ public class AppStateChangeWifiStateBridge extends AppStateAppOpsBridge {
 
         @Override
         public boolean filterApp(AppEntry info) {
-            if (info == null || info.extraInfo == null) {
+            if (info == null || info.extraInfo == null
+                    || !(info.extraInfo instanceof WifiSettingsState)) {
                 return false;
             }
             WifiSettingsState wifiSettingsState = (WifiSettingsState) info.extraInfo;

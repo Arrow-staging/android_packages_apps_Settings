@@ -22,7 +22,6 @@ import android.content.Context;
 import android.provider.Settings;
 
 import com.android.settings.R;
-import com.android.settings.core.BasePreferenceController;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -32,6 +31,7 @@ import org.robolectric.RuntimeEnvironment;
 
 @RunWith(RobolectricTestRunner.class)
 public class DaltonizerPreferenceControllerTest {
+    private static final String PREF_KEY = "daltonizer_preference";
     private static final int ON = 1;
     private static final int OFF = 0;
 
@@ -41,13 +41,7 @@ public class DaltonizerPreferenceControllerTest {
     @Before
     public void setUp() {
         mContext = RuntimeEnvironment.application;
-        mController = new DaltonizerPreferenceController(mContext, "color_correction");
-    }
-
-    @Test
-    public void getAvailabilityStatus_shouldReturnAvailableUnsearchable() {
-        assertThat(mController.getAvailabilityStatus())
-                .isEqualTo(BasePreferenceController.AVAILABLE_UNSEARCHABLE);
+        mController = new DaltonizerPreferenceController(mContext, PREF_KEY);
     }
 
     @Test
@@ -55,8 +49,8 @@ public class DaltonizerPreferenceControllerTest {
         Settings.Secure.putInt(mContext.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED, ON);
 
-        assertThat(mController.getSummary())
-                .isEqualTo(mContext.getText(R.string.accessibility_feature_state_on));
+        assertThat(mController.getSummary().toString().contains(
+                mContext.getText(R.string.accessibility_feature_state_on))).isTrue();
     }
 
     @Test
@@ -64,7 +58,7 @@ public class DaltonizerPreferenceControllerTest {
         Settings.Secure.putInt(mContext.getContentResolver(),
                 Settings.Secure.ACCESSIBILITY_DISPLAY_DALTONIZER_ENABLED, OFF);
 
-        assertThat(mController.getSummary())
-                .isEqualTo(mContext.getText(R.string.accessibility_feature_state_off));
+        assertThat(mController.getSummary().toString().contains(
+                mContext.getText(R.string.accessibility_feature_state_off))).isTrue();
     }
 }

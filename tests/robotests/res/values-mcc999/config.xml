@@ -68,19 +68,22 @@
     <bool name="config_show_avatar_in_homepage">true</bool>
     <bool name="config_show_branded_account_in_device_info">false</bool>
     <bool name="config_show_emergency_info_in_device_info">false</bool>
+    <bool name="config_show_smooth_display">false</bool>
 
     <!-- Whether or not extra preview panels should be used for screen zoom setting. -->
     <bool name="config_enable_extra_screen_zoom_preview">false</bool>
 
+    <!-- Whether dismissal timestamp should be kept before deletion -->
+    <bool name="config_keep_contextual_card_dismissal_timestamp">true</bool>
 
     <!-- List of a11y components on the device allowed to be enabled by Settings Slices -->
     <string-array name="config_settings_slices_accessibility_components" translatable="false">
         <item>fake_package/fake_service</item>
     </string-array>
 
-    <!-- List of packages that should be whitelisted for slice uri access. Do not translate -->
-    <string-array name="slice_whitelist_package_names" translatable="false">
-        <item>com.android.settings.slice_whitelist_package</item>
+    <!-- List of packages that should be allowlisted for slice uri access. Do not translate -->
+    <string-array name="slice_allowlist_package_names" translatable="false">
+        <item>com.android.settings.slice_allowlist_package</item>
     </string-array>
 
     <!-- Email address for the homepage contextual cards feedback -->
@@ -94,4 +97,7 @@
         <item>injected_tile_key</item>
         <item>injected_tile_key2</item>
     </string-array>
+
+    <!-- Uri to query non-public Slice Uris. -->
+    <string name="config_non_public_slice_query_uri" translatable="false">content://com.android.settings.slices/test</string>
 </resources>

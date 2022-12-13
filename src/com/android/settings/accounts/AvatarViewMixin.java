@@ -17,7 +17,6 @@
 package com.android.settings.accounts;
 
 import android.accounts.Account;
-import android.app.ActivityManager;
 import android.app.settings.SettingsEnums;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -38,9 +37,9 @@ import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.OnLifecycleEvent;
 
 import com.android.settings.R;
+import com.android.settings.activityembedding.ActivityEmbeddingRulesController;
 import com.android.settings.homepage.SettingsHomepageActivity;
 import com.android.settings.overlay.FeatureFactory;
-import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 import com.android.settingslib.utils.ThreadUtils;
 
 import java.net.URISyntaxException;
@@ -60,19 +59,29 @@ public class AvatarViewMixin implements LifecycleObserver {
     private static final String METHOD_GET_ACCOUNT_AVATAR = "getAccountAvatar";
     private static final String KEY_AVATAR_BITMAP = "account_avatar";
     private static final String KEY_ACCOUNT_NAME = "account_name";
+    private static final String KEY_AVATAR_ICON = "avatar_icon";
     private static final String EXTRA_ACCOUNT_NAME = "extra.accountName";
 
     private final Context mContext;
     private final ImageView mAvatarView;
     private final MutableLiveData<Bitmap> mAvatarImage;
-    private final ActivityManager mActivityManager;
 
     @VisibleForTesting
     String mAccountName;
 
+    /**
+     * @return true if the avatar icon is supported.
+     */
+    public static boolean isAvatarSupported(Context context) {
+        if (!context.getResources().getBoolean(R.bool.config_show_avatar_in_homepage)) {
+            Log.d(TAG, "Feature disabled by config. Skipping");
+            return false;
+        }
+        return true;
+    }
+
     public AvatarViewMixin(SettingsHomepageActivity activity, ImageView avatarView) {
         mContext = activity.getApplicationContext();
-        mActivityManager = mContext.getSystemService(ActivityManager.class);
         mAvatarView = avatarView;
         mAvatarView.setOnClickListener(v -> {
             Intent intent;
@@ -97,11 +106,19 @@ public class AvatarViewMixin implements LifecycleObserver {
                 return;
             }
 
-            final MetricsFeatureProvider metricsFeatureProvider = FeatureFactory.getFactory(
-                    mContext).getMetricsFeatureProvider();
-            metricsFeatureProvider.action(SettingsEnums.PAGE_UNKNOWN,
-                    SettingsEnums.CLICK_ACCOUNT_AVATAR, SettingsEnums.SETTINGS_HOMEPAGE,
-                    null /* key */, Integer.MIN_VALUE /* value */);
+            // Set a component name since activity embedding requires a component name for
+            // registering a rule.
+            intent.setComponent(matchedIntents.get(0).getComponentInfo().getComponentName());
+            ActivityEmbeddingRulesController.registerTwoPanePairRuleForSettingsHome(
+                    mContext,
+                    intent.getComponent(),
+                    intent.getAction(),
+                    false /* finishPrimaryWithSecondary */,
+                    true /* finishSecondaryWithPrimary */,
+                    false /* clearTop */);
+
+            FeatureFactory.getFactory(mContext).getMetricsFeatureProvider()
+                    .logSettingsTileClick(KEY_AVATAR_ICON, SettingsEnums.SETTINGS_HOMEPAGE);
 
             // Here may have two different UI while start the activity.
             // It will display adding account UI when device has no any account.
@@ -117,14 +134,6 @@ public class AvatarViewMixin implements LifecycleObserver {
 
     @OnLifecycleEvent(Lifecycle.Event.ON_START)
     public void onStart() {
-        if (!mContext.getResources().getBoolean(R.bool.config_show_avatar_in_homepage)) {
-            Log.d(TAG, "Feature disabled by config. Skipping");
-            return;
-        }
-        if (mActivityManager.isLowRamDevice()) {
-            Log.d(TAG, "Feature disabled on low ram device. Skipping");
-            return;
-        }
         if (hasAccount()) {
             loadAccount();
         } else {

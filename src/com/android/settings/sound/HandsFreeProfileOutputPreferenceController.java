@@ -16,7 +16,7 @@
 
 package com.android.settings.sound;
 
-import static android.bluetooth.IBluetoothHearingAid.HI_SYNC_ID_INVALID;
+import static android.bluetooth.BluetoothHearingAid.HI_SYNC_ID_INVALID;
 
 import android.bluetooth.BluetoothDevice;
 import android.content.Context;
@@ -171,7 +171,8 @@ public class HandsFreeProfileOutputPreferenceController extends AudioSwitchPrefe
         if (hapProfile != null && hfpProfile != null && device == null) {
             hfpProfile.setActiveDevice(null);
             hapProfile.setActiveDevice(null);
-        } else if (hapProfile != null && hapProfile.getHiSyncId(device) != HI_SYNC_ID_INVALID) {
+        } else if (hapProfile != null && device != null
+                && hapProfile.getHiSyncId(device) != HI_SYNC_ID_INVALID) {
             hapProfile.setActiveDevice(device);
         } else if (hfpProfile != null) {
             hfpProfile.setActiveDevice(device);

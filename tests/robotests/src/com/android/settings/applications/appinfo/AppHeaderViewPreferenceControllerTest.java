@@ -16,23 +16,16 @@
 
 package com.android.settings.applications.appinfo;
 
-import static androidx.lifecycle.Lifecycle.Event.ON_START;
-
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-import android.app.ActionBar;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
-import android.graphics.drawable.Drawable;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
@@ -42,6 +35,7 @@ import androidx.lifecycle.LifecycleOwner;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
+import com.android.settings.testutils.shadow.ShadowSettingsLibUtils;
 import com.android.settingslib.applications.ApplicationsState;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 import com.android.settingslib.widget.LayoutPreference;
@@ -54,8 +48,10 @@ import org.mockito.MockitoAnnotations;
 import org.robolectric.Robolectric;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 
 @RunWith(RobolectricTestRunner.class)
+@Config(shadows = ShadowSettingsLibUtils.class)
 public class AppHeaderViewPreferenceControllerTest {
 
     @Mock
@@ -112,19 +108,5 @@ public class AppHeaderViewPreferenceControllerTest {
 
         assertThat(title).isNotNull();
         assertThat(title.getText()).isEqualTo(appLabel);
-    }
-
-    @Test
-    public void onStart_shouldStyleActionBar() {
-        final ActionBar actionBar = mock(ActionBar.class);
-        when(mActivity.getActionBar()).thenReturn(actionBar);
-
-        mController.displayPreference(mScreen);
-
-        verifyZeroInteractions(actionBar);
-
-        mLifecycle.handleLifecycleEvent(ON_START);
-
-        verify(actionBar).setBackgroundDrawable(any(Drawable.class));
     }
 }

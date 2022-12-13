@@ -16,27 +16,17 @@
 
 package com.android.settings.biometrics.fingerprint;
 
-import android.app.Activity;
 import android.app.KeyguardManager;
-import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
 import android.content.Intent;
 import android.hardware.fingerprint.FingerprintManager;
-import android.os.Bundle;
-import android.os.UserHandle;
-import android.os.storage.StorageManager;
 import android.view.View;
-import android.widget.TextView;
 
-import com.android.internal.widget.LockPatternUtils;
-import com.android.settings.R;
 import com.android.settings.SetupWizardUtils;
 import com.android.settings.Utils;
-import com.android.settings.password.ChooseLockGeneric.ChooseLockGenericFragment;
-import com.android.settings.password.SetupChooseLockGeneric;
+import com.android.settings.biometrics.BiometricUtils;
+import com.android.settings.password.ChooseLockSettingsHelper;
 import com.android.settings.password.SetupSkipDialog;
-
-import com.google.android.setupcompat.template.FooterButton;
 
 public class SetupFingerprintEnrollIntroduction extends FingerprintEnrollIntroduction {
     /**
@@ -45,91 +35,67 @@ public class SetupFingerprintEnrollIntroduction extends FingerprintEnrollIntrodu
     private static final String EXTRA_FINGERPRINT_ENROLLED_COUNT = "fingerprint_enrolled_count";
 
     private static final String KEY_LOCK_SCREEN_PRESENT = "wasLockScreenPresent";
-    private boolean mAlreadyHadLockScreenSetup = false;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (savedInstanceState == null) {
-            mAlreadyHadLockScreenSetup = isKeyguardSecure();
-        } else {
-            mAlreadyHadLockScreenSetup = savedInstanceState.getBoolean(
-                    KEY_LOCK_SCREEN_PRESENT, false);
-        }
-    }
-
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putBoolean(KEY_LOCK_SCREEN_PRESENT, mAlreadyHadLockScreenSetup);
-    }
-
-    @Override
-    protected Intent getChooseLockIntent() {
-        Intent intent = new Intent(this, SetupChooseLockGeneric.class);
-
-        if (StorageManager.isFileEncryptedNativeOrEmulated()) {
-            intent.putExtra(
-                    LockPatternUtils.PASSWORD_TYPE_KEY,
-                    DevicePolicyManager.PASSWORD_QUALITY_NUMERIC);
-            intent.putExtra(ChooseLockGenericFragment.EXTRA_SHOW_OPTIONS_BUTTON, true);
-        }
-        SetupWizardUtils.copySetupExtras(getIntent(), intent);
-        return intent;
-    }
 
     @Override
     protected Intent getEnrollingIntent() {
         final Intent intent = new Intent(this, SetupFingerprintEnrollFindSensor.class);
+        BiometricUtils.copyMultiBiometricExtras(getIntent(), intent);
+        if (BiometricUtils.containsGatekeeperPasswordHandle(getIntent())) {
+            intent.putExtra(
+                    ChooseLockSettingsHelper.EXTRA_KEY_GK_PW_HANDLE,
+                    BiometricUtils.getGatekeeperPasswordHandle(getIntent()));
+        }
         SetupWizardUtils.copySetupExtras(getIntent(), intent);
         return intent;
     }
 
     @Override
-    protected void initViews() {
-        super.initViews();
-
-        TextView description = (TextView) findViewById(R.id.sud_layout_description);
-        description.setText(
-                R.string.security_settings_fingerprint_enroll_introduction_message_setup);
-
-        FooterButton nextButton = getNextButton();
-        nextButton.setText(
-                this, R.string.security_settings_fingerprint_enroll_introduction_continue_setup);
-
-        final FooterButton cancelButton = getCancelButton();
-        cancelButton.setText(
-                this, R.string.security_settings_fingerprint_enroll_introduction_cancel_setup);
-    }
-
-    @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        // if lock was already present, do not return intent data since it must have been
-        // reported in previous attempts
-        if (requestCode == BIOMETRIC_FIND_SENSOR_REQUEST && isKeyguardSecure()) {
-            if(!mAlreadyHadLockScreenSetup) {
-                data = getMetricIntent(data);
+        boolean hasEnrolledFace = false;
+        boolean hasEnrolledFingerprint = false;
+        if (data != null) {
+            hasEnrolledFace = data.getBooleanExtra(EXTRA_FINISHED_ENROLL_FACE, false);
+            hasEnrolledFingerprint = data.getBooleanExtra(EXTRA_FINISHED_ENROLL_FINGERPRINT, false);
+            // If we've enrolled a face, we can remove the pending intent to launch FaceEnrollIntro.
+            if (hasEnrolledFace) {
+                removeEnrollNextBiometric();
             }
-
+        }
+        if (requestCode == BIOMETRIC_FIND_SENSOR_REQUEST && isKeyguardSecure()) {
             // Report fingerprint count if user adding a new fingerprint
-            if(resultCode == RESULT_FINISHED) {
+            if (resultCode == RESULT_FINISHED) {
                 data = setFingerprintCount(data);
             }
-        }
 
+            if (resultCode == RESULT_CANCELED && hasEnrolledFingerprint) {
+                // If we are coming from a back press from an already enrolled fingerprint,
+                // we can finish this activity.
+                setResult(resultCode, data);
+                finish();
+                return;
+            }
+        } else if (requestCode == ENROLL_NEXT_BIOMETRIC_REQUEST) {
+            // See if we can still enroll a fingerprint
+            boolean canEnrollFinger = checkMaxEnrolled() == 0;
+            // If we came from the next biometric flow and a user has either
+            // finished or skipped, we will also finish.
+            if (resultCode == RESULT_SKIP || resultCode == RESULT_FINISHED) {
+                // If user skips the enroll next biometric, we will also finish
+                setResult(RESULT_FINISHED, data);
+                finish();
+            } else if (resultCode == RESULT_CANCELED) {
+                // Note that result_canceled comes from onBackPressed.
+                // If we can enroll a finger, Stay on this page, else we cannot,
+                // and finish entirely.
+                if (!canEnrollFinger) {
+                    finish();
+                }
+            } else {
+                super.onActivityResult(requestCode, resultCode, data);
+            }
+            return;
+        }
         super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    private Intent getMetricIntent(Intent data) {
-        if (data == null) {
-            data = new Intent();
-        }
-        LockPatternUtils lockPatternUtils = new LockPatternUtils(this);
-        data.putExtra(SetupChooseLockGeneric.
-                SetupChooseLockGenericFragment.EXTRA_PASSWORD_QUALITY,
-                lockPatternUtils.getKeyguardStoredPasswordQuality(UserHandle.myUserId()));
-
-        return data;
     }
 
     private Intent setFingerprintCount(Intent data) {
@@ -146,27 +112,26 @@ public class SetupFingerprintEnrollIntroduction extends FingerprintEnrollIntrodu
 
     @Override
     protected void onCancelButtonClick(View view) {
+        final int resultCode;
+        Intent data;
         if (isKeyguardSecure()) {
             // If the keyguard is already set up securely (maybe the user added a backup screen
             // lock and skipped fingerprint), return RESULT_SKIP directly.
-            setResult(RESULT_SKIP, mAlreadyHadLockScreenSetup ? null : getMetricIntent(null));
-            finish();
+            if (!BiometricUtils.tryStartingNextBiometricEnroll(
+                    this, ENROLL_NEXT_BIOMETRIC_REQUEST, "cancel")) {
+                resultCode = RESULT_SKIP;
+                setResult(resultCode);
+                finish();
+                return;
+            }
         } else {
-            setResult(SetupSkipDialog.RESULT_SKIP);
+            resultCode = SetupSkipDialog.RESULT_SKIP;
+            data = setSkipPendingEnroll(null);
+            setResult(resultCode, data);
             finish();
         }
-    }
 
-    /**
-     * Propagate lock screen metrics if the user goes back from the fingerprint setup screen
-     * after having added lock screen to his device.
-     */
-    @Override
-    public void onBackPressed() {
-        if (!mAlreadyHadLockScreenSetup && isKeyguardSecure()) {
-            setResult(Activity.RESULT_CANCELED, getMetricIntent(null));
-        }
-        super.onBackPressed();
+        // User has explicitly canceled enroll. Don't restart it automatically.
     }
 
     private boolean isKeyguardSecure() {

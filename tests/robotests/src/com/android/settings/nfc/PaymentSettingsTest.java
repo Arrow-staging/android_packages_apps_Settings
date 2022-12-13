@@ -33,6 +33,8 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceManager;
 import androidx.preference.PreferenceScreen;
 
+import com.android.settings.testutils.shadow.ShadowNfcAdapter;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,12 +50,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RunWith(RobolectricTestRunner.class)
-@Config(shadows = PaymentSettingsTest.ShadowPaymentBackend.class)
+@Config(shadows = {PaymentSettingsTest.ShadowPaymentBackend.class, ShadowNfcAdapter.class})
 public class PaymentSettingsTest {
 
-    static final String PAYMENT_KEY = "nfc_payment";
+    static final String PAYMENT_KEY = "nfc_payment_app";
     static final String FOREGROUND_KEY = "nfc_foreground";
-    static final String PAYMENT_SCREEN_KEY = "nfc_payment_settings_screen";
 
     private Context mContext;
 
@@ -107,14 +108,14 @@ public class PaymentSettingsTest {
     }
 
     @Test
-    public void getNonIndexabkeKey_guestUser_returnsFalse() {
+    public void getNonIndexableKey_guestUser_returnsFalse() {
         when(mPackageManager.hasSystemFeature(PackageManager.FEATURE_NFC)).thenReturn(true);
         when(mUserInfo.isGuest()).thenReturn(true);
 
         final List<String> niks =
                 PaymentSettings.SEARCH_INDEX_DATA_PROVIDER.getNonIndexableKeys(mContext);
 
-        assertThat(niks).containsAllOf(FOREGROUND_KEY, PAYMENT_KEY, PAYMENT_SCREEN_KEY);
+        assertThat(niks).containsAtLeast(FOREGROUND_KEY, PAYMENT_KEY);
     }
 
     @Test

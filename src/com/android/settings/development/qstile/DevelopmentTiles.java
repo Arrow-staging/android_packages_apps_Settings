@@ -16,13 +16,21 @@
 
 package com.android.settings.development.qstile;
 
+import static com.android.settings.development.AdbPreferenceController.ADB_SETTING_OFF;
+import static com.android.settings.development.AdbPreferenceController.ADB_SETTING_ON;
+
+import android.app.KeyguardManager;
 import android.app.settings.SettingsEnums;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.ContentObserver;
 import android.hardware.SensorPrivacyManager;
-import android.app.KeyguardManager;
+import android.net.Uri;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -40,13 +48,32 @@ import android.widget.Toast;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.internal.app.LocalePicker;
+import com.android.internal.inputmethod.ImeTracing;
 import com.android.internal.statusbar.IStatusBarService;
+import com.android.settings.R;
+import com.android.settings.development.WirelessDebuggingPreferenceController;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 import com.android.settingslib.development.DevelopmentSettingsEnabler;
 import com.android.settingslib.development.SystemPropPoker;
 
 public abstract class DevelopmentTiles extends TileService {
+
+    /**
+     * Meta-data for a development tile to declare a sysprop flag that needs to be enabled for
+     * the tile to be available.
+     *
+     * To define the flag, set this meta-data on the tile's manifest declaration.
+     * <pre class="prettyprint">
+     * {@literal
+     * <meta-data android:name="com.android.settings.development.qstile.REQUIRES_SYSTEM_PROPERTY"
+     *     android:value="persist.debug.flag_name_here" />
+     * }
+     * </pre>
+     */
+    public static final String META_DATA_REQUIRES_SYSTEM_PROPERTY =
+            "com.android.settings.development.qstile.REQUIRES_SYSTEM_PROPERTY";
+
     private static final String TAG = "DevelopmentTiles";
 
     protected abstract boolean isEnabled();
@@ -187,6 +214,7 @@ public abstract class DevelopmentTiles extends TileService {
         static final int SURFACE_FLINGER_LAYER_TRACE_STATUS_CODE = 1026;
         private IBinder mSurfaceFlinger;
         private IWindowManager mWindowManager;
+        private ImeTracing mImeTracing;
         private Toast mToast;
 
         @Override
@@ -194,6 +222,7 @@ public abstract class DevelopmentTiles extends TileService {
             super.onCreate();
             mWindowManager = WindowManagerGlobal.getWindowManagerService();
             mSurfaceFlinger = ServiceManager.getService("SurfaceFlinger");
+            mImeTracing = ImeTracing.getInstance();
             Context context = getApplicationContext();
             CharSequence text = "Trace files written to /data/misc/wmtrace";
             mToast = Toast.makeText(context, text, Toast.LENGTH_LONG);
@@ -233,9 +262,27 @@ public abstract class DevelopmentTiles extends TileService {
             return layerTraceEnabled;
         }
 
+        private boolean isSystemUiTracingEnabled() {
+            try {
+                final IStatusBarService statusBarService = IStatusBarService.Stub.asInterface(
+                        ServiceManager.checkService(Context.STATUS_BAR_SERVICE));
+                if (statusBarService != null) {
+                    return statusBarService.isTracing();
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "Could not get system ui tracing status." + e.toString());
+            }
+            return false;
+        }
+
+        private boolean isImeTraceEnabled() {
+            return mImeTracing.isEnabled();
+        }
+
         @Override
         protected boolean isEnabled() {
-            return isWindowTraceEnabled() || isLayerTraceEnabled();
+            return isWindowTraceEnabled() || isLayerTraceEnabled() || isSystemUiTracingEnabled()
+                    || isImeTraceEnabled();
         }
 
         private void setWindowTraceEnabled(boolean isEnabled) {
@@ -269,10 +316,36 @@ public abstract class DevelopmentTiles extends TileService {
             }
         }
 
+        private void setSystemUiTracing(boolean isEnabled) {
+            try {
+                final IStatusBarService statusBarService = IStatusBarService.Stub.asInterface(
+                        ServiceManager.checkService(Context.STATUS_BAR_SERVICE));
+                if (statusBarService != null) {
+                    if (isEnabled) {
+                        statusBarService.startTracing();
+                    } else {
+                        statusBarService.stopTracing();
+                    }
+                }
+            } catch (RemoteException e) {
+                Log.e(TAG, "Could not set system ui tracing." + e.toString());
+            }
+        }
+
+        private void setImeTraceEnabled(boolean isEnabled) {
+            if (isEnabled) {
+                mImeTracing.startImeTrace();
+            } else {
+                mImeTracing.stopImeTrace();
+            }
+        }
+
         @Override
         protected void setIsEnabled(boolean isEnabled) {
             setWindowTraceEnabled(isEnabled);
             setLayerTraceEnabled(isEnabled);
+            setSystemUiTracing(isEnabled);
+            setImeTraceEnabled(isEnabled);
             if (!isEnabled) {
                 mToast.show();
             }
@@ -295,7 +368,7 @@ public abstract class DevelopmentTiles extends TileService {
             mContext = getApplicationContext();
             mSensorPrivacyManager = (SensorPrivacyManager) mContext.getSystemService(
                     Context.SENSOR_PRIVACY_SERVICE);
-            mIsEnabled = mSensorPrivacyManager.isSensorPrivacyEnabled();
+            mIsEnabled = mSensorPrivacyManager.isAllSensorPrivacyEnabled();
             mMetricsFeatureProvider = FeatureFactory.getFactory(
                     mContext).getMetricsFeatureProvider();
             mKeyguardManager = (KeyguardManager) mContext.getSystemService(
@@ -316,7 +389,180 @@ public abstract class DevelopmentTiles extends TileService {
             mMetricsFeatureProvider.action(getApplicationContext(), SettingsEnums.QS_SENSOR_PRIVACY,
                     isEnabled);
             mIsEnabled = isEnabled;
-            mSensorPrivacyManager.setSensorPrivacy(isEnabled);
+            mSensorPrivacyManager.setAllSensorPrivacy(isEnabled);
+        }
+    }
+
+    /**
+     * Tile to control the "Wireless debugging" developer setting
+     */
+    public static class WirelessDebugging extends DevelopmentTiles {
+        private Context mContext;
+        private KeyguardManager mKeyguardManager;
+        private Toast mToast;
+        private final Handler mHandler = new Handler(Looper.getMainLooper());
+        private final ContentObserver mSettingsObserver = new ContentObserver(mHandler) {
+            @Override
+            public void onChange(boolean selfChange, Uri uri) {
+                refresh();
+            }
+        };
+
+        @Override
+        public void onCreate() {
+            super.onCreate();
+            mContext = getApplicationContext();
+            mKeyguardManager = (KeyguardManager) mContext.getSystemService(
+                    Context.KEYGUARD_SERVICE);
+            mToast = Toast.makeText(mContext, R.string.adb_wireless_no_network_msg,
+                    Toast.LENGTH_LONG);
+        }
+
+        @Override
+        public void onStartListening() {
+            super.onStartListening();
+            getContentResolver().registerContentObserver(
+                    Settings.Global.getUriFor(Settings.Global.ADB_WIFI_ENABLED), false,
+                    mSettingsObserver);
+        }
+
+        @Override
+        public void onStopListening() {
+            super.onStopListening();
+            getContentResolver().unregisterContentObserver(mSettingsObserver);
+        }
+
+        @Override
+        protected boolean isEnabled() {
+            return isAdbWifiEnabled();
+        }
+
+        @Override
+        public void setIsEnabled(boolean isEnabled) {
+            // Don't allow Wireless Debugging to be enabled from the lock screen.
+            if (isEnabled && mKeyguardManager.isKeyguardLocked()) {
+                return;
+            }
+
+            // Show error toast if not connected to Wi-Fi
+            if (isEnabled && !WirelessDebuggingPreferenceController.isWifiConnected(mContext)) {
+                // Close quick shade
+                sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+                mToast.show();
+                return;
+            }
+
+            writeAdbWifiSetting(isEnabled);
+        }
+
+        private boolean isAdbWifiEnabled() {
+            return Settings.Global.getInt(getContentResolver(), Settings.Global.ADB_WIFI_ENABLED,
+                    ADB_SETTING_OFF) != ADB_SETTING_OFF;
+        }
+
+        protected void writeAdbWifiSetting(boolean enabled) {
+            Settings.Global.putInt(getContentResolver(), Settings.Global.ADB_WIFI_ENABLED,
+                    enabled ? ADB_SETTING_ON : ADB_SETTING_OFF);
+        }
+    }
+
+    /**
+     * Tile to control the "Show taps" developer setting
+     */
+    public static class ShowTaps extends DevelopmentTiles {
+        private static final int SETTING_VALUE_ON = 1;
+        private static final int SETTING_VALUE_OFF = 0;
+        private Context mContext;
+
+        @Override
+        public void onCreate() {
+            super.onCreate();
+            mContext = getApplicationContext();
+        }
+
+        @Override
+        protected boolean isEnabled() {
+            return Settings.System.getInt(mContext.getContentResolver(),
+                Settings.System.SHOW_TOUCHES, SETTING_VALUE_OFF) == SETTING_VALUE_ON;
+        }
+
+        @Override
+        protected void setIsEnabled(boolean isEnabled) {
+            Settings.System.putInt(mContext.getContentResolver(),
+                Settings.System.SHOW_TOUCHES, isEnabled ? SETTING_VALUE_ON : SETTING_VALUE_OFF);
+        }
+    }
+
+    /**
+     * Tile to enable desktop mode
+     */
+    public static class DesktopMode extends DevelopmentTiles {
+
+        private static final int SETTING_VALUE_ON = 1;
+        private static final int SETTING_VALUE_OFF = 0;
+        private Context mContext;
+
+        @Override
+        public void onCreate() {
+            super.onCreate();
+            mContext = getApplicationContext();
+        }
+
+        @Override
+        protected boolean isEnabled() {
+            return Settings.System.getInt(mContext.getContentResolver(),
+                    Settings.System.DESKTOP_MODE, SETTING_VALUE_OFF) == SETTING_VALUE_ON;
+        }
+
+        private boolean isDesktopModeFlagEnabled() {
+            return SystemProperties.getBoolean("persist.wm.debug.desktop_mode", false);
+        }
+
+        private boolean isFreeformFlagEnabled() {
+            return Settings.Global.getInt(mContext.getContentResolver(),
+                    Settings.Global.DEVELOPMENT_ENABLE_FREEFORM_WINDOWS_SUPPORT, SETTING_VALUE_OFF)
+                    == SETTING_VALUE_ON;
+        }
+
+        private boolean isCaptionOnShellEnabled() {
+            return SystemProperties.getBoolean("persist.wm.debug.caption_on_shell", false);
+        }
+
+        @Override
+        protected void setIsEnabled(boolean isEnabled) {
+            if (isEnabled) {
+                // Check that all required features are enabled
+                if (!isDesktopModeFlagEnabled()) {
+                    closeShade();
+                    showMessage(
+                            "Enable 'Desktop Windowing Proto 1' from the Flag Flipper app");
+                    return;
+                }
+                if (!isCaptionOnShellEnabled()) {
+                    closeShade();
+                    showMessage("Enable 'Captions in Shell' from the Flag Flipper app");
+                    return;
+                }
+                if (!isFreeformFlagEnabled()) {
+                    closeShade();
+                    showMessage(
+                            "Enable freeform windows from developer settings");
+                    return;
+                }
+            }
+
+            Settings.System.putInt(mContext.getContentResolver(),
+                    Settings.System.DESKTOP_MODE,
+                    isEnabled ? SETTING_VALUE_ON : SETTING_VALUE_OFF);
+            closeShade();
+        }
+
+        private void closeShade() {
+            sendBroadcast(new Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS));
+        }
+
+        private void showMessage(String message) {
+            Toast.makeText(mContext, message, Toast.LENGTH_LONG).show();
         }
     }
 }

@@ -16,10 +16,13 @@
 
 package com.android.settings.bluetooth;
 
+import static android.view.WindowManager.LayoutParams.SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS;
+
 import android.annotation.NonNull;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothStatusCodes;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -29,6 +32,8 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageItemInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Process;
+import android.os.UserHandle;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -36,6 +41,8 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.android.settings.R;
 import com.android.settingslib.bluetooth.BluetoothDiscoverableTimeoutReceiver;
+
+import java.time.Duration;
 
 /**
  * RequestPermissionActivity asks the user whether to enable discovery. This is
@@ -71,6 +78,8 @@ public class RequestPermissionActivity extends Activity implements
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        getWindow().addSystemFlags(SYSTEM_FLAG_HIDE_NON_SYSTEM_OVERLAY_WINDOWS);
 
         setResult(Activity.RESULT_CANCELED);
 
@@ -255,22 +264,26 @@ public class RequestPermissionActivity extends Activity implements
         if (mRequest == REQUEST_ENABLE || mRequest == REQUEST_DISABLE) {
             // BT toggled. Done
             returnCode = RESULT_OK;
-        } else if (mBluetoothAdapter.setScanMode(
-                BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE, mTimeout)) {
-            // If already in discoverable mode, this will extend the timeout.
-            long endTime = System.currentTimeMillis() + (long) mTimeout * 1000;
-            LocalBluetoothPreferences.persistDiscoverableEndTimestamp(
-                    this, endTime);
-            if (0 < mTimeout) {
-               BluetoothDiscoverableTimeoutReceiver.setDiscoverableAlarm(this, endTime);
-            }
-            returnCode = mTimeout;
-            // Activity.RESULT_FIRST_USER should be 1
-            if (returnCode < RESULT_FIRST_USER) {
-                returnCode = RESULT_FIRST_USER;
-            }
         } else {
-            returnCode = RESULT_CANCELED;
+            mBluetoothAdapter.setDiscoverableTimeout(Duration.ofSeconds(mTimeout));
+            if (mBluetoothAdapter.setScanMode(
+                    BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE)
+                    == BluetoothStatusCodes.SUCCESS) {
+                // If already in discoverable mode, this will extend the timeout.
+                long endTime = System.currentTimeMillis() + (long) mTimeout * 1000;
+                LocalBluetoothPreferences.persistDiscoverableEndTimestamp(
+                        this, endTime);
+                if (0 < mTimeout) {
+                    BluetoothDiscoverableTimeoutReceiver.setDiscoverableAlarm(this, endTime);
+                }
+                returnCode = mTimeout;
+                // Activity.RESULT_FIRST_USER should be 1
+                if (returnCode < RESULT_FIRST_USER) {
+                    returnCode = RESULT_FIRST_USER;
+                }
+            } else {
+                returnCode = RESULT_CANCELED;
+            }
         }
 
         if (mDialog != null) {
@@ -311,16 +324,26 @@ public class RequestPermissionActivity extends Activity implements
             }
         } else {
             Log.e(TAG, "Error: this activity may be started only with intent "
-                    + BluetoothAdapter.ACTION_REQUEST_ENABLE + " or "
+                    + BluetoothAdapter.ACTION_REQUEST_ENABLE + ", "
+                    + BluetoothAdapter.ACTION_REQUEST_DISABLE + " or "
                     + BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
             setResult(RESULT_CANCELED);
             return true;
         }
 
-        String packageName = getCallingPackage();
-        if (TextUtils.isEmpty(packageName)) {
+        String packageName = getLaunchedFromPackage();
+        int mCallingUid = getLaunchedFromUid();
+
+        if (UserHandle.isSameApp(mCallingUid, Process.SYSTEM_UID)
+                && getIntent().getStringExtra(Intent.EXTRA_PACKAGE_NAME) != null) {
             packageName = getIntent().getStringExtra(Intent.EXTRA_PACKAGE_NAME);
         }
+
+        if (!UserHandle.isSameApp(mCallingUid, Process.SYSTEM_UID)
+                && getIntent().getStringExtra(Intent.EXTRA_PACKAGE_NAME) != null) {
+            Log.w(TAG, "Non-system Uid: " + mCallingUid + " tried to override packageName \n");
+        }
+
         if (!TextUtils.isEmpty(packageName)) {
             try {
                 ApplicationInfo applicationInfo = getPackageManager().getApplicationInfo(

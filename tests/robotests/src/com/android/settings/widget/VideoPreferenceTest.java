@@ -60,6 +60,7 @@ public class VideoPreferenceTest {
     private ImageView fakePreview;
     @Mock
     private ImageView fakePlayButton;
+
     private Context mContext;
     private VideoPreference mVideoPreference;
     private PreferenceViewHolder mPreferenceViewHolder;

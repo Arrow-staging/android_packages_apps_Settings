@@ -43,6 +43,10 @@ public class PictureInPictureDetailPreferenceController extends AppInfoPreferenc
 
     @Override
     public int getAvailabilityStatus() {
+        if (!mContext.getPackageManager().hasSystemFeature(
+                PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            return UNSUPPORTED_ON_DEVICE;
+        }
         return hasPictureInPictureActivites() ? AVAILABLE : DISABLED_FOR_USER;
     }
 
@@ -63,7 +67,9 @@ public class PictureInPictureDetailPreferenceController extends AppInfoPreferenc
         try {
             packageInfoWithActivities = mPackageManager.getPackageInfoAsUser(mPackageName,
                     PackageManager.GET_ACTIVITIES, UserHandle.myUserId());
-        } catch (PackageManager.NameNotFoundException e) {
+        } catch (Exception e) {
+            // Catch Exception to avoid DeadObjectException thrown with binder transaction
+            // failures, since the explicit request of DeadObjectException has compiler errors.
             Log.e(TAG, "Exception while retrieving the package info of " + mPackageName, e);
         }
 

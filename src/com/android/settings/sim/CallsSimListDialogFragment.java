@@ -18,7 +18,6 @@ package com.android.settings.sim;
 
 import android.app.settings.SettingsEnums;
 import android.content.Context;
-import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
 import android.telecom.TelecomManager;
 import android.telephony.SubscriptionInfo;
@@ -47,8 +46,7 @@ public class CallsSimListDialogFragment extends SimListDialogFragment {
             return result;
         }
         for (PhoneAccountHandle handle : phoneAccounts) {
-            final PhoneAccount phoneAccount = telecomManager.getPhoneAccount(handle);
-            final int subId = telephonyManager.getSubIdForPhoneAccount(phoneAccount);
+            final int subId = telephonyManager.getSubscriptionId(handle);
 
             if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
                 continue;

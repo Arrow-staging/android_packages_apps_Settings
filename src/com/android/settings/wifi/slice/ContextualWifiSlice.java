@@ -17,33 +17,45 @@
 package com.android.settings.wifi.slice;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
+import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.Uri;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.text.TextUtils;
-import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
+import androidx.core.graphics.drawable.IconCompat;
 import androidx.slice.Slice;
+import androidx.slice.builders.ListBuilder;
 
+import com.android.settings.R;
+import com.android.settings.Utils;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.slices.CustomSliceRegistry;
 import com.android.settings.slices.CustomSliceable;
+import com.android.wifitrackerlib.WifiEntry;
 
 /**
  * {@link CustomSliceable} for Wi-Fi, used by contextual homepage.
  */
 public class ContextualWifiSlice extends WifiSlice {
 
-    private static final String TAG = "ContextualWifiSlice";
+    @VisibleForTesting
+    static final int COLLAPSED_ROW_COUNT = 0;
+
     @VisibleForTesting
     static long sActiveUiSession = -1000;
     @VisibleForTesting
-    static boolean sPreviouslyDisplayed;
+    static boolean sApRowCollapsed;
+
+    private final ConnectivityManager mConnectivityManager;
 
     public ContextualWifiSlice(Context context) {
         super(context);
+
+        mConnectivityManager = mContext.getSystemService(ConnectivityManager.class);
     }
 
     @Override
@@ -57,17 +69,64 @@ public class ContextualWifiSlice extends WifiSlice {
                 .getSlicesFeatureProvider().getUiSessionToken();
         if (currentUiSession != sActiveUiSession) {
             sActiveUiSession = currentUiSession;
-            sPreviouslyDisplayed = false;
+            sApRowCollapsed = hasWorkingNetwork();
+        } else if (!mWifiManager.isWifiEnabled()) {
+            sApRowCollapsed = false;
         }
-        if (!sPreviouslyDisplayed && hasWorkingNetwork()) {
-            Log.d(TAG, "Wifi is connected, no point showing any suggestion.");
-            return null;
-        }
-        // Set sPreviouslyDisplayed to true - we will show *something* on the screen. So we should
-        // keep showing this card to keep UI stable, even if wifi connects to a network later.
-        sPreviouslyDisplayed = true;
-
         return super.getSlice();
+    }
+
+    static int getApRowCount() {
+        return sApRowCollapsed ? COLLAPSED_ROW_COUNT : DEFAULT_EXPANDED_ROW_COUNT;
+    }
+
+    @Override
+    protected boolean isApRowCollapsed() {
+        return sApRowCollapsed;
+    }
+
+    @Override
+    protected ListBuilder.RowBuilder getHeaderRow(boolean isWifiEnabled,
+            WifiSliceItem wifiSliceItem) {
+        final ListBuilder.RowBuilder builder = super.getHeaderRow(isWifiEnabled, wifiSliceItem);
+        builder.setTitleItem(getHeaderIcon(isWifiEnabled, wifiSliceItem), ListBuilder.ICON_IMAGE);
+        if (sApRowCollapsed) {
+            builder.setSubtitle(getHeaderSubtitle(wifiSliceItem));
+        }
+        return builder;
+    }
+
+    private IconCompat getHeaderIcon(boolean isWifiEnabled, WifiSliceItem wifiSliceItem) {
+        final Drawable drawable;
+        final int tint;
+        if (!isWifiEnabled) {
+            drawable = mContext.getDrawable(R.drawable.ic_wifi_off);
+            tint = Utils.getDisabled(mContext, Utils.getColorAttrDefaultColor(mContext,
+                    android.R.attr.colorControlNormal));
+        } else {
+            // get icon of medium signal strength
+            drawable = mContext.getDrawable(com.android.settingslib.Utils.getWifiIconResource(2));
+            if (wifiSliceItem != null
+                    && wifiSliceItem.getConnectedState() == WifiEntry.CONNECTED_STATE_CONNECTED) {
+                tint = Utils.getColorAccentDefaultColor(mContext);
+            } else {
+                tint = Utils.getColorAttrDefaultColor(mContext, android.R.attr.colorControlNormal);
+            }
+        }
+        drawable.setTint(tint);
+        return Utils.createIconWithDrawable(drawable);
+    }
+
+    private CharSequence getHeaderSubtitle(WifiSliceItem wifiSliceItem) {
+        if (wifiSliceItem == null
+                || wifiSliceItem.getConnectedState() == WifiEntry.CONNECTED_STATE_DISCONNECTED) {
+            return mContext.getText(R.string.disconnected);
+        }
+        if (wifiSliceItem.getConnectedState() == WifiEntry.CONNECTED_STATE_CONNECTING) {
+            return mContext.getString(R.string.wifi_connecting_to_message,
+                wifiSliceItem.getTitle());
+        }
+        return mContext.getString(R.string.wifi_connected_to_message, wifiSliceItem.getTitle());
     }
 
     private boolean hasWorkingNetwork() {
@@ -78,7 +137,7 @@ public class ContextualWifiSlice extends WifiSlice {
         if (mWifiManager.getWifiState() != WifiManager.WIFI_STATE_ENABLED) {
             return WifiManager.UNKNOWN_SSID;
         }
-        return WifiInfo.removeDoubleQuotes(mWifiManager.getConnectionInfo().getSSID());
+        return WifiInfo.sanitizeSsid(mWifiManager.getConnectionInfo().getSSID());
     }
 
     private boolean hasInternetAccess() {

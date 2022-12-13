@@ -27,17 +27,20 @@ import static android.app.admin.DevicePolicyManager.PASSWORD_QUALITY_NUMERIC;
 import static android.app.admin.DevicePolicyManager.PASSWORD_QUALITY_NUMERIC_COMPLEX;
 import static android.app.admin.DevicePolicyManager.PASSWORD_QUALITY_SOMETHING;
 import static android.app.admin.DevicePolicyManager.PASSWORD_QUALITY_UNSPECIFIED;
+import static android.view.WindowManager.LayoutParams.FLAG_SECURE;
 
 import static com.android.internal.widget.LockPatternUtils.PASSWORD_TYPE_KEY;
 import static com.android.settings.password.ChooseLockGeneric.CONFIRM_CREDENTIALS;
-import static com.android.settings.password.ChooseLockSettingsHelper.EXTRA_KEY_REQUESTED_MIN_COMPLEXITY;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.robolectric.RuntimeEnvironment.application;
 
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.PasswordComplexity;
+import android.app.admin.PasswordMetrics;
+import android.app.admin.PasswordPolicy;
 import android.content.Intent;
 import android.os.UserHandle;
 
@@ -65,78 +68,72 @@ import org.robolectric.shadows.ShadowDrawable;
 @RunWith(RobolectricTestRunner.class)
 @Config(shadows = {
         SettingsShadowResources.class,
+        ShadowLockPatternUtils.class,
         ShadowUtils.class,
         ShadowDevicePolicyManager.class,
 })
 public class ChooseLockPasswordTest {
 
-    private ShadowDevicePolicyManager mShadowDpm;
-
     @Before
     public void setUp() {
         SettingsShadowResources.overrideResource(
                 com.android.internal.R.string.config_headlineFontFamily, "");
-        mShadowDpm = ShadowDevicePolicyManager.getShadow();
     }
 
     @After
     public void tearDown() {
         SettingsShadowResources.reset();
+        ShadowLockPatternUtils.reset();
     }
 
     @Test
     public void intentBuilder_setPassword_shouldAddExtras() {
         Intent intent = new IntentBuilder(application)
                 .setPassword(LockscreenCredential.createPassword("password"))
-                .setPasswordQuality(DevicePolicyManager.PASSWORD_QUALITY_NUMERIC)
+                .setPasswordType(DevicePolicyManager.PASSWORD_QUALITY_NUMERIC)
                 .setUserId(123)
                 .build();
 
-        assertThat(intent.getBooleanExtra(ChooseLockSettingsHelper.EXTRA_KEY_HAS_CHALLENGE, true))
-                .named("EXTRA_KEY_HAS_CHALLENGE")
+        assertWithMessage("EXTRA_KEY_FORCE_VERIFY").that(
+                intent.getBooleanExtra(ChooseLockSettingsHelper.EXTRA_KEY_FORCE_VERIFY, false))
                 .isFalse();
-        assertThat((LockscreenCredential) intent.getParcelableExtra(
-                ChooseLockSettingsHelper.EXTRA_KEY_PASSWORD))
-                .named("EXTRA_KEY_PASSWORD")
+        assertWithMessage("EXTRA_KEY_PASSWORD").that(
+                (LockscreenCredential) intent.getParcelableExtra(
+                        ChooseLockSettingsHelper.EXTRA_KEY_PASSWORD))
                 .isEqualTo(LockscreenCredential.createPassword("password"));
-        assertThat(intent.getIntExtra(PASSWORD_TYPE_KEY, 0))
-                .named("PASSWORD_TYPE_KEY")
+        assertWithMessage("PASSWORD_TYPE_KEY").that(intent.getIntExtra(PASSWORD_TYPE_KEY, 0))
                 .isEqualTo(DevicePolicyManager.PASSWORD_QUALITY_NUMERIC);
-        assertThat(intent.getIntExtra(Intent.EXTRA_USER_ID, 0))
-                .named("EXTRA_USER_ID")
+        assertWithMessage("EXTRA_USER_ID").that(intent.getIntExtra(Intent.EXTRA_USER_ID, 0))
                 .isEqualTo(123);
     }
 
     @Test
-    public void intentBuilder_setChallenge_shouldAddExtras() {
+    public void intentBuilder_setRequestGatekeeperPassword_shouldAddExtras() {
         Intent intent = new IntentBuilder(application)
-                .setChallenge(12345L)
-                .setPasswordQuality(PASSWORD_QUALITY_ALPHANUMERIC)
+                .setRequestGatekeeperPasswordHandle(true)
+                .setPasswordType(PASSWORD_QUALITY_ALPHANUMERIC)
                 .setUserId(123)
                 .build();
 
-        assertThat(intent.getBooleanExtra(ChooseLockSettingsHelper.EXTRA_KEY_HAS_CHALLENGE, false))
-                .named("EXTRA_KEY_HAS_CHALLENGE")
+        assertWithMessage("EXTRA_KEY_REQUEST_GK_PW").that(
+                intent.getBooleanExtra(
+                        ChooseLockSettingsHelper.EXTRA_KEY_REQUEST_GK_PW_HANDLE, false))
                 .isTrue();
-        assertThat(intent.getLongExtra(ChooseLockSettingsHelper.EXTRA_KEY_CHALLENGE, 0L))
-                .named("EXTRA_KEY_CHALLENGE")
-                .isEqualTo(12345L);
-        assertThat(intent.getIntExtra(PASSWORD_TYPE_KEY, 0))
-                .named("PASSWORD_TYPE_KEY")
+        assertWithMessage("PASSWORD_TYPE_KEY").that(intent.getIntExtra(PASSWORD_TYPE_KEY, 0))
                 .isEqualTo(PASSWORD_QUALITY_ALPHANUMERIC);
-        assertThat(intent.getIntExtra(Intent.EXTRA_USER_ID, 0))
-                .named("EXTRA_USER_ID")
+        assertWithMessage("EXTRA_USER_ID").that(intent.getIntExtra(Intent.EXTRA_USER_ID, 0))
                 .isEqualTo(123);
     }
 
     @Test
     public void intentBuilder_setMinComplexityMedium_hasMinComplexityExtraMedium() {
         Intent intent = new IntentBuilder(application)
-                .setRequestedMinComplexity(PASSWORD_COMPLEXITY_MEDIUM)
+                .setPasswordRequirement(PASSWORD_COMPLEXITY_MEDIUM, null)
                 .build();
 
-        assertThat(intent.hasExtra(EXTRA_KEY_REQUESTED_MIN_COMPLEXITY)).isTrue();
-        assertThat(intent.getIntExtra(EXTRA_KEY_REQUESTED_MIN_COMPLEXITY, PASSWORD_COMPLEXITY_NONE))
+        assertThat(intent.hasExtra(ChooseLockPassword.EXTRA_KEY_MIN_COMPLEXITY)).isTrue();
+        assertThat(intent.getIntExtra(
+                ChooseLockPassword.EXTRA_KEY_MIN_COMPLEXITY, PASSWORD_COMPLEXITY_NONE))
                 .isEqualTo(PASSWORD_COMPLEXITY_MEDIUM);
     }
 
@@ -144,15 +141,47 @@ public class ChooseLockPasswordTest {
     public void intentBuilder_setMinComplexityNotCalled() {
         Intent intent = new IntentBuilder(application).build();
 
-        assertThat(intent.hasExtra(EXTRA_KEY_REQUESTED_MIN_COMPLEXITY)).isFalse();
+        assertThat(intent.hasExtra(ChooseLockPassword.EXTRA_KEY_MIN_COMPLEXITY)).isFalse();
+    }
+
+    @Test
+    public void intentBuilder_setProfileToUnify_shouldAddExtras() {
+        Intent intent = new IntentBuilder(application)
+                .setProfileToUnify(23, LockscreenCredential.createNone())
+                .build();
+
+        assertWithMessage("EXTRA_KEY_UNIFICATION_PROFILE_ID").that(
+                intent.getIntExtra(ChooseLockSettingsHelper.EXTRA_KEY_UNIFICATION_PROFILE_ID, 0))
+                .isEqualTo(23);
+        assertWithMessage("EXTRA_KEY_UNIFICATION_PROFILE_CREDENTIAL").that(
+                (LockscreenCredential) intent.getParcelableExtra(
+                        ChooseLockSettingsHelper.EXTRA_KEY_UNIFICATION_PROFILE_CREDENTIAL))
+                .isNotNull();
+    }
+
+    @Test
+    public void activity_shouldHaveSecureFlag() {
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_ALPHABETIC;
+        policy.length = 10;
+
+        Intent intent = createIntentForPasswordValidation(
+                /* minMetrics */ policy.getMinMetrics(),
+                /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
+                /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC);
+        ChooseLockPassword activity = buildChooseLockPasswordActivity(intent);
+        final int flags = activity.getWindow().getAttributes().flags;
+        assertThat(flags & FLAG_SECURE).isEqualTo(FLAG_SECURE);
     }
 
     @Test
     public void processAndValidatePasswordRequirements_noMinPasswordComplexity() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_ALPHABETIC);
-        mShadowDpm.setPasswordMinimumLength(10);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_ALPHABETIC;
+        policy.length = 10;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
@@ -162,9 +191,11 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_minPasswordComplexityStricter_pin() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_SOMETHING);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_SOMETHING;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
@@ -173,22 +204,25 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_minPasswordComplexityStricter_password() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_SOMETHING);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_SOMETHING;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_MEDIUM,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
-                "Must contain at least 1 non-numerical character",
                 "Must be at least 4 characters");
     }
 
     @Test
     public void processAndValidatePasswordRequirements_dpmRestrictionsStricter_password() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_ALPHANUMERIC);
-        mShadowDpm.setPasswordMinimumLength(9);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_ALPHANUMERIC;
+        policy.length = 9;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_LOW,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
@@ -199,10 +233,12 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_dpmLengthLonger_pin() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC);
-        mShadowDpm.setPasswordMinimumLength(11);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC;
+        policy.length = 11;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_MEDIUM,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
@@ -211,10 +247,12 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_dpmQualityComplex() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_COMPLEX);
-        mShadowDpm.setPasswordMinimumSymbols(2);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_COMPLEX;
+        policy.symbols = 2;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
@@ -227,9 +265,11 @@ public class ChooseLockPasswordTest {
     @Test
     @Config(shadows = ShadowLockPatternUtils.class)
     public void processAndValidatePasswordRequirements_numericComplexNoMinComplexity_pinRequested() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC_COMPLEX);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC_COMPLEX;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("12345678"),
@@ -239,9 +279,11 @@ public class ChooseLockPasswordTest {
     @Test
     @Config(shadows = ShadowLockPatternUtils.class)
     public void processAndValidatePasswordRequirements_numericComplexNoMinComplexity_passwordRequested() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC_COMPLEX);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC_COMPLEX;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("12345678"),
@@ -251,9 +293,11 @@ public class ChooseLockPasswordTest {
     @Test
     @Config(shadows = ShadowLockPatternUtils.class)
     public void processAndValidatePasswordRequirements_numericComplexHighComplexity_pinRequested() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC_COMPLEX);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC_COMPLEX;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("12345678"),
@@ -263,9 +307,11 @@ public class ChooseLockPasswordTest {
     @Test
     @Config(shadows = ShadowLockPatternUtils.class)
     public void processAndValidatePasswordRequirements_numericHighComplexity_pinRequested() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC_COMPLEX;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("12345678"),
@@ -275,9 +321,11 @@ public class ChooseLockPasswordTest {
     @Test
     @Config(shadows = ShadowLockPatternUtils.class)
     public void processAndValidatePasswordRequirements_numericComplexLowComplexity_passwordRequested() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_NUMERIC_COMPLEX);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_NUMERIC_COMPLEX;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_LOW,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("12345678"),
@@ -286,33 +334,39 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_requirementsUpdateAccordingToMinComplexityAndUserInput_empty() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createNone(),
                 "Must be at least 6 characters",
-                "Must contain at least 1 non-numerical character");
+                "If using only numbers, must be at least 8 digits");
     }
 
     @Test
     public void processAndValidatePasswordRequirements_requirementsUpdateAccordingToMinComplexityAndUserInput_numeric() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("1"),
                 "Must be at least 6 characters",
-                "Must contain at least 1 non-numerical character");
+                "If using only numbers, must be at least 8 digits");
     }
 
     @Test
     public void processAndValidatePasswordRequirements_requirementsUpdateAccordingToMinComplexityAndUserInput_alphabetic() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("b"),
@@ -321,9 +375,11 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_requirementsUpdateAccordingToMinComplexityAndUserInput_alphanumeric() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("b1"),
@@ -332,9 +388,11 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_defaultPinMinimumLength() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
                 /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
                 /* userEnteredPassword= */ LockscreenCredential.createPassword("11"),
@@ -343,9 +401,11 @@ public class ChooseLockPasswordTest {
 
     @Test
     public void processAndValidatePasswordRequirements_maximumLength() {
-        mShadowDpm.setPasswordQuality(PASSWORD_QUALITY_UNSPECIFIED);
+        PasswordPolicy policy = new PasswordPolicy();
+        policy.quality = PASSWORD_QUALITY_UNSPECIFIED;
 
         assertPasswordValidationResult(
+                /* minMetrics */ policy.getMinMetrics(),
                 /* minComplexity= */ PASSWORD_COMPLEXITY_NONE,
                 /* passwordType= */ PASSWORD_QUALITY_ALPHABETIC,
                 LockscreenCredential.createPassword("01234567890123456789"),
@@ -353,15 +413,15 @@ public class ChooseLockPasswordTest {
     }
 
     @Test
-    public void assertThat_chooseLockIconChanged_WhenFingerprintExtraSet() {
-        ShadowDrawable drawable = setActivityAndGetIconDrawable(true);
-        assertThat(drawable.getCreatedFromResId()).isEqualTo(R.drawable.ic_fingerprint_header);
-    }
+    public void validateComplexityMergedFromDpmOnCreate() {
+        ShadowLockPatternUtils.setRequiredPasswordComplexity(PASSWORD_COMPLEXITY_LOW);
 
-    @Test
-    public void assertThat_chooseLockIconNotChanged_WhenFingerprintExtraSet() {
-        ShadowDrawable drawable = setActivityAndGetIconDrawable(false);
-        assertThat(drawable.getCreatedFromResId()).isNotEqualTo(R.drawable.ic_fingerprint_header);
+        assertPasswordValidationResult(
+                /* minMetrics */ null,
+                /* minComplexity= */ PASSWORD_COMPLEXITY_HIGH,
+                /* passwordType= */ PASSWORD_QUALITY_NUMERIC,
+                /* userEnteredPassword= */ LockscreenCredential.createNone(),
+                "PIN must be at least 8 digits");
     }
 
     private ChooseLockPassword buildChooseLockPasswordActivity(Intent intent) {
@@ -383,17 +443,33 @@ public class ChooseLockPasswordTest {
         return Shadows.shadowOf(((GlifLayout) fragment.getView()).getIcon());
     }
 
-    private void assertPasswordValidationResult(@PasswordComplexity int minComplexity,
+    private void assertPasswordValidationResult(PasswordMetrics minMetrics,
+            @PasswordComplexity int minComplexity,
             int passwordType, LockscreenCredential userEnteredPassword,
             String... expectedValidationResult) {
-        Intent intent = new Intent();
-        intent.putExtra(CONFIRM_CREDENTIALS, false);
-        intent.putExtra(PASSWORD_TYPE_KEY, passwordType);
-        intent.putExtra(EXTRA_KEY_REQUESTED_MIN_COMPLEXITY, minComplexity);
+        Intent intent = createIntentForPasswordValidation(minMetrics, minComplexity, passwordType);
+        assertPasswordValidationResultForIntent(userEnteredPassword, intent,
+                expectedValidationResult);
+    }
+
+    private void assertPasswordValidationResultForIntent(LockscreenCredential userEnteredPassword,
+            Intent intent, String... expectedValidationResult) {
         ChooseLockPassword activity = buildChooseLockPasswordActivity(intent);
         ChooseLockPasswordFragment fragment = getChooseLockPasswordFragment(activity);
         fragment.validatePassword(userEnteredPassword);
         String[] messages = fragment.convertErrorCodeToMessages();
-        assertThat(messages).asList().containsExactly((Object[]) expectedValidationResult);
+        assertThat(messages).asList().containsExactly(expectedValidationResult);
+    }
+
+    private Intent createIntentForPasswordValidation(
+            PasswordMetrics minMetrics,
+            @PasswordComplexity int minComplexity,
+            int passwordType) {
+        Intent intent = new Intent();
+        intent.putExtra(CONFIRM_CREDENTIALS, false);
+        intent.putExtra(PASSWORD_TYPE_KEY, passwordType);
+        intent.putExtra(ChooseLockPassword.EXTRA_KEY_MIN_METRICS, minMetrics);
+        intent.putExtra(ChooseLockPassword.EXTRA_KEY_MIN_COMPLEXITY, minComplexity);
+        return intent;
     }
 }

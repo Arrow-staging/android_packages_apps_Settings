@@ -19,7 +19,6 @@ package com.android.settings.wifi.savedaccesspoints2;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.net.ConnectivityManager;
-import android.net.NetworkScoreManager;
 import android.net.wifi.WifiManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -32,13 +31,14 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
 import com.android.settings.core.SubSettingLauncher;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.wifi.WifiSettings;
-import com.android.settings.wifi.details2.WifiNetworkDetailsFragment2;
+import com.android.settings.wifi.details.WifiNetworkDetailsFragment;
 import com.android.wifitrackerlib.SavedNetworkTracker;
 
 import java.time.Clock;
@@ -50,18 +50,15 @@ import java.time.ZoneOffset;
 public class SavedAccessPointsWifiSettings2 extends DashboardFragment
         implements SavedNetworkTracker.SavedNetworkTrackerCallback {
 
-    private static final String TAG = "SavedAccessPoints2";
-
-    // Key of a Bundle to save/restore the selected WifiEntry
-    static final String KEY_KEY = "key_key";
+    @VisibleForTesting static final String TAG = "SavedAccessPoints2";
 
     // Max age of tracked WifiEntries
     private static final long MAX_SCAN_AGE_MILLIS = 15_000;
     // Interval between initiating SavedNetworkTracker scans
     private static final long SCAN_INTERVAL_MILLIS = 10_000;
 
-    private SavedNetworkTracker mSavedNetworkTracker;
-    private HandlerThread mWorkerThread;
+    @VisibleForTesting SavedNetworkTracker mSavedNetworkTracker;
+    @VisibleForTesting HandlerThread mWorkerThread;
 
     @Override
     public int getMetricsCategory() {
@@ -103,7 +100,6 @@ public class SavedAccessPointsWifiSettings2 extends DashboardFragment
         mSavedNetworkTracker = new SavedNetworkTracker(getSettingsLifecycle(), context,
                 context.getSystemService(WifiManager.class),
                 context.getSystemService(ConnectivityManager.class),
-                context.getSystemService(NetworkScoreManager.class),
                 new Handler(Looper.getMainLooper()),
                 mWorkerThread.getThreadHandler(),
                 elapsedRealtimeClock,
@@ -128,7 +124,7 @@ public class SavedAccessPointsWifiSettings2 extends DashboardFragment
     }
 
     /**
-     * Shows {@link WifiNetworkDetailsFragment2} for assigned key of {@link WifiEntry}.
+     * Shows {@link WifiNetworkDetailsFragment} for assigned key of {@link WifiEntry}.
      */
     public void showWifiPage(@NonNull String key, CharSequence title) {
         removeDialog(WifiSettings.WIFI_DIALOG_ID);
@@ -139,11 +135,11 @@ public class SavedAccessPointsWifiSettings2 extends DashboardFragment
         }
 
         final Bundle bundle = new Bundle();
-        bundle.putString(KEY_KEY, key);
+        bundle.putString(WifiNetworkDetailsFragment.KEY_CHOSEN_WIFIENTRY_KEY, key);
 
         new SubSettingLauncher(getContext())
                 .setTitleText(title)
-                .setDestination(WifiNetworkDetailsFragment2.class.getName())
+                .setDestination(WifiNetworkDetailsFragment.class.getName())
                 .setArguments(bundle)
                 .setSourceMetricsCategory(getMetricsCategory())
                 .launch();
@@ -156,6 +152,9 @@ public class SavedAccessPointsWifiSettings2 extends DashboardFragment
 
     @Override
     public void onSavedWifiEntriesChanged() {
+        if (isFinishingOrDestroyed()) {
+            return;
+        }
         final PreferenceScreen screen = getPreferenceScreen();
         use(SavedAccessPointsPreferenceController2.class)
                 .displayPreference(screen, mSavedNetworkTracker.getSavedWifiEntries());
@@ -163,6 +162,9 @@ public class SavedAccessPointsWifiSettings2 extends DashboardFragment
 
     @Override
     public void onSubscriptionWifiEntriesChanged() {
+        if (isFinishingOrDestroyed()) {
+            return;
+        }
         final PreferenceScreen screen = getPreferenceScreen();
         use(SubscribedAccessPointsPreferenceController2.class)
                 .displayPreference(screen, mSavedNetworkTracker.getSubscriptionWifiEntries());

@@ -26,19 +26,15 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import android.app.ActionBar;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.ResolveInfo;
-import android.graphics.drawable.ColorDrawable;
 import android.os.UserHandle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ImageButton;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.fragment.app.Fragment;
@@ -46,7 +42,6 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.preference.Preference;
 
 import com.android.settings.R;
-import com.android.settingslib.applications.ApplicationsState;
 import com.android.settingslib.widget.LayoutPreference;
 
 import org.junit.Before;
@@ -108,7 +103,7 @@ public class EntityHeaderControllerTest {
         mController = EntityHeaderController.newInstance(mActivity, mFragment, inputView);
         View view = mController.done(mActivity);
 
-        assertThat(view).isSameAs(inputView);
+        assertThat(view).isSameInstanceAs(inputView);
     }
 
     @Test
@@ -258,20 +253,6 @@ public class EntityHeaderControllerTest {
     }
 
     @Test
-    public void setIcon_usingAppEntry_shouldLoadIconFromDrawableFactory() {
-        final View view = mLayoutInflater
-                .inflate(R.layout.settings_entity_header, null /* root */);
-        final ApplicationsState.AppEntry entry = mock(ApplicationsState.AppEntry.class);
-        entry.info = new ApplicationInfo();
-        mController = EntityHeaderController.newInstance(mActivity, mFragment, view);
-        mController.setIcon(entry).done(mActivity);
-        final ImageView iconView = view.findViewById(R.id.entity_header_icon);
-
-        // ... entry.icon is still empty. This means the icon didn't come from cache.
-        assertThat(entry.icon).isNull();
-    }
-
-    @Test
     public void bindButton_hasAppNotifIntent_shouldShowButton() {
         final View appLinks = mLayoutInflater
                 .inflate(R.layout.settings_entity_header, null /* root */);
@@ -317,30 +298,6 @@ public class EntityHeaderControllerTest {
                 header.getResources().getString(R.string.install_type_instant));
         assertThat(header.findViewById(R.id.entity_header_summary).getVisibility())
                 .isEqualTo(View.GONE);
-    }
-
-    @Test
-    public void styleActionBar_invalidObjects_shouldNotCrash() {
-        mController = EntityHeaderController.newInstance(mActivity, mFragment, null);
-        mController.styleActionBar(null);
-
-        when(mActivity.getActionBar()).thenReturn(null);
-        mController.styleActionBar(mActivity);
-
-        verify(mActivity).getActionBar();
-    }
-
-    @Test
-    public void styleActionBar_setElevationAndBackground() {
-        final ActionBar actionBar = mActivity.getActionBar();
-
-        mController = EntityHeaderController.newInstance(mActivity, mFragment, null);
-        mController.styleActionBar(mActivity);
-
-        verify(actionBar).setElevation(0);
-        // Enforce a color drawable as background here, as image based drawables might not be
-        // wide enough to cover entire action bar.
-        verify(actionBar).setBackgroundDrawable(any(ColorDrawable.class));
     }
 
     @Test

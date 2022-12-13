@@ -16,8 +16,9 @@
 
 package com.android.settings.utils;
 
+import static android.app.admin.DevicePolicyResources.Strings.Settings.WORK_PROFILE_NOTIFICATION_LISTENER_BLOCKED;
+
 import android.annotation.Nullable;
-import android.app.ActivityManager;
 import android.app.Dialog;
 import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
@@ -41,9 +42,9 @@ import androidx.preference.SwitchPreference;
 import com.android.settings.R;
 import com.android.settings.Utils;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
-import com.android.settings.widget.AppSwitchPreference;
 import com.android.settings.widget.EmptyTextSettings;
 import com.android.settingslib.applications.ServiceListing;
+import com.android.settingslib.widget.AppSwitchPreference;
 
 import java.util.List;
 
@@ -91,12 +92,8 @@ public abstract class ManagedServiceSettings extends EmptyTextSettings {
     @Override
     public void onResume() {
         super.onResume();
-        if (!ActivityManager.isLowRamDeviceStatic()) {
-            mServiceListing.reload();
-            mServiceListing.setListening(true);
-        } else {
-            setEmptyText(R.string.disabled_low_ram_device);
-        }
+        mServiceListing.reload();
+        mServiceListing.setListening(true);
     }
 
     @Override
@@ -139,7 +136,10 @@ public abstract class ManagedServiceSettings extends EmptyTextSettings {
             if (managedProfileId != UserHandle.USER_NULL
                     && !mDpm.isNotificationListenerServicePermitted(
                             service.packageName, managedProfileId)) {
-                pref.setSummary(R.string.work_profile_notification_access_blocked_summary);
+                pref.setSummary(mDpm.getResources().getString(
+                        WORK_PROFILE_NOTIFICATION_LISTENER_BLOCKED,
+                        () -> getString(
+                                R.string.work_profile_notification_access_blocked_summary)));
             }
             pref.setOnPreferenceChangeListener((preference, newValue) -> {
                 final boolean enable = (boolean) newValue;

@@ -16,8 +16,9 @@
 
 package com.android.settings.deviceinfo;
 
+import android.animation.TypeEvaluator;
+import android.animation.ValueAnimator;
 import android.content.Context;
-import android.content.res.Resources;
 import android.util.AttributeSet;
 import android.widget.ProgressBar;
 
@@ -25,16 +26,18 @@ import androidx.preference.Preference;
 import androidx.preference.PreferenceViewHolder;
 
 import com.android.settings.R;
-import com.android.settings.utils.FileSizeFormatter;
+import com.android.settings.deviceinfo.storage.StorageUtils;
 
 public class StorageItemPreference extends Preference {
     public int userHandle;
 
     private static final int UNINITIALIZED = -1;
+    private static final int ANIMATE_DURATION_IN_MILLIS = 1000;
 
     private ProgressBar mProgressBar;
     private static final int PROGRESS_MAX = 100;
     private int mProgressPercent = UNINITIALIZED;
+    private long mStorageSize;
 
     public StorageItemPreference(Context context) {
         this(context, null);
@@ -43,30 +46,55 @@ public class StorageItemPreference extends Preference {
     public StorageItemPreference(Context context, AttributeSet attrs) {
         super(context, attrs);
         setLayoutResource(R.layout.storage_item);
-        setSummary(R.string.memory_calculating_size);
     }
 
     public void setStorageSize(long size, long total) {
-        setSummary(
-                FileSizeFormatter.formatFileSize(
-                        getContext(),
-                        size,
-                        getGigabyteSuffix(getContext().getResources()),
-                        FileSizeFormatter.GIGABYTE_IN_BYTES));
-        if (total == 0) {
-            mProgressPercent = 0;
+        setStorageSize(size, total, false /* animate */);
+    }
+
+    /**
+     * Set the storage size info with/without animation
+     */
+    public void setStorageSize(long size, long total, boolean animate) {
+        if (animate) {
+            TypeEvaluator<Long> longEvaluator =
+                    (fraction, startValue, endValue) -> {
+                        // Directly returns end value if fraction is 1.0 and the end value is 0.
+                        if (fraction >= 1.0f && endValue == 0) {
+                            return endValue;
+                        }
+                        return startValue + (long) (fraction * (endValue - startValue));
+                    };
+            ValueAnimator valueAnimator = ValueAnimator.ofObject(longEvaluator, mStorageSize, size);
+            valueAnimator.setDuration(ANIMATE_DURATION_IN_MILLIS);
+            valueAnimator.addUpdateListener(
+                    animation -> {
+                        updateProgressBarAndSizeInfo((long) animation.getAnimatedValue(), total);
+                    });
+            valueAnimator.start();
         } else {
-            mProgressPercent = (int)(size * PROGRESS_MAX / total);
+            updateProgressBarAndSizeInfo(size, total);
         }
-        updateProgressBar();
+        mStorageSize = size;
+    }
+
+    public long getStorageSize() {
+        return mStorageSize;
     }
 
     protected void updateProgressBar() {
-        if (mProgressBar == null || mProgressPercent == UNINITIALIZED)
+        if (mProgressBar == null || mProgressPercent == UNINITIALIZED) {
             return;
+        }
 
         mProgressBar.setMax(PROGRESS_MAX);
         mProgressBar.setProgress(mProgressPercent);
+    }
+
+    private void updateProgressBarAndSizeInfo(long size, long total) {
+        setSummary(StorageUtils.getStorageSizeLabel(getContext(), size));
+        mProgressPercent = total == 0 ? 0 : (int) (size * PROGRESS_MAX / total);
+        updateProgressBar();
     }
 
     @Override
@@ -74,9 +102,5 @@ public class StorageItemPreference extends Preference {
         mProgressBar = (ProgressBar) view.findViewById(android.R.id.progress);
         updateProgressBar();
         super.onBindViewHolder(view);
-    }
-
-    private static int getGigabyteSuffix(Resources res) {
-        return res.getIdentifier("gigabyteShort", "string", "android");
     }
 }

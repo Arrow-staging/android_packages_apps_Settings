@@ -33,7 +33,9 @@ import com.android.settingslib.bluetooth.CachedBluetoothDevice;
 public class ConnectedBluetoothDeviceUpdater extends BluetoothDeviceUpdater {
 
     private static final String TAG = "ConnBluetoothDeviceUpdater";
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
+
+    private static final String PREF_KEY = "connected_bt";
 
     private final AudioManager mAudioManager;
 
@@ -64,13 +66,14 @@ public class ConnectedBluetoothDeviceUpdater extends BluetoothDeviceUpdater {
         }
 
         boolean isFilterMatched = false;
-        if (isDeviceConnected(cachedDevice)) {
+        if (isDeviceConnected(cachedDevice) && isDeviceInCachedDevicesList(cachedDevice)) {
             if (DBG) {
                 Log.d(TAG, "isFilterMatched() current audio profile : " + currentAudioProfile);
             }
-            // If device is Hearing Aid, it is compatible with HFP and A2DP.
+            // If device is Hearing Aid or LE Audio, it is compatible with HFP and A2DP.
             // It would not show in Connected Devices group.
-            if (cachedDevice.isConnectedHearingAidDevice()) {
+            if (cachedDevice.isConnectedHearingAidDevice()
+                    || cachedDevice.isConnectedLeAudioDevice()) {
                 return false;
             }
             // According to the current audio profile type,
@@ -110,5 +113,10 @@ public class ConnectedBluetoothDeviceUpdater extends BluetoothDeviceUpdater {
                 return true;
             });
         }
+    }
+
+    @Override
+    protected String getPreferenceKey() {
+        return PREF_KEY;
     }
 }

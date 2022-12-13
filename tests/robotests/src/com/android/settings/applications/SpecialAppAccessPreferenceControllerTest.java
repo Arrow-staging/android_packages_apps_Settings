@@ -16,7 +16,7 @@
 
 package com.android.settings.applications;
 
-import static com.android.settings.core.BasePreferenceController.AVAILABLE_UNSEARCHABLE;
+import static com.android.settings.core.BasePreferenceController.AVAILABLE;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -83,7 +83,7 @@ public class SpecialAppAccessPreferenceControllerTest {
 
     @Test
     public void getAvailabilityState_unsearchable() {
-        assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE_UNSEARCHABLE);
+        assertThat(mController.getAvailabilityStatus()).isEqualTo(AVAILABLE);
     }
 
     @Test
@@ -93,7 +93,7 @@ public class SpecialAppAccessPreferenceControllerTest {
         entry.hasLauncherEntry = true;
         entry.info = new ApplicationInfo();
         entry.extraInfo = new AppStateDataUsageBridge.DataUsageState(
-                true /* whitelisted */, false /* blacklisted */);
+                true /* allowlisted */, false /* denylisted */);
         apps.add(entry);
         when(mSession.getAllApps()).thenReturn(apps);
 

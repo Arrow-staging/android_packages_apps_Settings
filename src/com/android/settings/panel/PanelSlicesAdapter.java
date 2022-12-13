@@ -16,7 +16,8 @@
 
 package com.android.settings.panel;
 
-import static com.android.settings.slices.CustomSliceRegistry.MEDIA_OUTPUT_INDICATOR_SLICE_URI;
+import static android.app.slice.Slice.HINT_ERROR;
+import static android.app.slice.SliceItem.FORMAT_SLICE;
 
 import android.app.settings.SettingsEnums;
 import android.content.Context;
@@ -24,12 +25,14 @@ import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 import androidx.lifecycle.LiveData;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.slice.Slice;
+import androidx.slice.SliceItem;
 import androidx.slice.widget.SliceView;
 
 import com.android.settings.R;
@@ -51,7 +54,7 @@ public class PanelSlicesAdapter
      * Maximum number of slices allowed on the panel view.
      */
     @VisibleForTesting
-    static final int MAX_NUM_OF_SLICES = 5;
+    static final int MAX_NUM_OF_SLICES = 6;
 
     private final List<LiveData<Slice>> mSliceLiveData;
     private final int mMetricsCategory;
@@ -69,14 +72,19 @@ public class PanelSlicesAdapter
     public SliceRowViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int viewType) {
         final Context context = viewGroup.getContext();
         final LayoutInflater inflater = LayoutInflater.from(context);
-        final View view = inflater.inflate(R.layout.panel_slice_row, viewGroup, false);
+        View view;
+        if (viewType == PanelContent.VIEW_TYPE_SLIDER) {
+            view = inflater.inflate(R.layout.panel_slice_slider_row, viewGroup, false);
+        } else {
+            view = inflater.inflate(R.layout.panel_slice_row, viewGroup, false);
+        }
 
         return new SliceRowViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull SliceRowViewHolder sliceRowViewHolder, int position) {
-        sliceRowViewHolder.onBind(mSliceLiveData.get(position));
+        sliceRowViewHolder.onBind(mSliceLiveData.get(position), position);
     }
 
     /**
@@ -85,6 +93,11 @@ public class PanelSlicesAdapter
     @Override
     public int getItemCount() {
         return Math.min(mSliceLiveData.size(), MAX_NUM_OF_SLICES);
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return mPanelFragment.getPanelViewType();
     }
 
     /**
@@ -102,26 +115,36 @@ public class PanelSlicesAdapter
     public class SliceRowViewHolder extends RecyclerView.ViewHolder
             implements DividerItemDecoration.DividedViewHolder {
 
-        private boolean mDividerAllowedAbove = true;
-
         @VisibleForTesting
         final SliceView sliceView;
+        @VisibleForTesting
+        final LinearLayout mSliceSliderLayout;
 
         public SliceRowViewHolder(View view) {
             super(view);
             sliceView = view.findViewById(R.id.slice_view);
             sliceView.setMode(SliceView.MODE_LARGE);
             sliceView.setShowTitleItems(true);
+            sliceView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            mSliceSliderLayout = view.findViewById(R.id.slice_slider_layout);
         }
 
-        public void onBind(LiveData<Slice> sliceLiveData) {
+        /**
+         * Called when the view is displayed.
+         */
+        public void onBind(LiveData<Slice> sliceLiveData, int position) {
             sliceLiveData.observe(mPanelFragment.getViewLifecycleOwner(), sliceView);
 
             // Do not show the divider above media devices switcher slice per request
             final Slice slice = sliceLiveData.getValue();
-            if (slice == null || slice.getUri().equals(MEDIA_OUTPUT_INDICATOR_SLICE_URI)) {
-                mDividerAllowedAbove = false;
+
+            // Hides slice which reports with error hint or not contain any slice sub-item.
+            if (slice == null || !isValidSlice(slice)) {
+                sliceView.setVisibility(View.GONE);
             }
+
+            // Add divider for the end icon
+            sliceView.setShowActionDividers(true);
 
             // Log Panel interaction
             sliceView.setOnSliceActionListener(
@@ -138,14 +161,26 @@ public class PanelSlicesAdapter
             );
         }
 
+        private boolean isValidSlice(Slice slice) {
+            if (slice.getHints().contains(HINT_ERROR)) {
+                return false;
+            }
+            for (SliceItem item : slice.getItems()) {
+                if (item.getFormat().equals(FORMAT_SLICE)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         @Override
         public boolean isDividerAllowedAbove() {
-            return mDividerAllowedAbove;
+            return false;
         }
 
         @Override
         public boolean isDividerAllowedBelow() {
-            return true;
+            return false;
         }
     }
 }

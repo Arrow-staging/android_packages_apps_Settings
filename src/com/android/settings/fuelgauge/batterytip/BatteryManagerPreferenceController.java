@@ -19,7 +19,6 @@ package com.android.settings.fuelgauge.batterytip;
 import android.app.AppOpsManager;
 import android.content.Context;
 import android.os.UserManager;
-import android.provider.Settings;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
@@ -34,10 +33,10 @@ import com.android.settings.overlay.FeatureFactory;
  */
 public class BatteryManagerPreferenceController extends BasePreferenceController {
     private static final String KEY_BATTERY_MANAGER = "smart_battery_manager";
-    private static final int ON = 1;
     private PowerUsageFeatureProvider mPowerUsageFeatureProvider;
     private AppOpsManager mAppOpsManager;
     private UserManager mUserManager;
+    private boolean mEnableAppBatteryUsagePage;
 
     public BatteryManagerPreferenceController(Context context) {
         super(context, KEY_BATTERY_MANAGER);
@@ -45,6 +44,8 @@ public class BatteryManagerPreferenceController extends BasePreferenceController
                 context).getPowerUsageFeatureProvider(context);
         mAppOpsManager = context.getSystemService(AppOpsManager.class);
         mUserManager = context.getSystemService(UserManager.class);
+        mEnableAppBatteryUsagePage =
+                mContext.getResources().getBoolean(R.bool.config_app_battery_usage_list_enabled);
     }
 
     @Override
@@ -55,25 +56,24 @@ public class BatteryManagerPreferenceController extends BasePreferenceController
     @Override
     public void updateState(Preference preference) {
         super.updateState(preference);
-        final int num = BatteryTipUtils.getRestrictedAppsList(mAppOpsManager, mUserManager).size();
-        final String setting = mPowerUsageFeatureProvider.isSmartBatterySupported()
-                ? Settings.Global.ADAPTIVE_BATTERY_MANAGEMENT_ENABLED
-                : Settings.Global.APP_AUTO_RESTRICTION_ENABLED;
-        final boolean featureOn =
-                Settings.Global.getInt(mContext.getContentResolver(), setting, ON) == ON;
+        if (!mEnableAppBatteryUsagePage) {
+            final int num = BatteryTipUtils.getRestrictedAppsList(mAppOpsManager,
+                    mUserManager).size();
 
-        updateSummary(preference, featureOn, num);
+            updateSummary(preference, num);
+        }
     }
 
     @VisibleForTesting
-    void updateSummary(Preference preference, boolean featureOn, int num) {
+    void updateSummary(Preference preference, int num) {
         if (num > 0) {
             preference.setSummary(mContext.getResources().getQuantityString(
                     R.plurals.battery_manager_app_restricted, num, num));
-        } else if (featureOn) {
-            preference.setSummary(R.string.battery_manager_on);
         } else {
-            preference.setSummary(R.string.battery_manager_off);
+            preference.setSummary(
+                    mPowerUsageFeatureProvider.isAdaptiveChargingSupported()
+                            ? R.string.battery_manager_summary
+                            : R.string.battery_manager_summary_unsupported);
         }
     }
 }

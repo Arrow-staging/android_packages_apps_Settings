@@ -20,17 +20,19 @@ import android.content.Context;
 import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
+import android.text.TextUtils;
 
 import com.android.settings.core.BasePreferenceController;
+import com.android.settings.network.CarrierConfigCache;
 
 public class CarrierSettingsVersionPreferenceController extends BasePreferenceController {
 
     private int mSubscriptionId;
-    private CarrierConfigManager mManager;
+    private CarrierConfigCache mCarrierConfigCache;
 
     public CarrierSettingsVersionPreferenceController(Context context, String preferenceKey) {
         super(context, preferenceKey);
-        mManager = context.getSystemService(CarrierConfigManager.class);
+        mCarrierConfigCache = CarrierConfigCache.getInstance(context);
         mSubscriptionId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
     }
 
@@ -40,7 +42,7 @@ public class CarrierSettingsVersionPreferenceController extends BasePreferenceCo
 
     @Override
     public CharSequence getSummary() {
-        final PersistableBundle config = mManager.getConfigForSubId(mSubscriptionId);
+        final PersistableBundle config = mCarrierConfigCache.getConfigForSubId(mSubscriptionId);
         if (config == null) {
             return null;
         }
@@ -49,6 +51,6 @@ public class CarrierSettingsVersionPreferenceController extends BasePreferenceCo
 
     @Override
     public int getAvailabilityStatus() {
-        return AVAILABLE;
+        return TextUtils.isEmpty(getSummary()) ? UNSUPPORTED_ON_DEVICE : AVAILABLE;
     }
 }

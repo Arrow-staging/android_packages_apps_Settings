@@ -23,101 +23,186 @@ import static com.android.settings.wifi.slice.WifiSlice.DEFAULT_EXPANDED_ROW_COU
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
-import android.net.NetworkInfo;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.UserManager;
 
-import androidx.core.graphics.drawable.IconCompat;
 import androidx.slice.Slice;
 import androidx.slice.SliceItem;
 import androidx.slice.SliceMetadata;
 import androidx.slice.SliceProvider;
 import androidx.slice.core.SliceAction;
 import androidx.slice.core.SliceQuery;
+import androidx.slice.widget.ListContent;
 import androidx.slice.widget.SliceLiveData;
+import androidx.test.core.app.ApplicationProvider;
 
 import com.android.settings.R;
 import com.android.settings.slices.SliceBackgroundWorker;
 import com.android.settings.testutils.SliceTester;
-import com.android.settingslib.wifi.AccessPoint;
+import com.android.settings.testutils.shadow.ShadowWifiSlice;
+import com.android.wifitrackerlib.WifiEntry;
+import com.android.wifitrackerlib.WifiEntry.ConnectedState;
+
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
+import org.robolectric.RobolectricTestRunner;
+import org.robolectric.annotation.Config;
+import org.robolectric.annotation.Implementation;
+import org.robolectric.annotation.Implements;
+import org.robolectric.shadows.ShadowBinder;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.robolectric.RobolectricTestRunner;
-import org.robolectric.RuntimeEnvironment;
-import org.robolectric.annotation.Config;
-import org.robolectric.annotation.Implementation;
-import org.robolectric.annotation.Implements;
-
 @RunWith(RobolectricTestRunner.class)
-@Config(shadows = WifiSliceTest.ShadowSliceBackgroundWorker.class)
+@Config(shadows = {
+        WifiSliceTest.ShadowSliceBackgroundWorker.class,
+        ShadowWifiSlice.class})
 public class WifiSliceTest {
 
     private static final String AP1_NAME = "ap1";
     private static final String AP2_NAME = "ap2";
+    private static final String AP3_NAME = "ap3";
+    private static final int USER_ID = 1;
 
-    private Context mContext;
-    private ContentResolver mResolver;
+    @Rule
+    public final MockitoRule mMockitoRule = MockitoJUnit.rule();
+    @Spy
+    Context mContext = ApplicationProvider.getApplicationContext();
+    @Mock
+    private UserManager mUserManager;
+    @Mock
     private WifiManager mWifiManager;
-    private ConnectivityManager mConnectivityManager;
+    @Mock
+    private PackageManager mPackageManager;
+    @Mock
+    private ContentResolver mResolver;
+    @Mock
+    private WifiSlice.WifiRestriction mWifiRestriction;
+
     private WifiSlice mWifiSlice;
+    private String mSIPackageName;
 
     @Before
     public void setUp() {
-        mContext = spy(RuntimeEnvironment.application);
-        mResolver = mock(ContentResolver.class);
         doReturn(mResolver).when(mContext).getContentResolver();
-        mWifiManager = mContext.getSystemService(WifiManager.class);
+        doReturn(mUserManager).when(mContext).getSystemService(UserManager.class);
+        doReturn(false).when(mUserManager).isGuestUser();
+        doReturn(mWifiManager).when(mContext).getSystemService(WifiManager.class);
+        doReturn(WifiManager.WIFI_STATE_ENABLED).when(mWifiManager).getWifiState();
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mWifiRestriction.isChangeWifiStateAllowed(mContext)).thenReturn(true);
 
         // Set-up specs for SliceMetadata.
         SliceProvider.setSpecs(SliceLiveData.SUPPORTED_SPECS);
-        mWifiManager.setWifiEnabled(true);
 
-        mConnectivityManager = spy(mContext.getSystemService(ConnectivityManager.class));
-        doReturn(mConnectivityManager).when(mContext).getSystemService(ConnectivityManager.class);
-
-        mWifiSlice = new WifiSlice(mContext);
+        mSIPackageName = mContext.getString(R.string.config_settingsintelligence_package_name);
+        ShadowBinder.setCallingUid(USER_ID);
+        when(mPackageManager.getPackagesForUid(USER_ID)).thenReturn(new String[]{mSIPackageName});
+        when(mPackageManager.getNameForUid(USER_ID)).thenReturn(mSIPackageName);
+        ShadowWifiSlice.setWifiPermissible(true);
+        mWifiSlice = new WifiSlice(mContext, mWifiRestriction);
     }
 
     @Test
-    public void getWifiSlice_shouldHaveTitleAndToggle() {
+    public void getWifiSlice_isGuestUser_shouldReturnNoToggle() {
+        doReturn(true).when(mUserManager).isGuestUser();
+
         final Slice wifiSlice = mWifiSlice.getSlice();
+        final SliceMetadata metadata = SliceMetadata.from(mContext, wifiSlice);
+        final List<SliceAction> toggles = metadata.getToggles();
+        assertThat(toggles).hasSize(0);
+
+        final int rows = SliceQuery.findAll(wifiSlice, FORMAT_SLICE, HINT_LIST_ITEM,
+                null /* nonHints */).size();
+        // Title row
+        assertThat(rows).isEqualTo(1);
+    }
+
+    @Test
+    public void getWifiSlice_isNotGuestUser_shouldHaveTitleAndToggle() {
+        doReturn(false).when(mUserManager).isGuestUser();
+
+        final Slice wifiSlice = mWifiSlice.getSlice();
+        assertThat(wifiSlice).isNotNull();
 
         final SliceMetadata metadata = SliceMetadata.from(mContext, wifiSlice);
-        assertThat(metadata.getTitle()).isEqualTo(mContext.getString(R.string.wifi_settings));
-
         final List<SliceAction> toggles = metadata.getToggles();
         assertThat(toggles).hasSize(1);
+    }
 
-        final SliceAction primaryAction = metadata.getPrimaryAction();
-        final IconCompat expectedToggleIcon = IconCompat.createWithResource(mContext,
-                R.drawable.ic_settings_wireless);
-        assertThat(primaryAction.getIcon().toString()).isEqualTo(expectedToggleIcon.toString());
+    @Test
+    public void getWifiSlice_fromSIPackage_shouldHaveTitleAndToggle() {
+        when(mPackageManager.getPackagesForUid(USER_ID)).thenReturn(new String[]{mSIPackageName});
+        when(mPackageManager.getNameForUid(USER_ID)).thenReturn(mSIPackageName);
+        ShadowWifiSlice.setWifiPermissible(false);
+
+        final Slice wifiSlice = mWifiSlice.getSlice();
+
+        assertThat(wifiSlice).isNotNull();
+
+        final SliceMetadata metadata = SliceMetadata.from(mContext, wifiSlice);
+        final List<SliceAction> toggles = metadata.getToggles();
+
+        assertThat(toggles).hasSize(1);
+    }
+
+    @Test
+    public void getWifiSlice_notFromSIPackageAndWithWifiPermission_shouldHaveTitleAndToggle() {
+        when(mPackageManager.getPackagesForUid(USER_ID)).thenReturn(new String[]{"com.test"});
+        when(mPackageManager.getNameForUid(USER_ID)).thenReturn("com.test");
+        ShadowWifiSlice.setWifiPermissible(true);
+
+        final Slice wifiSlice = mWifiSlice.getSlice();
+        assertThat(wifiSlice).isNotNull();
+
+        final SliceMetadata metadata = SliceMetadata.from(mContext, wifiSlice);
+        final List<SliceAction> toggles = metadata.getToggles();
+
+        assertThat(toggles).hasSize(1);
+    }
+
+    @Test
+    public void getWifiSlice_notFromSIPackageAndWithoutWifiPermission_shouldReturnNoToggle() {
+        when(mPackageManager.getPackagesForUid(USER_ID)).thenReturn(new String[]{"com.test"});
+        when(mPackageManager.getNameForUid(USER_ID)).thenReturn("com.test");
+        ShadowWifiSlice.setWifiPermissible(false);
+
+        final Slice wifiSlice = mWifiSlice.getSlice();
+        final SliceMetadata metadata = SliceMetadata.from(mContext, wifiSlice);
+        final List<SliceAction> toggles = metadata.getToggles();
+
+        assertThat(toggles).hasSize(0);
+
+        final int rows = SliceQuery.findAll(wifiSlice, FORMAT_SLICE, HINT_LIST_ITEM,
+                null /* nonHints */).size();
+        // Title row
+        assertThat(rows).isEqualTo(1);
     }
 
     @Test
     public void getWifiSlice_wifiOff_shouldReturnSingleRow() {
-        mWifiManager.setWifiEnabled(false);
+        doReturn(WifiManager.WIFI_STATE_DISABLED).when(mWifiManager).getWifiState();
 
         final Slice wifiSlice = mWifiSlice.getSlice();
 
         final int rows = SliceQuery.findAll(wifiSlice, FORMAT_SLICE, HINT_LIST_ITEM,
                 null /* nonHints */).size();
-
         // Title row
         assertThat(rows).isEqualTo(1);
     }
@@ -137,33 +222,42 @@ public class WifiSliceTest {
                 mContext.getString(R.string.wifi_empty_list_wifi_on));
     }
 
-    private AccessPoint createAccessPoint(String name, boolean active, boolean reachable) {
-        final AccessPoint accessPoint = mock(AccessPoint.class);
-        doReturn(name).when(accessPoint).getTitle();
-        doReturn(active).when(accessPoint).isActive();
-        doReturn(reachable).when(accessPoint).isReachable();
-        if (active) {
-            final NetworkInfo networkInfo = mock(NetworkInfo.class);
-            doReturn(networkInfo).when(accessPoint).getNetworkInfo();
-            doReturn(NetworkInfo.State.CONNECTED).when(networkInfo).getState();
-        }
-        return accessPoint;
+    private WifiSliceItem createWifiSliceItem(String title, @ConnectedState int connectedState) {
+        final WifiEntry wifiEntry = mock(WifiEntry.class);
+        when(wifiEntry.getTitle()).thenReturn(title);
+        when(wifiEntry.getKey()).thenReturn("key");
+        when(wifiEntry.getConnectedState()).thenReturn(connectedState);
+        when(wifiEntry.getLevel()).thenReturn(WifiEntry.WIFI_LEVEL_MAX);
+        return new WifiSliceItem(mContext, wifiEntry);
     }
 
-    private void setWorkerResults(AccessPoint... accessPoints) {
-        final ArrayList<AccessPoint> results = new ArrayList<>();
-        for (AccessPoint ap : accessPoints) {
-            results.add(ap);
+    private void setWorkerResults(WifiSliceItem... wifiSliceItems) {
+        final ArrayList<WifiSliceItem> results = new ArrayList<>();
+        for (WifiSliceItem wifiSliceItem : wifiSliceItems) {
+            results.add(wifiSliceItem);
         }
         final SliceBackgroundWorker worker = SliceBackgroundWorker.getInstance(mWifiSlice.getUri());
         doReturn(results).when(worker).getResults();
     }
 
     @Test
-    public void getWifiSlice_noReachableAp_shouldReturnLoadingRow() {
+    public void getWifiSlice_oneConnectedAp_shouldReturnLoadingRow() {
+        setWorkerResults(createWifiSliceItem(AP1_NAME, WifiEntry.CONNECTED_STATE_CONNECTED));
+
+        final Slice wifiSlice = mWifiSlice.getSlice();
+        final List<SliceItem> sliceItems = wifiSlice.getItems();
+
+        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP1_NAME);
+        // Has scanning text
+        SliceTester.assertAnySliceItemContainsSubtitle(sliceItems,
+                mContext.getString(R.string.wifi_empty_list_wifi_on));
+    }
+
+    @Test
+    public void getWifiSlice_oneConnectedApAndOneDisconnectedAp_shouldReturnLoadingRow() {
         setWorkerResults(
-                createAccessPoint(AP1_NAME, false, false),
-                createAccessPoint(AP2_NAME, false, false));
+                createWifiSliceItem(AP1_NAME, WifiEntry.CONNECTED_STATE_CONNECTED),
+                createWifiSliceItem(AP2_NAME, WifiEntry.CONNECTED_STATE_DISCONNECTED));
 
         final Slice wifiSlice = mWifiSlice.getSlice();
         final List<SliceItem> sliceItems = wifiSlice.getItems();
@@ -176,8 +270,8 @@ public class WifiSliceTest {
     }
 
     @Test
-    public void getWifiSlice_oneActiveAp_shouldReturnLoadingRow() {
-        setWorkerResults(createAccessPoint(AP1_NAME, true, true));
+    public void getWifiSlice_oneDisconnectedAp_shouldReturnLoadingRow() {
+        setWorkerResults(createWifiSliceItem(AP1_NAME, WifiEntry.CONNECTED_STATE_DISCONNECTED));
 
         final Slice wifiSlice = mWifiSlice.getSlice();
         final List<SliceItem> sliceItems = wifiSlice.getItems();
@@ -189,71 +283,45 @@ public class WifiSliceTest {
     }
 
     @Test
-    public void getWifiSlice_oneActiveApAndOneUnreachableAp_shouldReturnLoadingRow() {
+    public void getWifiSlice_apReachExpandedCount_shouldNotReturnLoadingRow() {
         setWorkerResults(
-                createAccessPoint(AP1_NAME, true, true),
-                createAccessPoint(AP2_NAME, false, false));
+                createWifiSliceItem(AP1_NAME, WifiEntry.CONNECTED_STATE_DISCONNECTED),
+                createWifiSliceItem(AP2_NAME, WifiEntry.CONNECTED_STATE_DISCONNECTED),
+                createWifiSliceItem(AP3_NAME, WifiEntry.CONNECTED_STATE_DISCONNECTED));
 
         final Slice wifiSlice = mWifiSlice.getSlice();
         final List<SliceItem> sliceItems = wifiSlice.getItems();
 
         SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP1_NAME);
         SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP2_NAME);
-        // Has scanning text
-        SliceTester.assertAnySliceItemContainsSubtitle(sliceItems,
-                mContext.getString(R.string.wifi_empty_list_wifi_on));
-    }
-
-    @Test
-    public void getWifiSlice_oneReachableAp_shouldNotReturnLoadingRow() {
-        setWorkerResults(createAccessPoint(AP1_NAME, false, true));
-
-        final Slice wifiSlice = mWifiSlice.getSlice();
-        final List<SliceItem> sliceItems = wifiSlice.getItems();
-
-        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP1_NAME);
+        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP3_NAME);
         // No scanning text
         SliceTester.assertNoSliceItemContainsSubtitle(sliceItems,
                 mContext.getString(R.string.wifi_empty_list_wifi_on));
     }
 
     @Test
-    public void getWifiSlice_allReachableAps_shouldNotReturnLoadingRow() {
-        setWorkerResults(
-                createAccessPoint(AP1_NAME, false, true),
-                createAccessPoint(AP2_NAME, false, true));
+    public void getWifiSlice_disallowedChangeWifiState_addSubtitleAndNoToggle() {
+        when(mWifiRestriction.isChangeWifiStateAllowed(mContext)).thenReturn(false);
 
-        final Slice wifiSlice = mWifiSlice.getSlice();
-        final List<SliceItem> sliceItems = wifiSlice.getItems();
+        final Slice slice = mWifiSlice.getSlice();
 
-        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP1_NAME);
-        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP2_NAME);
-        // No scanning text
-        SliceTester.assertNoSliceItemContainsSubtitle(sliceItems,
-                mContext.getString(R.string.wifi_empty_list_wifi_on));
+        final ListContent listContent = SliceMetadata.from(mContext, slice).getListContent();
+        assertThat(slice).isNotNull();
+        assertThat(listContent.getHeader().getSubtitleItem()).isNotNull();
+        assertThat(listContent.getSliceActions()).isNull();
     }
 
     @Test
-    public void getWifiSlice_isCaptivePortal_shouldHaveCaptivePortalItems() {
-        setWorkerResults(createAccessPoint(AP1_NAME, true, true));
-        doReturn(makeCaptivePortalNetworkCapabilities()).when(mConnectivityManager)
-                .getNetworkCapabilities(any());
-        final IconCompat expectedIcon = IconCompat.createWithResource(mContext,
-                R.drawable.ic_settings_accent);
+    public void getWifiSlice_allowedChangeWifiState_noSubtitleAndAddToggle() {
+        when(mWifiRestriction.isChangeWifiStateAllowed(mContext)).thenReturn(true);
 
-        final Slice wifiSlice = mWifiSlice.getSlice();
-        final List<SliceItem> sliceItems = wifiSlice.getItems();
+        final Slice slice = mWifiSlice.getSlice();
 
-        SliceTester.assertAnySliceItemContainsTitle(sliceItems, AP1_NAME);
-        SliceTester.assertAnySliceItemContainsIcon(sliceItems, expectedIcon);
-    }
-
-    static NetworkCapabilities makeCaptivePortalNetworkCapabilities() {
-        final NetworkCapabilities nc = new NetworkCapabilities();
-        nc.clearAll();
-        nc.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-        nc.addCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL);
-        return nc;
+        final ListContent listContent = SliceMetadata.from(mContext, slice).getListContent();
+        assertThat(slice).isNotNull();
+        assertThat(listContent.getHeader().getSubtitleItem()).isNull();
+        assertThat(listContent.getSliceActions()).isNotNull();
     }
 
     @Test

@@ -67,6 +67,7 @@ public class LockscreenDashboardFragmentTest {
                 .thenReturn(mLockPatternUtils);
         mContext = RuntimeEnvironment.application;
         mTestFragment = spy(new TestFragment());
+        doReturn(mContext).when(mTestFragment).getContext();
     }
 
     @Test
@@ -74,7 +75,7 @@ public class LockscreenDashboardFragmentTest {
         List<String> keys = XmlTestUtils.getKeysFromPreferenceXml(RuntimeEnvironment.application,
                 mTestFragment.getPreferenceScreenResId());
 
-        assertThat(keys).containsAllOf(LockscreenDashboardFragment.KEY_LOCK_SCREEN_NOTIFICATON,
+        assertThat(keys).containsAtLeast(LockscreenDashboardFragment.KEY_LOCK_SCREEN_NOTIFICATON,
                 LockscreenDashboardFragment.KEY_LOCK_SCREEN_NOTIFICATON_WORK_PROFILE,
                 LockscreenDashboardFragment.KEY_LOCK_SCREEN_NOTIFICATON_WORK_PROFILE_HEADER);
     }
@@ -88,7 +89,6 @@ public class LockscreenDashboardFragmentTest {
 
         mTestFragment.onAttach(mContext);
         verify(controller).setConfig(any());
-        verify(controller).setCallback(any());
     }
 
     @Test
@@ -130,6 +130,14 @@ public class LockscreenDashboardFragmentTest {
         assertThat(LockscreenDashboardFragment.SEARCH_INDEX_DATA_PROVIDER
                 .getNonIndexableKeys(mContext))
                 .doesNotContain("security_lockscreen_settings_screen");
+    }
+
+    @Test
+    public void controlsSettings() {
+        mTestFragment.onAttach(mContext);
+        assertThat(mTestFragment.mControlsContentObserver).isNotNull();
+        mTestFragment.onDetach();
+        assertThat(mTestFragment.mControlsContentObserver).isNull();
     }
 
     public static class TestFragment extends LockscreenDashboardFragment {

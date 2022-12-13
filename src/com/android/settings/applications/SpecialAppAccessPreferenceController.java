@@ -63,7 +63,7 @@ public class SpecialAppAccessPreferenceController extends BasePreferenceControll
 
     @Override
     public int getAvailabilityStatus() {
-        return AVAILABLE_UNSEARCHABLE;
+        return AVAILABLE;
     }
 
     @Override
@@ -74,7 +74,7 @@ public class SpecialAppAccessPreferenceController extends BasePreferenceControll
 
     @Override
     public void onStart() {
-        mDataUsageBridge.resume();
+        mDataUsageBridge.resume(true /* forceLoadAllApps */);
     }
 
     @Override
@@ -110,7 +110,7 @@ public class SpecialAppAccessPreferenceController extends BasePreferenceControll
                 continue;
             }
             if (entry.extraInfo instanceof DataUsageState
-                    && ((DataUsageState) entry.extraInfo).isDataSaverWhitelisted) {
+                    && ((DataUsageState) entry.extraInfo).isDataSaverAllowlisted) {
                 count++;
             }
         }
@@ -144,10 +144,11 @@ public class SpecialAppAccessPreferenceController extends BasePreferenceControll
 
     @Override
     public void onLauncherInfoChanged() {
+        // when the value of the AppEntry.hasLauncherEntry was changed.
+        updateSummary();
     }
 
     @Override
     public void onLoadEntriesCompleted() {
     }
-
 }

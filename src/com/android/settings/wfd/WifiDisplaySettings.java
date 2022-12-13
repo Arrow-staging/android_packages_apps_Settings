@@ -64,9 +64,9 @@ import com.android.internal.app.MediaRouteDialogPresenter;
 import com.android.settings.R;
 import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.search.BaseSearchIndexProvider;
-import com.android.settingslib.TwoTargetPreference;
 import com.android.settingslib.search.Indexable;
 import com.android.settingslib.search.SearchIndexable;
+import com.android.settingslib.widget.TwoTargetPreference;
 
 /**
  * The Settings screen for WifiDisplay configuration and connection management.
@@ -520,7 +520,7 @@ public final class WifiDisplaySettings extends SettingsPreferenceFragment implem
         if (DEBUG) {
             Slog.d(TAG, "Setting listen mode to: " + enable);
         }
-        mWifiP2pManager.listen(mWifiP2pChannel, enable, new ActionListener() {
+        final ActionListener listener = new ActionListener() {
             @Override
             public void onSuccess() {
                 if (DEBUG) {
@@ -534,7 +534,12 @@ public final class WifiDisplaySettings extends SettingsPreferenceFragment implem
                 Slog.e(TAG, "Failed to " + (enable ? "entered" : "exited")
                         + " listen mode with reason " + reason + ".");
             }
-        });
+        };
+        if (enable) {
+            mWifiP2pManager.startListening(mWifiP2pChannel, listener);
+        } else {
+            mWifiP2pManager.stopListening(mWifiP2pChannel, listener);
+        }
     }
 
     private void setWifiP2pChannels(final int lc, final int oc) {

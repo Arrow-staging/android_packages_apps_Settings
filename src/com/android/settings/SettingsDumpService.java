@@ -14,13 +14,15 @@
 
 package com.android.settings;
 
+import static android.content.pm.PackageManager.FEATURE_ETHERNET;
+import static android.content.pm.PackageManager.FEATURE_WIFI;
+
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
-import android.net.ConnectivityManager;
 import android.net.NetworkTemplate;
 import android.net.Uri;
 import android.os.IBinder;
@@ -33,6 +35,7 @@ import android.telephony.TelephonyManager;
 import androidx.annotation.VisibleForTesting;
 
 import com.android.settings.applications.ProcStatsData;
+import com.android.settings.datausage.lib.DataUsageLib;
 import com.android.settings.fuelgauge.batterytip.AnomalyConfigJobService;
 import com.android.settingslib.net.DataUsageController;
 
@@ -101,25 +104,28 @@ public class SettingsDumpService extends Service {
     private JSONObject dumpDataUsage() throws JSONException {
         JSONObject obj = new JSONObject();
         DataUsageController controller = new DataUsageController(this);
-        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
-        SubscriptionManager manager = SubscriptionManager.from(this);
-        TelephonyManager telephonyManager = TelephonyManager.from(this);
-        if (connectivityManager.isNetworkSupported(ConnectivityManager.TYPE_MOBILE)) {
+        SubscriptionManager manager = this.getSystemService(SubscriptionManager.class);
+        TelephonyManager telephonyManager = this.getSystemService(TelephonyManager.class);
+        final PackageManager packageManager = this.getPackageManager();
+        if (telephonyManager.isDataCapable()) {
             JSONArray array = new JSONArray();
-            for (SubscriptionInfo info : manager.getAllSubscriptionInfoList()) {
-                NetworkTemplate mobileAll = NetworkTemplate.buildTemplateMobileAll(
-                        telephonyManager.getSubscriberId(info.getSubscriptionId()));
-                final JSONObject usage = dumpDataUsage(mobileAll, controller);
+            for (SubscriptionInfo info : manager.getAvailableSubscriptionInfoList()) {
+                NetworkTemplate template = DataUsageLib.getMobileTemplateForSubId(
+                        telephonyManager, info.getSubscriptionId());
+                final JSONObject usage = dumpDataUsage(template, controller);
                 usage.put("subId", info.getSubscriptionId());
                 array.put(usage);
             }
             obj.put("cell", array);
         }
-        if (connectivityManager.isNetworkSupported(ConnectivityManager.TYPE_WIFI)) {
-            obj.put("wifi", dumpDataUsage(NetworkTemplate.buildTemplateWifiWildcard(), controller));
+        if (packageManager.hasSystemFeature(FEATURE_WIFI)) {
+            obj.put("wifi", dumpDataUsage(
+                    new NetworkTemplate.Builder(NetworkTemplate.MATCH_WIFI).build(), controller));
         }
-        if (connectivityManager.isNetworkSupported(ConnectivityManager.TYPE_ETHERNET)) {
-            obj.put("ethernet", dumpDataUsage(NetworkTemplate.buildTemplateEthernet(), controller));
+
+        if (packageManager.hasSystemFeature(FEATURE_ETHERNET)) {
+            obj.put("ethernet", dumpDataUsage(new NetworkTemplate.Builder(
+                    NetworkTemplate.MATCH_ETHERNET).build(), controller));
         }
         return obj;
     }

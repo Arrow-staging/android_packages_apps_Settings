@@ -26,20 +26,20 @@ import android.app.PendingIntent;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.net.ConnectivityManager;
-import android.net.NetworkCapabilities;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.net.wifi.WifiManager;
+import android.os.Binder;
 import android.os.Bundle;
+import android.os.UserManager;
 import android.text.TextUtils;
-import android.util.FeatureFlagUtils;
+import android.util.EventLog;
+import android.util.Log;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.graphics.drawable.IconCompat;
 import androidx.slice.Slice;
@@ -50,16 +50,17 @@ import com.android.settings.R;
 import com.android.settings.SubSettings;
 import com.android.settings.Utils;
 import com.android.settings.core.SubSettingLauncher;
+import com.android.settings.network.NetworkProviderSettings;
+import com.android.settings.network.WifiSwitchPreferenceController;
 import com.android.settings.slices.CustomSliceable;
 import com.android.settings.slices.SliceBackgroundWorker;
 import com.android.settings.slices.SliceBuilderUtils;
+import com.android.settings.wifi.AppStateChangeWifiStateBridge;
 import com.android.settings.wifi.WifiDialogActivity;
-import com.android.settings.wifi.WifiSettings;
-import com.android.settings.wifi.WifiSettings2;
 import com.android.settings.wifi.WifiUtils;
 import com.android.settings.wifi.details.WifiNetworkDetailsFragment;
-import com.android.settings.wifi.details2.WifiNetworkDetailsFragment2;
-import com.android.settingslib.wifi.AccessPoint;
+import com.android.settingslib.wifi.WifiEnterpriseRestrictionUtils;
+import com.android.wifitrackerlib.WifiEntry;
 
 import java.util.Arrays;
 import java.util.List;
@@ -73,15 +74,21 @@ public class WifiSlice implements CustomSliceable {
 
     @VisibleForTesting
     static final int DEFAULT_EXPANDED_ROW_COUNT = 3;
+    private static final String TAG = "WifiSlice";
 
     protected final Context mContext;
     protected final WifiManager mWifiManager;
-    protected final ConnectivityManager mConnectivityManager;
+    protected final WifiRestriction mWifiRestriction;
 
     public WifiSlice(Context context) {
+        this(context, new WifiRestriction());
+    }
+
+    @VisibleForTesting
+    WifiSlice(Context context, WifiRestriction wifiRestriction) {
         mContext = context;
         mWifiManager = mContext.getSystemService(WifiManager.class);
-        mConnectivityManager = mContext.getSystemService(ConnectivityManager.class);
+        mWifiRestriction = wifiRestriction;
     }
 
     @Override
@@ -91,43 +98,48 @@ public class WifiSlice implements CustomSliceable {
 
     @Override
     public Slice getSlice() {
-        // Reload theme for switching dark mode on/off
-        mContext.getTheme().applyStyle(R.style.Theme_Settings_Home, true /* force */);
-
         final boolean isWifiEnabled = isWifiEnabled();
-        ListBuilder listBuilder = getHeaderRow(isWifiEnabled);
-        if (!isWifiEnabled) {
-            WifiScanWorker.clearClickedWifi();
+        // If user is a guest just return a slice without a toggle.
+        if (isGuestUser(mContext)) {
+            Log.e(TAG, "Guest user is not allowed to configure Wi-Fi!");
+            EventLog.writeEvent(0x534e4554, "232798363", -1 /* UID */, "User is a guest");
+            return getListBuilder(isWifiEnabled, null /* wifiSliceItem */,
+                    false /* isWiFiPermissionGranted */).build();
+        }
+
+        // If external calling package doesn't have Wi-Fi permission.
+        final boolean isPermissionGranted =
+                isCallerExemptUid(mContext) || isPermissionGranted(mContext);
+        ListBuilder listBuilder = getListBuilder(isWifiEnabled, null /* wifiSliceItem */,
+                isPermissionGranted);
+        // If the caller doesn't have the permission granted, just return a slice without a toggle.
+        if (!isWifiEnabled || !isPermissionGranted) {
             return listBuilder.build();
         }
 
         final WifiScanWorker worker = SliceBackgroundWorker.getInstance(getUri());
-        final List<AccessPoint> apList = worker != null ? worker.getResults() : null;
+        final List<WifiSliceItem> apList = worker != null ? worker.getResults() : null;
         final int apCount = apList == null ? 0 : apList.size();
-        final boolean isFirstApActive = apCount > 0 && apList.get(0).isActive();
-        handleNetworkCallback(worker, isFirstApActive);
+        final boolean isFirstApActive = apCount > 0
+                && apList.get(0).getConnectedState() != WifiEntry.CONNECTED_STATE_DISCONNECTED;
 
-        // Need a loading text when results are not ready or out of date.
-        boolean needLoadingRow = true;
-        // Skip checking the existence of the first access point if it's active
-        int index = isFirstApActive ? 1 : 0;
-        // This loop checks the existence of reachable APs to determine the validity of the current
-        // AP list.
-        for (; index < apCount; index++) {
-            if (apList.get(index).isReachable()) {
-                needLoadingRow = false;
-                break;
-            }
+        if (isFirstApActive) {
+            // refresh header subtext
+            listBuilder = getListBuilder(
+                    true /* isWifiEnabled */, apList.get(0), true /* isWiFiPermissionGranted */);
+        }
+
+        if (isApRowCollapsed()) {
+            return listBuilder.build();
         }
 
         // Add AP rows
         final CharSequence placeholder = mContext.getText(R.string.summary_placeholder);
         for (int i = 0; i < DEFAULT_EXPANDED_ROW_COUNT; i++) {
             if (i < apCount) {
-                listBuilder.addRow(getAccessPointRow(apList.get(i)));
-            } else if (needLoadingRow) {
+                listBuilder.addRow(getWifiSliceItemRow(apList.get(i)));
+            } else if (i == apCount) {
                 listBuilder.addRow(getLoadingRow(placeholder));
-                needLoadingRow = false;
             } else {
                 listBuilder.addRow(new ListBuilder.RowBuilder()
                         .setTitle(placeholder)
@@ -137,152 +149,172 @@ public class WifiSlice implements CustomSliceable {
         return listBuilder.build();
     }
 
-    private void handleNetworkCallback(WifiScanWorker worker, boolean isFirstApActive) {
-        if (worker == null) {
-            return;
-        }
-        if (isFirstApActive) {
-            worker.registerNetworkCallback(mWifiManager.getCurrentNetwork());
-        } else {
-            worker.unregisterNetworkCallback();
-        }
+    protected static boolean isGuestUser(Context context) {
+        if (context == null) return false;
+        final UserManager userManager = context.getSystemService(UserManager.class);
+        if (userManager == null) return false;
+        return userManager.isGuestUser();
     }
 
-    private ListBuilder getHeaderRow(boolean isWifiEnabled) {
+    private boolean isCallerExemptUid(Context context) {
+        final String[] allowedUidNames = context.getResources().getStringArray(
+                R.array.config_exempt_wifi_permission_uid_name);
+        final String uidName =
+                context.getPackageManager().getNameForUid(Binder.getCallingUid());
+        Log.d(TAG, "calling uid name : " + uidName);
+
+        for (String allowedUidName : allowedUidNames) {
+            if (TextUtils.equals(uidName, allowedUidName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isPermissionGranted(Context settingsContext) {
+        final int callingUid = Binder.getCallingUid();
+        final String callingPackage = settingsContext.getPackageManager()
+                .getPackagesForUid(callingUid)[0];
+
+        Context packageContext;
+        try {
+            packageContext = settingsContext.createPackageContext(callingPackage, 0);
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e(TAG, "Cannot create Context for package: " + callingPackage);
+            return false;
+        }
+
+        // If app doesn't have related Wi-Fi permission, they shouldn't show Wi-Fi slice.
+        final boolean hasPermission = packageContext.checkPermission(
+                android.Manifest.permission.CHANGE_WIFI_STATE, Binder.getCallingPid(),
+                callingUid) == PackageManager.PERMISSION_GRANTED;
+        AppStateChangeWifiStateBridge.WifiSettingsState state =
+                new AppStateChangeWifiStateBridge(settingsContext, null, null)
+                        .getWifiSettingsInfo(callingPackage, callingUid);
+
+        return hasPermission && state.isPermissible();
+    }
+
+    protected boolean isApRowCollapsed() {
+        return false;
+    }
+
+    protected ListBuilder.RowBuilder getHeaderRow(boolean isWifiEnabled,
+            WifiSliceItem wifiSliceItem) {
         final IconCompat icon = IconCompat.createWithResource(mContext,
                 R.drawable.ic_settings_wireless);
         final String title = mContext.getString(R.string.wifi_settings);
-        final PendingIntent toggleAction = getBroadcastIntent(mContext);
         final PendingIntent primaryAction = getPrimaryAction();
         final SliceAction primarySliceAction = SliceAction.createDeeplink(primaryAction, icon,
                 ListBuilder.ICON_IMAGE, title);
-        final SliceAction toggleSliceAction = SliceAction.createToggle(toggleAction,
-                null /* actionTitle */, isWifiEnabled);
 
-        return new ListBuilder(mContext, getUri(), ListBuilder.INFINITY)
-                .setAccentColor(COLOR_NOT_TINTED)
-                .setKeywords(getKeywords())
-                .addRow(new ListBuilder.RowBuilder()
-                        .setTitle(title)
-                        .addEndItem(toggleSliceAction)
-                        .setPrimaryAction(primarySliceAction));
+        final ListBuilder.RowBuilder builder = new ListBuilder.RowBuilder()
+                .setTitle(title)
+                .setPrimaryAction(primarySliceAction);
+
+        if (!mWifiRestriction.isChangeWifiStateAllowed(mContext)) {
+            builder.setSubtitle(mContext.getString(R.string.not_allowed_by_ent));
+        }
+        return builder;
     }
 
-    private ListBuilder.RowBuilder getAccessPointRow(AccessPoint accessPoint) {
-        final boolean isCaptivePortal = accessPoint.isActive() && isCaptivePortal();
-        final CharSequence title = accessPoint.getTitle();
-        final CharSequence summary = getAccessPointSummary(accessPoint, isCaptivePortal);
-        final IconCompat levelIcon = getAccessPointLevelIcon(accessPoint);
+    private ListBuilder getListBuilder(boolean isWifiEnabled, WifiSliceItem wifiSliceItem,
+            boolean isWiFiPermissionGranted) {
+        final ListBuilder builder = new ListBuilder(mContext, getUri(), ListBuilder.INFINITY)
+                .setAccentColor(COLOR_NOT_TINTED)
+                .setKeywords(getKeywords())
+                .addRow(getHeaderRow(isWifiEnabled, wifiSliceItem));
+        if (!isWiFiPermissionGranted || !mWifiRestriction.isChangeWifiStateAllowed(mContext)) {
+            return builder;
+        }
+
+        final PendingIntent toggleAction = getBroadcastIntent(mContext);
+        final SliceAction toggleSliceAction = SliceAction.createToggle(toggleAction,
+                null /* actionTitle */, isWifiEnabled);
+        builder.addAction(toggleSliceAction);
+
+        return builder;
+    }
+
+    protected ListBuilder.RowBuilder getWifiSliceItemRow(WifiSliceItem wifiSliceItem) {
+        final CharSequence title = wifiSliceItem.getTitle();
+        final IconCompat levelIcon = getWifiSliceItemLevelIcon(wifiSliceItem);
         final ListBuilder.RowBuilder rowBuilder = new ListBuilder.RowBuilder()
                 .setTitleItem(levelIcon, ListBuilder.ICON_IMAGE)
                 .setTitle(title)
-                .setSubtitle(summary)
-                .setPrimaryAction(getAccessPointAction(accessPoint, isCaptivePortal, levelIcon,
-                        title));
+                .setSubtitle(wifiSliceItem.getSummary())
+                .setContentDescription(wifiSliceItem.getContentDescription())
+                .setPrimaryAction(getWifiEntryAction(wifiSliceItem, levelIcon, title));
 
-        if (isCaptivePortal) {
-            rowBuilder.addEndItem(getCaptivePortalEndAction(accessPoint, title));
-        } else {
-            final IconCompat endIcon = getEndIcon(accessPoint);
-            if (endIcon != null) {
-                rowBuilder.addEndItem(endIcon, ListBuilder.ICON_IMAGE);
-            }
+        final IconCompat endIcon = getEndIcon(wifiSliceItem);
+        if (endIcon != null) {
+            rowBuilder.addEndItem(endIcon, ListBuilder.ICON_IMAGE);
         }
         return rowBuilder;
     }
 
-    private CharSequence getAccessPointSummary(AccessPoint accessPoint, boolean isCaptivePortal) {
-        if (isCaptivePortal) {
-            return mContext.getText(R.string.wifi_tap_to_sign_in);
-        }
-
-        final CharSequence summary = accessPoint.getSettingsSummary();
-        return TextUtils.isEmpty(summary) ? mContext.getText(R.string.disconnected) : summary;
-    }
-
-    private IconCompat getAccessPointLevelIcon(AccessPoint accessPoint) {
-        final Drawable d = mContext.getDrawable(
-                com.android.settingslib.Utils.getWifiIconResource(accessPoint.getLevel()));
-
-        final @ColorInt int color;
-        if (accessPoint.isActive()) {
-            final NetworkInfo.State state = accessPoint.getNetworkInfo().getState();
-            if (state == NetworkInfo.State.CONNECTED) {
-                color = Utils.getColorAccentDefaultColor(mContext);
-            } else { // connecting
-                color = Utils.getDisabled(mContext, Utils.getColorAttrDefaultColor(mContext,
-                        android.R.attr.colorControlNormal));
-            }
+    protected IconCompat getWifiSliceItemLevelIcon(WifiSliceItem wifiSliceItem) {
+        final @ColorInt int tint;
+        if (wifiSliceItem.getConnectedState() == WifiEntry.CONNECTED_STATE_CONNECTED) {
+            tint = Utils.getColorAccentDefaultColor(mContext);
+        } else if (wifiSliceItem.getConnectedState() == WifiEntry.CONNECTED_STATE_DISCONNECTED) {
+            tint = Utils.getColorAttrDefaultColor(mContext, android.R.attr.colorControlNormal);
         } else {
-            color = Utils.getColorAttrDefaultColor(mContext, android.R.attr.colorControlNormal);
+            tint = Utils.getDisabled(mContext, Utils.getColorAttrDefaultColor(mContext,
+                    android.R.attr.colorControlNormal));
         }
 
-        d.setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN));
-        return Utils.createIconWithDrawable(d);
+        final Drawable drawable = mContext.getDrawable(
+                WifiUtils.getInternetIconResource(wifiSliceItem.getLevel(),
+                        wifiSliceItem.shouldShowXLevelIcon()));
+        drawable.setTint(tint);
+        return Utils.createIconWithDrawable(drawable);
     }
 
-    private IconCompat getEndIcon(AccessPoint accessPoint) {
-        if (accessPoint.isActive()) {
-            return null;
-        } else if (accessPoint.getSecurity() != AccessPoint.SECURITY_NONE) {
+    protected IconCompat getEndIcon(WifiSliceItem wifiSliceItem) {
+        if (wifiSliceItem.getConnectedState() != WifiEntry.CONNECTED_STATE_DISCONNECTED) {
+            return IconCompat.createWithResource(mContext, R.drawable.ic_settings_24dp);
+        }
+
+        if (wifiSliceItem.getSecurity() != WifiEntry.SECURITY_NONE) {
             return IconCompat.createWithResource(mContext, R.drawable.ic_friction_lock_closed);
-        } else if (accessPoint.isMetered()) {
-            return IconCompat.createWithResource(mContext, R.drawable.ic_friction_money);
         }
         return null;
     }
 
-    private SliceAction getCaptivePortalEndAction(AccessPoint accessPoint, CharSequence title) {
-        return getAccessPointAction(accessPoint, false /* isCaptivePortal */,
-                IconCompat.createWithResource(mContext, R.drawable.ic_settings_accent), title);
-    }
+    protected SliceAction getWifiEntryAction(WifiSliceItem wifiSliceItem, IconCompat icon,
+            CharSequence title) {
+        final int requestCode = wifiSliceItem.getKey().hashCode();
 
-    private SliceAction getAccessPointAction(AccessPoint accessPoint, boolean isCaptivePortal,
-            IconCompat icon, CharSequence title) {
-        final int requestCode = accessPoint.hashCode();
-        if (isCaptivePortal) {
-            final Intent intent = new Intent(mContext, ConnectToWifiHandler.class)
-                    .putExtra(ConnectivityManager.EXTRA_NETWORK, mWifiManager.getCurrentNetwork());
-            return getBroadcastAction(requestCode, intent, icon, title);
-        }
-
-        final Bundle extras = new Bundle();
-        accessPoint.saveWifiState(extras);
-
-        if (accessPoint.isActive()) {
-            Intent intent;
-            if (FeatureFlagUtils.isEnabled(mContext, FeatureFlagUtils.SETTINGS_WIFITRACKER2)) {
-                intent = new SubSettingLauncher(mContext)
-                        .setTitleRes(R.string.pref_title_network_details)
-                        .setDestination(WifiNetworkDetailsFragment2.class.getName())
-                        .setArguments(extras)
-                        .setSourceMetricsCategory(SettingsEnums.WIFI)
-                        .toIntent();
-                return getActivityAction(requestCode, intent, icon, title);
-            } else {
-                intent = new SubSettingLauncher(mContext)
-                        .setTitleRes(R.string.pref_title_network_details)
-                        .setDestination(WifiNetworkDetailsFragment.class.getName())
-                        .setArguments(extras)
-                        .setSourceMetricsCategory(SettingsEnums.WIFI)
-                        .toIntent();
-                return getActivityAction(requestCode, intent, icon, title);
-            }
-        } else if (WifiUtils.getConnectingType(accessPoint) != WifiUtils.CONNECT_TYPE_OTHERS) {
-            final Intent intent = new Intent(mContext, ConnectToWifiHandler.class)
-                    .putExtra(WifiDialogActivity.KEY_ACCESS_POINT_STATE, extras);
-            return getBroadcastAction(requestCode, intent, icon, title);
-        } else {
-            final Intent intent = new Intent(mContext, WifiDialogActivity.class)
-                    .putExtra(WifiDialogActivity.KEY_ACCESS_POINT_STATE, extras);
+        if (wifiSliceItem.getConnectedState() != WifiEntry.CONNECTED_STATE_DISCONNECTED) {
+            final Bundle bundle = new Bundle();
+            bundle.putString(WifiNetworkDetailsFragment.KEY_CHOSEN_WIFIENTRY_KEY,
+                    wifiSliceItem.getKey());
+            final Intent intent = new SubSettingLauncher(mContext)
+                    .setTitleRes(R.string.pref_title_network_details)
+                    .setDestination(WifiNetworkDetailsFragment.class.getName())
+                    .setArguments(bundle)
+                    .setSourceMetricsCategory(SettingsEnums.WIFI)
+                    .toIntent();
             return getActivityAction(requestCode, intent, icon, title);
         }
+
+        if (wifiSliceItem.shouldEditBeforeConnect()) {
+            final Intent intent = new Intent(mContext, WifiDialogActivity.class)
+                    .putExtra(WifiDialogActivity.KEY_CHOSEN_WIFIENTRY_KEY, wifiSliceItem.getKey());
+            return getActivityAction(requestCode, intent, icon, title);
+        }
+
+        final Intent intent = new Intent(mContext, ConnectToWifiHandler.class)
+                .putExtra(ConnectToWifiHandler.KEY_CHOSEN_WIFIENTRY_KEY, wifiSliceItem.getKey())
+                .putExtra(ConnectToWifiHandler.KEY_WIFI_SLICE_URI, getUri());
+        return getBroadcastAction(requestCode, intent, icon, title);
     }
 
     private SliceAction getActivityAction(int requestCode, Intent intent, IconCompat icon,
             CharSequence title) {
         final PendingIntent pi = PendingIntent.getActivity(mContext, requestCode, intent,
-                0 /* flags */);
+                PendingIntent.FLAG_IMMUTABLE /* flags */);
         return SliceAction.createDeeplink(pi, icon, ListBuilder.ICON_IMAGE, title);
     }
 
@@ -290,7 +322,7 @@ public class WifiSlice implements CustomSliceable {
             CharSequence title) {
         intent.addFlags(Intent.FLAG_RECEIVER_FOREGROUND);
         final PendingIntent pi = PendingIntent.getBroadcast(mContext, requestCode, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         return SliceAction.create(pi, icon, ListBuilder.ICON_IMAGE, title);
     }
 
@@ -305,12 +337,6 @@ public class WifiSlice implements CustomSliceable {
                 .setTitleItem(emptyIcon, ListBuilder.ICON_IMAGE)
                 .setTitle(placeholder)
                 .setSubtitle(title);
-    }
-
-    private boolean isCaptivePortal() {
-        final NetworkCapabilities nc = mConnectivityManager.getNetworkCapabilities(
-                mWifiManager.getCurrentNetwork());
-        return WifiUtils.canSignIntoNetwork(nc);
     }
 
     /**
@@ -331,23 +357,20 @@ public class WifiSlice implements CustomSliceable {
     public Intent getIntent() {
         final String screenTitle = mContext.getText(R.string.wifi_settings).toString();
         final Uri contentUri = new Uri.Builder().appendPath(KEY_WIFI).build();
+        final String className = NetworkProviderSettings.class.getName();
+        final String key = WifiSwitchPreferenceController.KEY;
 
-        Intent intent;
-        if (FeatureFlagUtils.isEnabled(mContext, FeatureFlagUtils.SETTINGS_WIFITRACKER2)) {
-            intent = SliceBuilderUtils.buildSearchResultPageIntent(mContext,
-                WifiSettings2.class.getName(), KEY_WIFI, screenTitle,
-                SettingsEnums.DIALOG_WIFI_AP_EDIT)
+        final Intent intent = SliceBuilderUtils.buildSearchResultPageIntent(mContext, className,
+                        key, screenTitle, SettingsEnums.DIALOG_WIFI_AP_EDIT, this)
                 .setClassName(mContext.getPackageName(), SubSettings.class.getName())
                 .setData(contentUri);
-        } else {
-            intent = SliceBuilderUtils.buildSearchResultPageIntent(mContext,
-                WifiSettings.class.getName(), KEY_WIFI, screenTitle,
-                SettingsEnums.DIALOG_WIFI_AP_EDIT)
-                .setClassName(mContext.getPackageName(), SubSettings.class.getName())
-                .setData(contentUri);
-        }
 
         return intent;
+    }
+
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_network;
     }
 
     private boolean isWifiEnabled() {
@@ -363,7 +386,7 @@ public class WifiSlice implements CustomSliceable {
     private PendingIntent getPrimaryAction() {
         final Intent intent = getIntent();
         return PendingIntent.getActivity(mContext, 0 /* requestCode */,
-                intent, 0 /* flags */);
+                intent, PendingIntent.FLAG_IMMUTABLE /* flags */);
     }
 
     private Set<String> getKeywords() {
@@ -377,5 +400,13 @@ public class WifiSlice implements CustomSliceable {
     @Override
     public Class getBackgroundWorkerClass() {
         return WifiScanWorker.class;
+    }
+
+    @VisibleForTesting
+    static class WifiRestriction {
+        public boolean isChangeWifiStateAllowed(@Nullable Context context) {
+            if (context == null) return true;
+            return WifiEnterpriseRestrictionUtils.isChangeWifiStateAllowed(context);
+        }
     }
 }

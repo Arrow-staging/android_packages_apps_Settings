@@ -27,9 +27,9 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiConfiguration.KeyMgmt;
 import android.net.wifi.WifiManager;
 
-import com.android.settingslib.wifi.AccessPoint;
+import androidx.test.core.app.ApplicationProvider;
 
-import java.util.BitSet;
+import com.android.wifitrackerlib.WifiEntry;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +40,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowApplication;
 
+import java.util.BitSet;
+
 @RunWith(RobolectricTestRunner.class)
 public class WifiDppUtilsTest {
 
@@ -47,7 +49,7 @@ public class WifiDppUtilsTest {
     private WifiManager mWifiManager;
 
     @Mock
-    private AccessPoint mAccessPoint;
+    private WifiEntry mWifiEntry;
 
     @Mock
     private WifiConfiguration mWifiConfiguration;
@@ -66,18 +68,26 @@ public class WifiDppUtilsTest {
     @Test
     public void getConfiguratorQrCodeScannerIntentOrNull_hiddenSsidNetwork_hasHiddenSsidExtra() {
         when(mWifiManager.isEasyConnectSupported()).thenReturn(true);
-        when(mAccessPoint.isPasspoint()).thenReturn(false);
-        when(mAccessPoint.getSecurity()).thenReturn(AccessPoint.SECURITY_PSK);
-        when(mAccessPoint.getConfig()).thenReturn(mWifiConfiguration);
+        when(mWifiEntry.canEasyConnect()).thenReturn(true);
+        when(mWifiEntry.getSecurity()).thenReturn(WifiEntry.SECURITY_PSK);
+        when(mWifiEntry.getWifiConfiguration()).thenReturn(mWifiConfiguration);
         mWifiConfiguration.SSID = "GuestNetwork";
         mWifiConfiguration.allowedKeyManagement = new BitSet();
         mWifiConfiguration.allowedKeyManagement.set(KeyMgmt.WPA_PSK);
         mWifiConfiguration.hiddenSSID = true;
 
         Intent intent = WifiDppUtils
-                .getConfiguratorQrCodeScannerIntentOrNull(mContext, mWifiManager, mAccessPoint);
+                .getConfiguratorQrCodeScannerIntentOrNull(mContext, mWifiManager, mWifiEntry);
 
         assertThat(intent.getBooleanExtra(WifiDppUtils.EXTRA_WIFI_HIDDEN_SSID, false))
                 .isEqualTo(true);
     }
+
+    @Test
+    public void getEnrolleeQrCodeScannerIntent_isExplicitIntent() {
+        Intent intent = WifiDppUtils.getEnrolleeQrCodeScannerIntent(
+                ApplicationProvider.getApplicationContext(), null);
+        assertThat(intent.getComponent()).isNotNull();
+    }
+
 }

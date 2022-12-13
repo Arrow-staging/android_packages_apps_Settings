@@ -50,16 +50,14 @@ public class ZenAccessDetails extends AppInfoWithHeader implements
     @Override
     protected boolean refreshUi() {
         final Context context = getContext();
-        if (!ZenAccessController.isSupported(context.getSystemService(ActivityManager.class))) {
-            return false;
-        }
         // If this app didn't declare this permission in their manifest, don't bother showing UI.
         final Set<String> needAccessApps =
                 ZenAccessController.getPackagesRequestingNotificationPolicyAccess();
-        if (!needAccessApps.contains(mPackageName)) {
-            return false;
+        if (needAccessApps.contains(mPackageName)) {
+            updatePreference(context, findPreference(SWITCH_PREF_KEY));
+        } else {
+            finish();
         }
-        updatePreference(context, findPreference(SWITCH_PREF_KEY));
         return true;
     }
 
@@ -82,11 +80,11 @@ public class ZenAccessDetails extends AppInfoWithHeader implements
             final boolean access = (Boolean) newValue;
             if (access) {
                 new ScaryWarningDialogFragment()
-                        .setPkgInfo(mPackageName, label)
+                        .setPkgInfo(mPackageName, label, ZenAccessDetails.this)
                         .show(getFragmentManager(), "dialog");
             } else {
                 new FriendlyWarningDialogFragment()
-                        .setPkgInfo(mPackageName, label)
+                        .setPkgInfo(mPackageName, label, ZenAccessDetails.this)
                         .show(getFragmentManager(), "dialog");
             }
             return false;

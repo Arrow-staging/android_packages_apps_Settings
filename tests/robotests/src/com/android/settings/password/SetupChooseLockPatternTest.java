@@ -17,6 +17,7 @@
 package com.android.settings.password;
 
 import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.robolectric.RuntimeEnvironment.application;
 
@@ -26,6 +27,7 @@ import android.content.pm.PackageManager;
 import android.os.UserHandle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
@@ -112,7 +114,7 @@ public class SetupChooseLockPatternTest {
         AlertDialog chooserDialog = ShadowAlertDialogCompat.getLatestAlertDialog();
         assertThat(chooserDialog).isNotNull();
         int count = chooserDialog.getListView().getCount();
-        assertThat(count).named("List items shown").isEqualTo(3);
+        assertWithMessage("List items shown").that(count).isEqualTo(3);
     }
 
     @Config(qualifiers = "sw400dp")
@@ -189,6 +191,18 @@ public class SetupChooseLockPatternTest {
         assertThat(skipOrClearButton.getVisibility()).isEqualTo(View.VISIBLE);
         assertThat(skipOrClearButton.getText())
                 .isEqualTo(application.getString(R.string.lockpattern_retry_button_text));
+    }
+
+    @Test
+    public void createActivity_patternDescription_shouldBeShown() {
+        PartnerCustomizationLayout layout = mActivity.findViewById(R.id.setup_wizard_layout);
+
+        final TextView patternDescription =
+                layout.findViewById(R.id.sud_layout_subtitle);
+
+        assertThat(patternDescription.getVisibility()).isEqualTo(View.VISIBLE);
+        assertThat(patternDescription.getText()).isEqualTo(
+                application.getString(R.string.lockpassword_choose_your_pattern_description));
     }
 
     private ChooseLockPatternFragment findFragment(FragmentActivity activity) {

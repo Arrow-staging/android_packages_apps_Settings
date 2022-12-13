@@ -16,10 +16,14 @@
 
 package com.android.settings.accounts;
 
+import static android.app.admin.DevicePolicyResources.Strings.Settings.ACCESSIBILITY_PERSONAL_ACCOUNT_TITLE;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.ACCESSIBILITY_WORK_ACCOUNT_TITLE;
+
 import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.app.Activity;
 import android.app.Dialog;
+import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -42,6 +46,7 @@ import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.Preference;
 
@@ -153,10 +158,21 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         UserInfo user = um.getUserInfo(mUserHandle.getIdentifier());
         boolean isWorkProfile = user != null ? user.isManagedProfile() : false;
         CharSequence currentTitle = getActivity().getTitle();
+
+        DevicePolicyManager devicePolicyManager = getSystemService(DevicePolicyManager.class);
+
         String accessibilityTitle =
-                getString(isWorkProfile
-                        ? R.string.accessibility_work_account_title
-                        : R.string.accessibility_personal_account_title, currentTitle);
+                isWorkProfile
+                        ? devicePolicyManager.getResources().getString(
+                                ACCESSIBILITY_WORK_ACCOUNT_TITLE,
+                                () -> getString(R.string.accessibility_work_account_title,
+                                        currentTitle), currentTitle)
+                                : devicePolicyManager.getResources().getString(
+                                        ACCESSIBILITY_PERSONAL_ACCOUNT_TITLE,
+                                        () -> getString(
+                                                R.string.accessibility_personal_account_title,
+                                                currentTitle), currentTitle);
+
         getActivity().setTitle(Utils.createAccessibleSequence(currentTitle, accessibilityTitle));
     }
 
@@ -221,9 +237,8 @@ public class AccountSyncSettings extends AccountPreferenceBase {
         // Note that this also counts accounts that are not currently displayed
         boolean syncActive = !ContentResolver.getCurrentSyncsAsUser(
                 mUserHandle.getIdentifier()).isEmpty();
-        menu.findItem(MENU_SYNC_NOW_ID).setVisible(!syncActive);
+        menu.findItem(MENU_SYNC_NOW_ID).setVisible(!syncActive).setEnabled(enabledSyncNowMenu());
         menu.findItem(MENU_SYNC_CANCEL_ID).setVisible(syncActive);
-
     }
 
     @Override
@@ -294,7 +309,7 @@ public class AccountSyncSettings extends AccountPreferenceBase {
                     }
                     // if we're enabling sync, this will request a sync as well
                     ContentResolver.setSyncAutomaticallyAsUser(account, authority, syncOn, userId);
-                    // if the master sync switch is off, the request above will
+                    // if the primary sync switch is off, the request above will
                     // get dropped.  when the user clicks on this toggle,
                     // we want to force the sync, however.
                     if (!ContentResolver.getMasterSyncAutomaticallyAsUser(userId) || !syncOn) {
@@ -560,6 +575,23 @@ public class AccountSyncSettings extends AccountPreferenceBase {
     @Override
     public int getHelpResource() {
         return R.string.help_url_accounts;
+    }
+
+    @VisibleForTesting
+    boolean enabledSyncNowMenu() {
+        boolean enabled = false;
+        for (int i = 0, count = getPreferenceScreen().getPreferenceCount(); i < count; i++) {
+            final Preference pref = getPreferenceScreen().getPreference(i);
+            if (!(pref instanceof SyncStateSwitchPreference)) {
+                continue;
+            }
+            final SyncStateSwitchPreference syncPref = (SyncStateSwitchPreference) pref;
+            if (syncPref.isChecked()) {
+                enabled = true;
+                break;
+            }
+        }
+        return enabled;
     }
 
     private static String formatSyncDate(Context context, Date date) {

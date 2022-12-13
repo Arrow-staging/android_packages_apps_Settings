@@ -18,9 +18,14 @@ package com.android.settings.testutils.shadow;
 
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.UserHandle;
 import android.os.UserManager;
+import android.util.ArraySet;
 
 import com.android.settings.Utils;
 
@@ -40,6 +45,9 @@ public class ShadowUtils {
     private static Map<String, String> sAppNameMap;
     private static boolean sIsSystemAlertWindowEnabled;
     private static boolean sIsVoiceCapable;
+    private static ArraySet<String> sResultLinks = new ArraySet<>();
+    private static boolean sIsBatteryPresent;
+    private static boolean sIsMultipleBiometricsSupported;
 
     @Implementation
     protected static int enforceSameOwner(Context context, int userId) {
@@ -60,6 +68,9 @@ public class ShadowUtils {
         sIsUserAMonkey = false;
         sIsDemoUser = false;
         sIsVoiceCapable = false;
+        sResultLinks = new ArraySet<>();
+        sIsBatteryPresent = true;
+        sIsMultipleBiometricsSupported = false;
     }
 
     public static void setIsDemoUser(boolean isDemoUser) {
@@ -133,5 +144,37 @@ public class ShadowUtils {
 
     public static void setIsVoiceCapable(boolean isVoiceCapable) {
         sIsVoiceCapable = isVoiceCapable;
+    }
+
+    @Implementation
+    protected static ArraySet<String> getHandledDomains(PackageManager pm, String packageName) {
+        return sResultLinks;
+    }
+
+    @Implementation
+    protected static Drawable getBadgedIcon(Context context, ApplicationInfo appInfo) {
+        return new ColorDrawable(0);
+    }
+
+    public static void setHandledDomains(ArraySet<String> links) {
+        sResultLinks = links;
+    }
+
+    @Implementation
+    protected static boolean isBatteryPresent(Context context) {
+        return sIsBatteryPresent;
+    }
+
+    public static void setIsBatteryPresent(boolean isBatteryPresent) {
+        sIsBatteryPresent = isBatteryPresent;
+    }
+
+    @Implementation
+    protected static boolean isMultipleBiometricsSupported(Context context) {
+        return sIsMultipleBiometricsSupported;
+    }
+
+    public static void setIsMultipleBiometricsSupported(boolean isMultipleBiometricsSupported) {
+        sIsMultipleBiometricsSupported = isMultipleBiometricsSupported;
     }
 }

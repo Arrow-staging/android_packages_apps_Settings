@@ -17,7 +17,6 @@
 <PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:settings="http://schemas.android.com/apk/res-auto"
-    android:key="wifi_configure_settings_screen"
     android:title="@string/wifi_configure_settings_preference_title">
 
     <SwitchPreference
@@ -26,13 +25,6 @@
         android:icon="@drawable/ic_auto_wifi"
         android:summary="@string/wifi_wakeup_summary"
         settings:controller="com.android.settings.wifi.WifiWakeupPreferenceController"/>
-
-    <SwitchPreference
-        android:key="use_open_wifi_automatically"
-        android:icon="@drawable/ic_open_wifi_autoconnect"
-        android:title="@string/use_open_wifi_automatically_title"
-        android:summary="@string/use_open_wifi_automatically_summary"
-        settings:controller="com.android.settings.wifi.UseOpenWifiPreferenceController"/>
 
     <SwitchPreference
         android:key="notify_open_networks"
@@ -50,19 +42,7 @@
 
     <Preference
         android:key="install_credentials"
-        android:title="@string/wifi_install_credentials">
-        <intent android:action="android.credentials.INSTALL_AS_USER"
-                android:targetPackage="com.android.certinstaller"
-                android:targetClass="com.android.certinstaller.CertInstallerMain">
-            <extra android:name="install_as_uid" android:value="1010" />
-        </intent>
-    </Preference>
-
-    <Preference
-        android:key="network_scorer_picker"
-        android:title="@string/network_scorer_picker_title"
-        android:fragment="com.android.settings.network.NetworkScorerPicker"
-        settings:controller="com.android.settings.network.NetworkScorerPickerPreferenceController" />
+        android:title="@string/wifi_install_credentials"/>
 
     <Preference
         android:key="wifi_direct"

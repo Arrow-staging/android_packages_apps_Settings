@@ -15,18 +15,17 @@
 package com.android.settings.display;
 
 import static com.google.common.truth.Truth.assertThat;
+
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
 import android.hardware.display.ColorDisplayManager;
-import android.view.View;
 
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.R;
 import com.android.settings.testutils.shadow.SettingsShadowResources;
-import com.android.settingslib.widget.LayoutPreference;
+import com.android.settingslib.widget.MainSwitchPreference;
 
 import org.junit.After;
 import org.junit.Before;
@@ -44,7 +43,7 @@ public class NightDisplayActivationPreferenceControllerTest {
 
     @Mock
     private PreferenceScreen mScreen;
-    private LayoutPreference mPreference;
+    private MainSwitchPreference mPreference;
     private Context mContext;
     private ColorDisplayManager mColorDisplayManager;
     private NightDisplayActivationPreferenceController mPreferenceController;
@@ -54,10 +53,10 @@ public class NightDisplayActivationPreferenceControllerTest {
         MockitoAnnotations.initMocks(this);
         mContext = RuntimeEnvironment.application;
         mColorDisplayManager = mContext.getSystemService(ColorDisplayManager.class);
-        mPreference = new LayoutPreference(mContext, R.layout.night_display_activation_button);
+        mPreference = new MainSwitchPreference(mContext);
         when(mScreen.findPreference(anyString())).thenReturn(mPreference);
         mPreferenceController = new NightDisplayActivationPreferenceController(mContext,
-            "night_display_activation");
+                "night_display_activation");
         mPreferenceController.displayPreference(mScreen);
     }
 
@@ -83,7 +82,7 @@ public class NightDisplayActivationPreferenceControllerTest {
     @Test
     public void isSliceableCorrectKey_returnsTrue() {
         final NightDisplayActivationPreferenceController controller =
-                new NightDisplayActivationPreferenceController(mContext,"night_display_activated");
+                new NightDisplayActivationPreferenceController(mContext, "night_display_activated");
         assertThat(controller.isSliceable()).isTrue();
     }
 
@@ -95,12 +94,17 @@ public class NightDisplayActivationPreferenceControllerTest {
     }
 
     @Test
+    public void isPublicSlice_returnTrue() {
+        assertThat(mPreferenceController.isPublicSlice()).isTrue();
+    }
+
+    @Test
     public void onClick_activates() {
         mColorDisplayManager.setNightDisplayActivated(false);
 
-        final View view = mPreference.findViewById(R.id.night_display_turn_on_button);
-        assertThat(view.getVisibility()).isEqualTo(View.VISIBLE);
-        view.performClick();
+        final NightDisplayActivationPreferenceController controller =
+                new NightDisplayActivationPreferenceController(mContext, "night_display_activated");
+        controller.onSwitchChanged(null, true);
 
         assertThat(mColorDisplayManager.isNightDisplayActivated()).isEqualTo(true);
     }
@@ -109,9 +113,9 @@ public class NightDisplayActivationPreferenceControllerTest {
     public void onClick_deactivates() {
         mColorDisplayManager.setNightDisplayActivated(true);
 
-        final View view = mPreference.findViewById(R.id.night_display_turn_off_button);
-        assertThat(view.getVisibility()).isEqualTo(View.VISIBLE);
-        view.performClick();
+        final NightDisplayActivationPreferenceController controller =
+                new NightDisplayActivationPreferenceController(mContext, "night_display_activated");
+        controller.onSwitchChanged(null, false);
 
         assertThat(mColorDisplayManager.isNightDisplayActivated()).isEqualTo(false);
     }

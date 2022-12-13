@@ -1,6 +1,7 @@
 # Default reviewers for this and subdirectories.
-dehboxturtle@google.com
-jackqdyulei@google.com
+tifn@google.com
+wesleycwwang@google.com
+ykhung@google.com
 
-# Emergency approvers in case the above are not available
-asapperstein@google.com
+# BatteryStats
+per-file FakeUid.java = file:platform/frameworks/base:/BATTERY_STATS_OWNERS

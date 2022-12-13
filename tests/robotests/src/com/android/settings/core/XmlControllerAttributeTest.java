@@ -17,6 +17,7 @@ import com.android.settingslib.search.Indexable;
 import com.android.settingslib.search.SearchIndexableData;
 
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -35,7 +36,7 @@ import java.util.Set;
 public class XmlControllerAttributeTest {
 
     // List of XML that could be retrieved from the illegalClasses list.
-    private final List<Integer> whitelistXml = Arrays.asList(R.xml.security_dashboard_settings);
+    private final List<Integer> mAllowlistXml = Arrays.asList(R.xml.security_dashboard_settings);
 
     private static final String NO_VALID_CONSTRUCTOR_ERROR =
             "Controllers added in XML need a constructor following either:"
@@ -60,9 +61,10 @@ public class XmlControllerAttributeTest {
     }
 
     @Test
+    @Ignore
     public void testAllIndexableXML_onlyValidBasePreferenceControllersAdded() throws Exception {
         Set<Integer> xmlSet = getIndexableXml();
-        xmlSet.addAll(whitelistXml);
+        xmlSet.addAll(mAllowlistXml);
 
         List<String> xmlControllers = new ArrayList<>();
         Set<String> invalidConstructors = new HashSet<>();

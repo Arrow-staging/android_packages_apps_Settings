@@ -19,6 +19,8 @@ package com.android.settings.applications.appinfo;
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -26,16 +28,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.content.pm.verify.domain.DomainVerificationManager;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.applications.AppLaunchSettings;
+import com.android.settings.applications.intentpicker.AppLaunchSettings;
 import com.android.settingslib.applications.AppUtils;
 import com.android.settingslib.applications.ApplicationsState.AppEntry;
 import com.android.settingslib.applications.instantapps.InstantAppDataProvider;
+
+import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -46,6 +55,8 @@ import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.util.ReflectionHelpers;
 
+import java.util.List;
+
 @RunWith(RobolectricTestRunner.class)
 public class AppOpenByDefaultPreferenceControllerTest {
 
@@ -55,6 +66,10 @@ public class AppOpenByDefaultPreferenceControllerTest {
     private PreferenceScreen mScreen;
     @Mock
     private Preference mPreference;
+    @Mock
+    private PackageManager mPackageManager;
+    @Mock
+    private DomainVerificationManager mDomainVerificationManager;
 
     private Context mContext;
     private AppOpenByDefaultPreferenceController mController;
@@ -62,10 +77,13 @@ public class AppOpenByDefaultPreferenceControllerTest {
     @Before
     public void setUp() {
         MockitoAnnotations.initMocks(this);
-        mContext = RuntimeEnvironment.application.getApplicationContext();
+        mContext = spy(RuntimeEnvironment.application.getApplicationContext());
         mController = spy(new AppOpenByDefaultPreferenceController(mContext, "preferred_app"));
         mController.setParentFragment(mFragment);
         when(mScreen.findPreference(mController.getPreferenceKey())).thenReturn(mPreference);
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mContext.getSystemService(DomainVerificationManager.class)).thenReturn(
+                mDomainVerificationManager);
     }
 
     @Test
@@ -146,17 +164,63 @@ public class AppOpenByDefaultPreferenceControllerTest {
     }
 
     @Test
-    public void updateState_notInstantApp_shouldShowPreferenceAndSetSummary() {
-        when(mFragment.getPackageInfo()).thenReturn(new PackageInfo());
+    public void updateState_isBrowserApp_shouldNotShowPreference() {
+        final PackageInfo packageInfo = new PackageInfo();
+        packageInfo.packageName = "com.package.test.browser";
+        when(mFragment.getPackageInfo()).thenReturn(packageInfo);
+        ReflectionHelpers.setStaticField(AppUtils.class, "sInstantAppDataProvider",
+                (InstantAppDataProvider) (i -> false));
+        final ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.handleAllWebDataURI = true;
+        final List<ResolveInfo> resolveInfos = ImmutableList.of(resolveInfo);
+        when(mPackageManager
+                .queryIntentActivitiesAsUser(any(Intent.class), anyInt(), anyInt()))
+                .thenReturn(resolveInfos);
+
+        mController.updateState(mPreference);
+
+        verify(mPreference).setVisible(false);
+    }
+
+    @Test
+    public void updateState_notBrowserApp_notInstantApp_shouldShowPreferenceAndSetSummary() {
+        final PackageInfo packageInfo = new PackageInfo();
+        packageInfo.packageName = "com.package.test.browser";
+        when(mFragment.getPackageInfo()).thenReturn(packageInfo);
+        ReflectionHelpers.setStaticField(AppUtils.class, "sInstantAppDataProvider",
+                (InstantAppDataProvider) (i -> false));
+        final ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.handleAllWebDataURI = false;
+        final List<ResolveInfo> resolveInfos = ImmutableList.of(resolveInfo);
+        when(mPackageManager
+                .queryIntentActivitiesAsUser(any(Intent.class), anyInt(), anyInt()))
+                .thenReturn(resolveInfos);
         final AppEntry appEntry = mock(AppEntry.class);
         appEntry.info = new ApplicationInfo();
         when(mFragment.getAppEntry()).thenReturn(appEntry);
-        ReflectionHelpers.setStaticField(AppUtils.class, "sInstantAppDataProvider",
-                (InstantAppDataProvider) (i -> false));
+        doReturn(true).when(mController).isLinkHandlingAllowed();
 
         mController.updateState(mPreference);
 
         verify(mPreference).setVisible(true);
         verify(mPreference).setSummary(any());
+    }
+
+    @Test
+    public void getSubtext_allowedLinkHandling_returnAllowedString() {
+        final String allowdedString = "Allow app to open supported links";
+        doReturn(true).when(mController).isLinkHandlingAllowed();
+
+        assertThat(mController.getSubtext()).isEqualTo(allowdedString);
+    }
+
+    @Test
+    public void getSubtext_notAllowedLinkHandling_returnNotAllowedString() {
+        final String notAllowdedString = "Don’t allow app to open links";
+        doReturn(false).when(mController).isLinkHandlingAllowed();
+
+        assertThat(mController.getSubtext()).isEqualTo(notAllowdedString);
     }
 }

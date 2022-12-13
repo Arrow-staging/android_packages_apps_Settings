@@ -45,6 +45,7 @@ public class VideoPreference extends Preference {
     AnimationController mAnimationController;
     @VisibleForTesting
     boolean mAnimationAvailable;
+
     private float mAspectRatio = 1.0f;
     private int mPreviewId;
     private int mAnimationId;

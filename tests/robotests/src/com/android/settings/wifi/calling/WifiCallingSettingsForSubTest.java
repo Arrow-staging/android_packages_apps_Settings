@@ -16,18 +16,17 @@
 
 package com.android.settings.wifi.calling;
 
+import static junit.framework.Assert.assertEquals;
+
 import static com.android.settings.SettingsActivity.EXTRA_SHOW_FRAGMENT;
 
 import static com.google.common.truth.Truth.assertThat;
-
-import static junit.framework.Assert.assertEquals;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -44,20 +43,19 @@ import android.os.PersistableBundle;
 import android.telephony.CarrierConfigManager;
 import android.telephony.TelephonyManager;
 import android.telephony.ims.ImsMmTelManager;
-import android.telephony.ims.ProvisioningManager;
 import android.view.View;
 import android.widget.TextView;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
-import com.android.ims.ImsConfig;
-import com.android.ims.ImsManager;
 import com.android.settings.R;
 import com.android.settings.SettingsActivity;
+import com.android.settings.network.ims.MockWifiCallingQueryImsState;
+import com.android.settings.network.ims.WifiCallingQueryImsState;
 import com.android.settings.testutils.shadow.ShadowFragment;
-import com.android.settings.widget.SwitchBar;
-import com.android.settings.widget.ToggleSwitch;
+import com.android.settings.widget.SettingsMainSwitchBar;
+import com.android.settings.widget.SettingsMainSwitchPreference;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -73,30 +71,46 @@ import org.robolectric.util.ReflectionHelpers;
 @Config(shadows = ShadowFragment.class)
 @RunWith(RobolectricTestRunner.class)
 public class WifiCallingSettingsForSubTest {
+    private static final int SUB_ID = 2;
+
+    private static final String SWITCH_BAR = "wifi_calling_switch_bar";
     private static final String BUTTON_WFC_MODE = "wifi_calling_mode";
     private static final String BUTTON_WFC_ROAMING_MODE = "wifi_calling_roaming_mode";
+    private static final String PREFERENCE_NO_OPTIONS_DESC = "no_options_description";
     private static final String TEST_EMERGENCY_ADDRESS_CARRIER_APP =
             "com.android.settings/.wifi.calling.TestEmergencyAddressCarrierApp";
 
     private TestFragment mFragment;
     private Context mContext;
-    private TextView mEmptyView;
     private final PersistableBundle mBundle = new PersistableBundle();
 
-    @Mock private static CarrierConfigManager sCarrierConfigManager;
-    @Mock private CarrierConfigManager mMockConfigManager;
-    @Mock private ImsManager mImsManager;
-    @Mock private ImsMmTelManager mImsMmTelManager;
-    @Mock private TelephonyManager mTelephonyManager;
-    @Mock private PreferenceScreen mPreferenceScreen;
-    @Mock private SettingsActivity mActivity;
-    @Mock private SwitchBar mSwitchBar;
-    @Mock private ToggleSwitch mToggleSwitch;
-    @Mock private View mView;
-    @Mock private ImsConfig mImsConfig;
-    @Mock private ListWithEntrySummaryPreference mButtonWfcMode;
-    @Mock private ListWithEntrySummaryPreference mButtonWfcRoamingMode;
-    @Mock private Preference mUpdateAddress;
+    private MockWifiCallingQueryImsState mQueryImsState;
+    private SettingsMainSwitchBar mSwitchBar;
+
+    @Mock
+    private static CarrierConfigManager sCarrierConfigManager;
+    @Mock
+    private CarrierConfigManager mMockConfigManager;
+    @Mock
+    private ImsMmTelManager mImsMmTelManager;
+    @Mock
+    private TelephonyManager mTelephonyManager;
+    @Mock
+    private PreferenceScreen mPreferenceScreen;
+    @Mock
+    private SettingsActivity mActivity;
+    @Mock
+    private View mView;
+    @Mock
+    private SettingsMainSwitchPreference mSwitchBarPreference;
+    @Mock
+    private LinkifyDescriptionPreference mDescriptionView;
+    @Mock
+    private ListWithEntrySummaryPreference mButtonWfcMode;
+    @Mock
+    private ListWithEntrySummaryPreference mButtonWfcRoamingMode;
+    @Mock
+    private Preference mUpdateAddress;
 
     @Before
     public void setUp() throws Exception {
@@ -106,6 +120,7 @@ public class WifiCallingSettingsForSubTest {
         doReturn(mContext.getTheme()).when(mActivity).getTheme();
 
         mFragment = spy(new TestFragment());
+        mFragment.setSwitchBar(mSwitchBarPreference);
         doReturn(mActivity).when(mFragment).getActivity();
         doReturn(mContext).when(mFragment).getContext();
         doReturn(mock(Intent.class)).when(mActivity).getIntent();
@@ -115,24 +130,19 @@ public class WifiCallingSettingsForSubTest {
         final Bundle bundle = new Bundle();
         when(mFragment.getArguments()).thenReturn(bundle);
         doNothing().when(mFragment).addPreferencesFromResource(anyInt());
-        doReturn(mock(ListWithEntrySummaryPreference.class)).when(mFragment).findPreference(any());
-        doReturn(mButtonWfcMode).when(mFragment).findPreference(BUTTON_WFC_MODE);
-        doReturn(mButtonWfcRoamingMode).when(mFragment).findPreference(BUTTON_WFC_ROAMING_MODE);
         doNothing().when(mFragment).finish();
         doReturn(mView).when(mFragment).getView();
 
-        mEmptyView = new TextView(mContext);
-        doReturn(mEmptyView).when(mView).findViewById(android.R.id.empty);
-
-        ReflectionHelpers.setField(mSwitchBar, "mSwitch", mToggleSwitch);
+        mSwitchBar = new SettingsMainSwitchBar(mContext);
         doReturn(mSwitchBar).when(mView).findViewById(R.id.switch_bar);
 
-        doReturn(mImsManager).when(mFragment).getImsManager();
+        mQueryImsState = new MockWifiCallingQueryImsState(mContext, SUB_ID);
+
         doReturn(mImsMmTelManager).when(mFragment).getImsMmTelManager();
-        doReturn(mImsConfig).when(mImsManager).getConfigInterface();
-        doReturn(true).when(mFragment).isWfcProvisionedOnDevice();
-        doReturn(true).when(mImsManager).isWfcEnabledByUser();
-        doReturn(true).when(mImsManager).isNonTtyOrTtyOnVolteEnabled();
+        mQueryImsState.setIsProvisionedOnDevice(true);
+        mQueryImsState.setIsEnabledByPlatform(true);
+        mQueryImsState.setIsEnabledByUser(true);
+        mQueryImsState.setIsTtyOnVolteEnabled(true);
         doReturn(ImsMmTelManager.WIFI_MODE_WIFI_PREFERRED)
                 .when(mImsMmTelManager).getVoWiFiModeSetting();
         doReturn(ImsMmTelManager.WIFI_MODE_WIFI_PREFERRED)
@@ -178,7 +188,7 @@ public class WifiCallingSettingsForSubTest {
     @Test
     public void onResume_provisioningDisallowed_shouldFinish() {
         // Call onResume while provisioning is disallowed.
-        doReturn(false).when(mFragment).isWfcProvisionedOnDevice();
+        mQueryImsState.setIsProvisionedOnDevice(false);
         mFragment.onResume();
 
         // Verify that finish() is called
@@ -189,11 +199,11 @@ public class WifiCallingSettingsForSubTest {
     public void onResumeOnPause_provisioningCallbackRegistration() throws Exception {
         // Verify that provisioning callback is registered after call to onResume().
         mFragment.onResume();
-        verify(mImsConfig).addConfigCallback(any(ProvisioningManager.Callback.class));
+        verify(mFragment).registerProvisioningChangedCallback();
 
         // Verify that provisioning callback is unregistered after call to onPause.
         mFragment.onPause();
-        verify(mImsConfig).removeConfigCallback(any());
+        verify(mFragment).unregisterProvisioningChangedCallback();
     }
 
     @Test
@@ -202,8 +212,7 @@ public class WifiCallingSettingsForSubTest {
         mFragment.onResume();
 
         // Check that WFC roaming preference is shown.
-        verify(mPreferenceScreen, times(1)).addPreference(mButtonWfcRoamingMode);
-        verify(mPreferenceScreen, never()).removePreference(mButtonWfcRoamingMode);
+        verify(mButtonWfcRoamingMode, times(1)).setVisible(true);
     }
 
     @Test
@@ -216,8 +225,7 @@ public class WifiCallingSettingsForSubTest {
         mFragment.onResume();
 
         // Check that WFC roaming preference is hidden.
-        verify(mPreferenceScreen, never()).addPreference(mButtonWfcRoamingMode);
-        verify(mPreferenceScreen, times(1)).removePreference(mButtonWfcRoamingMode);
+        verify(mButtonWfcRoamingMode, times(1)).setVisible(false);
     }
 
     @Test
@@ -230,8 +238,7 @@ public class WifiCallingSettingsForSubTest {
         mFragment.onResume();
 
         // Check that WFC roaming preference is hidden.
-        verify(mPreferenceScreen, never()).addPreference(mButtonWfcRoamingMode);
-        verify(mPreferenceScreen, times(1)).removePreference(mButtonWfcRoamingMode);
+        verify(mButtonWfcRoamingMode, times(1)).setVisible(false);
     }
 
     @Test
@@ -244,8 +251,7 @@ public class WifiCallingSettingsForSubTest {
         mFragment.onResume();
 
         // Check that WFC roaming preference is hidden.
-        verify(mPreferenceScreen, never()).addPreference(mButtonWfcRoamingMode);
-        verify(mPreferenceScreen, times(1)).removePreference(mButtonWfcRoamingMode);
+        verify(mButtonWfcRoamingMode, times(1)).setVisible(false);
     }
 
     @Test
@@ -323,11 +329,11 @@ public class WifiCallingSettingsForSubTest {
                 Activity.RESULT_OK, null);
 
         // Check the WFC preferences is added.
-        verify(mPreferenceScreen).addPreference(mButtonWfcMode);
-        verify(mPreferenceScreen).addPreference(mButtonWfcRoamingMode);
-        verify(mPreferenceScreen).addPreference(mUpdateAddress);
+        verify(mButtonWfcMode).setVisible(true);
+        verify(mButtonWfcRoamingMode).setVisible(true);
+        verify(mUpdateAddress).setVisible(true);
         // Check the WFC enable request.
-        verify(mImsManager).setWfcSetting(true);
+        verify(mImsMmTelManager).setVoWiFiSettingEnabled(true);
     }
 
     @Test
@@ -339,6 +345,29 @@ public class WifiCallingSettingsForSubTest {
     }
 
     protected class TestFragment extends WifiCallingSettingsForSub {
+        private SettingsMainSwitchPreference mSwitchPref;
+
+        protected void setSwitchBar(SettingsMainSwitchPreference switchPref) {
+            mSwitchPref = switchPref;
+        }
+
+        @Override
+        public <T extends Preference> T findPreference(CharSequence key) {
+            if (SWITCH_BAR.equals(key)) {
+                return (T) mSwitchPref;
+            }
+            if (BUTTON_WFC_MODE.equals(key)) {
+                return (T) mButtonWfcMode;
+            }
+            if (BUTTON_WFC_ROAMING_MODE.equals(key)) {
+                return (T) mButtonWfcRoamingMode;
+            }
+            if (PREFERENCE_NO_OPTIONS_DESC.equals(key)) {
+                return (T) mDescriptionView;
+            }
+            return (T) mock(ListWithEntrySummaryPreference.class);
+        }
+
         @Override
         protected Object getSystemService(final String name) {
             switch (name) {
@@ -349,6 +378,20 @@ public class WifiCallingSettingsForSubTest {
                 default:
                     return null;
             }
+        }
+
+        @Override
+        TelephonyManager getTelephonyManagerForSub(int subId) {
+            return mTelephonyManager;
+        }
+
+        @Override
+        WifiCallingQueryImsState queryImsState(int subId) {
+            return mQueryImsState;
+        }
+
+        @Override
+        void showAlert(Intent intent) {
         }
     }
 }

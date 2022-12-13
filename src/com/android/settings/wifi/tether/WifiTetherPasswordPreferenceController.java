@@ -16,45 +16,69 @@
 
 package com.android.settings.wifi.tether;
 
-import android.content.Context;
-import android.net.wifi.WifiConfiguration;
-import android.text.TextUtils;
+import static com.android.settings.AllInOneTetherSettings.DEDUP_POSTFIX;
 
+import android.app.settings.SettingsEnums;
+import android.content.Context;
+import android.net.wifi.SoftApConfiguration;
+import android.text.TextUtils;
+import android.util.FeatureFlagUtils;
+
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 
 import com.android.settings.R;
+import com.android.settings.core.FeatureFlags;
+import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.widget.ValidatedEditTextPreference;
 import com.android.settings.wifi.WifiUtils;
+import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
 import java.util.UUID;
 
+/**
+ * Controller for logic pertaining to the password of Wi-Fi tethering.
+ */
 public class WifiTetherPasswordPreferenceController extends WifiTetherBasePreferenceController
         implements ValidatedEditTextPreference.Validator {
 
     private static final String PREF_KEY = "wifi_tether_network_password";
 
     private String mPassword;
+    private int mSecurityType;
+
+    private final MetricsFeatureProvider mMetricsFeatureProvider;
+
+    @VisibleForTesting
+    WifiTetherPasswordPreferenceController(Context context, OnTetherConfigUpdateListener listener,
+            MetricsFeatureProvider provider) {
+        super(context, listener);
+        mMetricsFeatureProvider = provider;
+    }
 
     public WifiTetherPasswordPreferenceController(Context context,
             OnTetherConfigUpdateListener listener) {
         super(context, listener);
+        mMetricsFeatureProvider = FeatureFactory.getFactory(context).getMetricsFeatureProvider();
     }
 
     @Override
     public String getPreferenceKey() {
-        return PREF_KEY;
+        return FeatureFlagUtils.isEnabled(mContext, FeatureFlags.TETHER_ALL_IN_ONE)
+                ? PREF_KEY + DEDUP_POSTFIX : PREF_KEY;
     }
 
     @Override
     public void updateDisplay() {
-        final WifiConfiguration config = mWifiManager.getWifiApConfiguration();
-        if (config == null || (config.getAuthType() == WifiConfiguration.KeyMgmt.WPA2_PSK
-                && TextUtils.isEmpty(config.preSharedKey))) {
+        final SoftApConfiguration config = mWifiManager.getSoftApConfiguration();
+        if (config.getSecurityType() != SoftApConfiguration.SECURITY_TYPE_OPEN
+                && TextUtils.isEmpty(config.getPassphrase())) {
             mPassword = generateRandomPassword();
         } else {
-            mPassword = config.preSharedKey;
+            mPassword = config.getPassphrase();
         }
+        mSecurityType = config.getSecurityType();
         ((ValidatedEditTextPreference) mPreference).setValidator(this);
         ((ValidatedEditTextPreference) mPreference).setIsPassword(true);
         ((ValidatedEditTextPreference) mPreference).setIsSummaryPassword(true);
@@ -63,6 +87,10 @@ public class WifiTetherPasswordPreferenceController extends WifiTetherBasePrefer
 
     @Override
     public boolean onPreferenceChange(Preference preference, Object newValue) {
+        if (!TextUtils.equals(mPassword, (String) newValue)) {
+            mMetricsFeatureProvider.action(mContext,
+                    SettingsEnums.ACTION_SETTINGS_CHANGE_WIFI_HOTSPOT_PASSWORD);
+        }
         mPassword = (String) newValue;
         updatePasswordDisplay((EditTextPreference) mPreference);
         mListener.onTetherConfigUpdated(this);
@@ -79,22 +107,29 @@ public class WifiTetherPasswordPreferenceController extends WifiTetherBasePrefer
      */
     public String getPasswordValidated(int securityType) {
         // don't actually overwrite unless we get a new config in case it was accidentally toggled.
-        if (securityType == WifiConfiguration.KeyMgmt.NONE) {
+        if (securityType == SoftApConfiguration.SECURITY_TYPE_OPEN) {
             return "";
-        } else if (!isTextValid(mPassword)) {
+        } else if (!WifiUtils.isHotspotPasswordValid(mPassword, securityType)) {
             mPassword = generateRandomPassword();
             updatePasswordDisplay((EditTextPreference) mPreference);
         }
         return mPassword;
     }
 
-    public void updateVisibility(int securityType) {
-        mPreference.setVisible(securityType != WifiConfiguration.KeyMgmt.NONE);
+    /**
+     * This method set the security type of user selection. Then the controller will based on the
+     * security type changed to update the password changed on the preference.
+     *
+     * @param securityType The security type of SoftApConfiguration.
+     */
+    public void setSecurityType(int securityType) {
+        mSecurityType = securityType;
+        mPreference.setVisible(securityType != SoftApConfiguration.SECURITY_TYPE_OPEN);
     }
 
     @Override
     public boolean isTextValid(String value) {
-        return WifiUtils.isHotspotPasswordValid(value);
+        return WifiUtils.isHotspotPasswordValid(value, mSecurityType);
     }
 
     private static String generateRandomPassword() {

@@ -17,44 +17,39 @@ import android.content.Context;
 
 import androidx.preference.Preference;
 
-import com.android.settings.R;
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.settings.core.BasePreferenceController;
 import com.android.settings.core.PreferenceControllerMixin;
-import com.android.settings.overlay.FeatureFactory;
-import com.android.settingslib.core.AbstractPreferenceController;
 
-public class EnterprisePrivacyPreferenceController extends AbstractPreferenceController implements
+import java.util.Objects;
+
+public class EnterprisePrivacyPreferenceController extends BasePreferenceController implements
         PreferenceControllerMixin {
 
-    private static final String KEY_ENTERPRISE_PRIVACY = "enterprise_privacy";
-    private final EnterprisePrivacyFeatureProvider mFeatureProvider;
+    private final PrivacyPreferenceControllerHelper mPrivacyPreferenceControllerHelper;
 
-    public EnterprisePrivacyPreferenceController(Context context) {
-        super(context);
-        mFeatureProvider = FeatureFactory.getFactory(context)
-                .getEnterprisePrivacyFeatureProvider(context);
+    public EnterprisePrivacyPreferenceController(Context context, String key) {
+        this(Objects.requireNonNull(context), new PrivacyPreferenceControllerHelper(context), key);
+    }
+
+    @VisibleForTesting
+    EnterprisePrivacyPreferenceController(Context context,
+            PrivacyPreferenceControllerHelper privacyPreferenceControllerHelper, String key) {
+        super(Objects.requireNonNull(context), key);
+        mPrivacyPreferenceControllerHelper = Objects.requireNonNull(
+                privacyPreferenceControllerHelper);
     }
 
     @Override
     public void updateState(Preference preference) {
-        if (preference == null) {
-            return;
-        }
-        final String organizationName = mFeatureProvider.getDeviceOwnerOrganizationName();
-        if (organizationName == null) {
-            preference.setSummary(R.string.enterprise_privacy_settings_summary_generic);
-        } else {
-            preference.setSummary(mContext.getResources().getString(
-                    R.string.enterprise_privacy_settings_summary_with_name, organizationName));
-        }
+        mPrivacyPreferenceControllerHelper.updateState(preference);
     }
 
     @Override
-    public boolean isAvailable() {
-        return mFeatureProvider.hasDeviceOwner();
-    }
-
-    @Override
-    public String getPreferenceKey() {
-        return KEY_ENTERPRISE_PRIVACY;
+    public int getAvailabilityStatus() {
+        return mPrivacyPreferenceControllerHelper.hasDeviceOwner()
+                && !mPrivacyPreferenceControllerHelper.isFinancedDevice()
+                ? AVAILABLE
+                : UNSUPPORTED_ON_DEVICE;
     }
 }

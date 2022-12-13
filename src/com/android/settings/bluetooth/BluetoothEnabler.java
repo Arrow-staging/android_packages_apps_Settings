@@ -75,6 +75,8 @@ public final class BluetoothEnabler implements SwitchWidgetController.OnSwitchCh
         mMetricsFeatureProvider = metricsFeatureProvider;
         mSwitchController = switchController;
         mSwitchController.setListener(this);
+        mSwitchController.setTitle(context.getString(R.string.bluetooth_main_switch_title));
+
         mValidListener = false;
         mMetricsEvent = metricsEvent;
 
@@ -113,7 +115,8 @@ public final class BluetoothEnabler implements SwitchWidgetController.OnSwitchCh
         }
 
         mSwitchController.startListening();
-        mContext.registerReceiver(mReceiver, mIntentFilter);
+        mContext.registerReceiver(mReceiver, mIntentFilter,
+                Context.RECEIVER_EXPORTED_UNAUDITED);
         mValidListener = true;
     }
 
@@ -191,7 +194,6 @@ public final class BluetoothEnabler implements SwitchWidgetController.OnSwitchCh
             if (isChecked && !status) {
                 mSwitchController.setChecked(false);
                 mSwitchController.setEnabled(true);
-                mSwitchController.updateTitle(false);
                 triggerParentPreferenceCallback(false);
                 return false;
             }

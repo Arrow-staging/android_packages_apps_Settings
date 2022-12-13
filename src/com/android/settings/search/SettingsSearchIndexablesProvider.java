@@ -55,16 +55,22 @@ import android.provider.SearchIndexablesContract;
 import android.provider.SearchIndexablesProvider;
 import android.provider.SettingsSlicesContract;
 import android.text.TextUtils;
+import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 import androidx.slice.SliceViewManager;
 
+import com.android.settings.R;
 import com.android.settings.SettingsActivity;
+import com.android.settings.dashboard.CategoryManager;
 import com.android.settings.dashboard.DashboardFeatureProvider;
+import com.android.settings.dashboard.DashboardFragmentRegistry;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.slices.SettingsSliceProvider;
+import com.android.settingslib.drawer.ActivityTile;
 import com.android.settingslib.drawer.DashboardCategory;
 import com.android.settingslib.drawer.Tile;
 import com.android.settingslib.search.Indexable;
@@ -74,6 +80,7 @@ import com.android.settingslib.search.SearchIndexableRaw;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
 
@@ -90,6 +97,9 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
 
     private static final Collection<String> INVALID_KEYS;
 
+    // Search enabled states for injection (key: category key, value: search enabled)
+    private Map<String, Boolean> mSearchEnabledByCategoryKeyMap;
+
     static {
         INVALID_KEYS = new ArraySet<>();
         INVALID_KEYS.add(null);
@@ -98,6 +108,7 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
 
     @Override
     public boolean onCreate() {
+        mSearchEnabledByCategoryKeyMap = new ArrayMap<>();
         return true;
     }
 
@@ -162,7 +173,18 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
     public Cursor queryDynamicRawData(String[] projection) {
         final Context context = getContext();
         final List<SearchIndexableRaw> rawList = new ArrayList<>();
-        rawList.addAll(getDynamicSearchIndexableRawFromProvider(context));
+        final Collection<SearchIndexableData> bundles = FeatureFactory.getFactory(context)
+                .getSearchFeatureProvider().getSearchIndexableResources().getProviderValues();
+
+        for (SearchIndexableData bundle : bundles) {
+            rawList.addAll(getDynamicSearchIndexableRawData(context, bundle));
+
+            // Refresh the search enabled state for indexing injection raw data
+            final Indexable.SearchIndexProvider provider = bundle.getSearchIndexProvider();
+            if (provider instanceof BaseSearchIndexProvider) {
+                refreshSearchEnabledState(context, (BaseSearchIndexProvider) provider);
+            }
+        }
         rawList.addAll(getInjectionIndexableRawData(context));
 
         final MatrixCursor cursor = new MatrixCursor(INDEXABLES_RAW_COLUMNS);
@@ -207,6 +229,14 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
                         .add(SearchIndexablesContract.SiteMapColumns.CHILD_TITLE, childTitle);
             }
         }
+
+        // Loop through custom site map registry to build additional SiteMapPairs
+        for (String childClass : CustomSiteMapRegistry.CUSTOM_SITE_MAP.keySet()) {
+            final String parentClass = CustomSiteMapRegistry.CUSTOM_SITE_MAP.get(childClass);
+            cursor.newRow()
+                    .add(SearchIndexablesContract.SiteMapColumns.PARENT_CLASS, parentClass)
+                    .add(SearchIndexablesContract.SiteMapColumns.CHILD_CLASS, childClass);
+        }
         // Done.
         return cursor;
     }
@@ -215,11 +245,13 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
     public Cursor querySliceUriPairs() {
         final SliceViewManager manager = SliceViewManager.getInstance(getContext());
         final MatrixCursor cursor = new MatrixCursor(SLICE_URI_PAIRS_COLUMNS);
-        final Uri baseUri =
-                new Uri.Builder()
+        final String queryUri = getContext().getString(R.string.config_non_public_slice_query_uri);
+        final Uri baseUri = !TextUtils.isEmpty(queryUri) ? Uri.parse(queryUri)
+                : new Uri.Builder()
                         .scheme(ContentResolver.SCHEME_CONTENT)
                         .authority(SettingsSliceProvider.SLICE_AUTHORITY)
                         .build();
+
         final Uri platformBaseUri =
                 new Uri.Builder()
                         .scheme(ContentResolver.SCHEME_CONTENT)
@@ -333,7 +365,6 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
                 // The classname and intent information comes from the PreIndexData
                 // This will be more clear when provider conversion is done at PreIndex time.
                 raw.className = bundle.getTargetClass().getName();
-
             }
             rawList.addAll(providerRaws);
         }
@@ -341,47 +372,47 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
         return rawList;
     }
 
-    private List<SearchIndexableRaw> getDynamicSearchIndexableRawFromProvider(Context context) {
-        final Collection<SearchIndexableData> bundles = FeatureFactory.getFactory(context)
-                .getSearchFeatureProvider().getSearchIndexableResources().getProviderValues();
-        final List<SearchIndexableRaw> rawList = new ArrayList<>();
-
-        for (SearchIndexableData bundle : bundles) {
-            final Indexable.SearchIndexProvider provider = bundle.getSearchIndexProvider();
-            final List<SearchIndexableRaw> providerRaws =
-                    provider.getDynamicRawDataToIndex(context, true /* enabled */);
-
-            if (providerRaws == null) {
-                continue;
-            }
-
-            for (SearchIndexableRaw raw : providerRaws) {
-                // The classname and intent information comes from the PreIndexData
-                // This will be more clear when provider conversion is done at PreIndex time.
-                raw.className = bundle.getTargetClass().getName();
-
-            }
-            rawList.addAll(providerRaws);
+    private List<SearchIndexableRaw> getDynamicSearchIndexableRawData(Context context,
+            SearchIndexableData bundle) {
+        final Indexable.SearchIndexProvider provider = bundle.getSearchIndexProvider();
+        final List<SearchIndexableRaw> providerRaws =
+                provider.getDynamicRawDataToIndex(context, true /* enabled */);
+        if (providerRaws == null) {
+            return new ArrayList<>();
         }
 
-        return rawList;
+        for (SearchIndexableRaw raw : providerRaws) {
+            // The classname and intent information comes from the PreIndexData
+            // This will be more clear when provider conversion is done at PreIndex time.
+            raw.className = bundle.getTargetClass().getName();
+        }
+        return providerRaws;
     }
 
-    private List<SearchIndexableRaw> getInjectionIndexableRawData(Context context) {
+    @VisibleForTesting
+    List<SearchIndexableRaw> getInjectionIndexableRawData(Context context) {
         final DashboardFeatureProvider dashboardFeatureProvider =
                 FeatureFactory.getFactory(context).getDashboardFeatureProvider(context);
-
         final List<SearchIndexableRaw> rawList = new ArrayList<>();
         final String currentPackageName = context.getPackageName();
         for (DashboardCategory category : dashboardFeatureProvider.getAllCategories()) {
+            if (mSearchEnabledByCategoryKeyMap.containsKey(category.key)
+                    && !mSearchEnabledByCategoryKeyMap.get(category.key)) {
+                Log.i(TAG, "Skip indexing category: " + category.key);
+                continue;
+            }
             for (Tile tile : category.getTiles()) {
-                if (currentPackageName.equals(tile.getPackageName())) {
+                if (!isEligibleForIndexing(currentPackageName, tile)) {
                     continue;
                 }
                 final SearchIndexableRaw raw = new SearchIndexableRaw(context);
+                final CharSequence title = tile.getTitle(context);
+                raw.title = TextUtils.isEmpty(title) ? null : title.toString();
+                if (TextUtils.isEmpty(raw.title)) {
+                    continue;
+                }
                 raw.key = dashboardFeatureProvider.getDashboardKeyForTile(tile);
-                raw.title = tile.getTitle(context).toString();
-                CharSequence summary = tile.getSummary(context);
+                final CharSequence summary = tile.getSummary(context);
                 raw.summaryOn = TextUtils.isEmpty(summary) ? null : summary.toString();
                 raw.summaryOff = raw.summaryOn;
                 raw.className = CATEGORY_KEY_TO_PARENT_MAP.get(tile.getCategory());
@@ -390,6 +421,40 @@ public class SettingsSearchIndexablesProvider extends SearchIndexablesProvider {
         }
 
         return rawList;
+    }
+
+    @VisibleForTesting
+    void refreshSearchEnabledState(Context context, BaseSearchIndexProvider provider) {
+        // Provider's class name is like "com.android.settings.Settings$1"
+        String className = provider.getClass().getName();
+        final int delimiter = className.lastIndexOf("$");
+        if (delimiter > 0) {
+            // Parse the outer class name of this provider
+            className = className.substring(0, delimiter);
+        }
+
+        // Lookup the category key by the class name
+        final String categoryKey = DashboardFragmentRegistry.PARENT_TO_CATEGORY_KEY_MAP
+                .get(className);
+        if (categoryKey == null) {
+            return;
+        }
+
+        final DashboardCategory category = CategoryManager.get(context)
+                .getTilesByCategory(context, categoryKey);
+        if (category != null) {
+            mSearchEnabledByCategoryKeyMap.put(category.key, provider.isPageSearchEnabled(context));
+        }
+    }
+
+    @VisibleForTesting
+    boolean isEligibleForIndexing(String packageName, Tile tile) {
+        if (TextUtils.equals(packageName, tile.getPackageName())
+                && tile instanceof ActivityTile) {
+            // Skip Settings injected items because they should be indexed in the sub-pages.
+            return false;
+        }
+        return true;
     }
 
     private static Object[] createIndexableRawColumnObjects(SearchIndexableRaw raw) {

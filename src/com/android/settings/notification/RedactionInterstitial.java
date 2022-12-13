@@ -18,15 +18,17 @@ package com.android.settings.notification;
 
 import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_SECURE_NOTIFICATIONS;
 import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_UNREDACTED_NOTIFICATIONS;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.LOCK_SCREEN_HIDE_WORK_NOTIFICATION_CONTENT;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.LOCK_SCREEN_SHOW_WORK_NOTIFICATION_CONTENT;
 import static android.provider.Settings.Secure.LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS;
 import static android.provider.Settings.Secure.LOCK_SCREEN_SHOW_NOTIFICATIONS;
 
 import static com.android.settingslib.RestrictedLockUtils.EnforcedAdmin;
 
+import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
 import android.content.Context;
 import android.content.Intent;
-import android.content.res.Resources;
 import android.os.Bundle;
 import android.os.UserManager;
 import android.provider.Settings;
@@ -48,7 +50,9 @@ import com.android.settingslib.RestrictedLockUtilsInternal;
 
 import com.google.android.setupcompat.template.FooterBarMixin;
 import com.google.android.setupcompat.template.FooterButton;
+import com.google.android.setupcompat.util.WizardManagerHelper;
 import com.google.android.setupdesign.GlifLayout;
+import com.google.android.setupdesign.util.ThemeHelper;
 
 public class RedactionInterstitial extends SettingsActivity {
 
@@ -60,20 +64,21 @@ public class RedactionInterstitial extends SettingsActivity {
     }
 
     @Override
-    protected void onApplyThemeResource(Resources.Theme theme, int resid, boolean first) {
-        resid = SetupWizardUtils.getTheme(getIntent());
-        super.onApplyThemeResource(theme, resid, first);
-    }
-
-    @Override
     protected boolean isValidFragment(String fragmentName) {
         return RedactionInterstitialFragment.class.getName().equals(fragmentName);
     }
 
     @Override
     protected void onCreate(Bundle savedInstance) {
+        setTheme(SetupWizardUtils.getTheme(this, getIntent()));
+        ThemeHelper.trySetDynamicColor(this);
         super.onCreate(savedInstance);
         findViewById(R.id.content_parent).setFitsSystemWindows(false);
+    }
+
+    @Override
+    protected boolean isToolbarEnabled() {
+        return false;
     }
 
     /**
@@ -113,6 +118,7 @@ public class RedactionInterstitial extends SettingsActivity {
         @Override
         public void onViewCreated(View view, Bundle savedInstanceState) {
             super.onViewCreated(view, savedInstanceState);
+            DevicePolicyManager devicePolicyManager = getSystemService(DevicePolicyManager.class);
             mRadioGroup = (RadioGroup) view.findViewById(R.id.radio_group);
             mShowAllButton = (RestrictedRadioButton) view.findViewById(R.id.show_all);
             mRedactSensitiveButton =
@@ -124,9 +130,15 @@ public class RedactionInterstitial extends SettingsActivity {
             if (UserManager.get(getContext()).isManagedProfile(mUserId)) {
                 ((TextView) view.findViewById(R.id.sud_layout_description))
                         .setText(R.string.lock_screen_notifications_interstitial_message_profile);
-                mShowAllButton.setText(R.string.lock_screen_notifications_summary_show_profile);
+                mShowAllButton.setText(devicePolicyManager
+                        .getResources().getString(LOCK_SCREEN_SHOW_WORK_NOTIFICATION_CONTENT,
+                                () -> getString(
+                                        R.string.lock_screen_notifications_summary_show_profile)));
                 mRedactSensitiveButton
-                        .setText(R.string.lock_screen_notifications_summary_hide_profile);
+                        .setText(devicePolicyManager.getResources().getString(
+                                LOCK_SCREEN_HIDE_WORK_NOTIFICATION_CONTENT,
+                                () -> getString(
+                                        R.string.lock_screen_notifications_summary_hide_profile)));
 
                 ((RadioButton) view.findViewById(R.id.hide_all)).setVisibility(View.GONE);
             }
@@ -144,10 +156,14 @@ public class RedactionInterstitial extends SettingsActivity {
         }
 
         private void onDoneButtonClicked(View view) {
-            SetupRedactionInterstitial.setEnabled(getContext(), false);
+            // If the activity starts by Setup Wizard, then skip disable component which avoids the
+            // framework force closing all activities on the same task when the system is busy.
+            if (!WizardManagerHelper.isAnySetupWizard(getIntent())) {
+                SetupRedactionInterstitial.setEnabled(getContext(), false);
+            }
             final RedactionInterstitial activity = (RedactionInterstitial) getActivity();
             if (activity != null) {
-                activity.setResult(RESULT_OK, null);
+                activity.setResult(RESULT_CANCELED, null);
                 finish();
             }
         }

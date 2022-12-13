@@ -26,11 +26,12 @@ import android.provider.Settings;
 import androidx.preference.Preference;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.settings.Utils;
+import com.android.settingslib.RestrictedLockUtils.EnforcedAdmin;
+import com.android.settingslib.RestrictedSwitchPreference;
 
 public class FaceSettingsLockscreenBypassPreferenceController
         extends FaceSettingsPreferenceController {
-
-    static final String KEY = "security_lockscreen_bypass";
 
     @VisibleForTesting
     protected FaceManager mFaceManager;
@@ -47,26 +48,32 @@ public class FaceSettingsLockscreenBypassPreferenceController
 
     @Override
     public boolean isChecked() {
+        if (!FaceSettings.isFaceHardwareDetected(mContext)) {
+            return false;
+        } else if (getRestrictingAdmin() != null) {
+            return false;
+        }
         int defaultValue = mContext.getResources().getBoolean(
                 com.android.internal.R.bool.config_faceAuthDismissesKeyguard) ? 1 : 0;
         return Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                Settings.Secure.FACE_UNLOCK_DISMISSES_KEYGUARD, defaultValue, getUserId()) != 0;
+                Settings.Secure.FACE_UNLOCK_DISMISSES_KEYGUARD, defaultValue, getUserHandle()) != 0;
     }
 
     @Override
     public boolean setChecked(boolean isChecked) {
-        Settings.Secure.putInt(mContext.getContentResolver(),
-                Settings.Secure.FACE_UNLOCK_DISMISSES_KEYGUARD, isChecked ? 1 : 0);
+        Settings.Secure.putIntForUser(mContext.getContentResolver(),
+                Settings.Secure.FACE_UNLOCK_DISMISSES_KEYGUARD, isChecked ? 1 : 0, getUserHandle());
         return true;
     }
 
     @Override
     public void updateState(Preference preference) {
+        EnforcedAdmin admin;
         super.updateState(preference);
-        if (!FaceSettings.isAvailable(mContext)) {
+        if (!FaceSettings.isFaceHardwareDetected(mContext)) {
             preference.setEnabled(false);
-        } else if (adminDisabled()) {
-            preference.setEnabled(false);
+        } else if ((admin = getRestrictingAdmin()) != null) {
+            ((RestrictedSwitchPreference) preference).setDisabledByAdmin(admin);
         } else if (!mFaceManager.hasEnrolledTemplates(getUserId())) {
             preference.setEnabled(false);
         } else {
@@ -76,7 +83,12 @@ public class FaceSettingsLockscreenBypassPreferenceController
 
     @Override
     public int getAvailabilityStatus() {
-        if (mUserManager.isManagedProfile(UserHandle.myUserId())) {
+        // When the device supports multiple biometrics auth, this preference won't be shown
+        // in face unlock category.
+        if (Utils.isMultipleBiometricsSupported(mContext)) {
+            return UNSUPPORTED_ON_DEVICE;
+        }
+        if (mUserManager.isManagedProfile(getUserId())) {
             return UNSUPPORTED_ON_DEVICE;
         }
 
@@ -86,5 +98,9 @@ public class FaceSettingsLockscreenBypassPreferenceController
         } else {
             return UNSUPPORTED_ON_DEVICE;
         }
+    }
+
+    private int getUserHandle() {
+        return UserHandle.of(getUserId()).getIdentifier();
     }
 }

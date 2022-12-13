@@ -21,37 +21,78 @@ import static android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_UNREDACTED_
 import static android.provider.Settings.Secure.LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS;
 
 import android.app.KeyguardManager;
-import android.app.admin.DevicePolicyManager;
 import android.content.Context;
+import android.database.ContentObserver;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.provider.Settings;
 
+import androidx.preference.PreferenceScreen;
+
 import com.android.internal.widget.LockPatternUtils;
-import com.android.settings.Utils;
+import com.android.settings.R;
 import com.android.settings.core.TogglePreferenceController;
 import com.android.settings.overlay.FeatureFactory;
+import com.android.settingslib.RestrictedLockUtils;
+import com.android.settingslib.RestrictedLockUtilsInternal;
+import com.android.settingslib.RestrictedSwitchPreference;
+import com.android.settingslib.core.lifecycle.LifecycleObserver;
+import com.android.settingslib.core.lifecycle.events.OnStart;
+import com.android.settingslib.core.lifecycle.events.OnStop;
 
-public class RedactNotificationPreferenceController extends TogglePreferenceController {
-
+/**
+ * The controller of the sensitive notifications.
+ */
+public class RedactNotificationPreferenceController extends TogglePreferenceController implements
+        LifecycleObserver, OnStart, OnStop {
     private static final String TAG = "LockScreenNotifPref";
 
     static final String KEY_LOCKSCREEN_REDACT = "lock_screen_redact";
     static final String KEY_LOCKSCREEN_WORK_PROFILE_REDACT = "lock_screen_work_redact";
 
-    private DevicePolicyManager mDpm;
     private UserManager mUm;
     private KeyguardManager mKm;
-    private final int mProfileUserId;
+    int mProfileUserId;
+    private RestrictedSwitchPreference mPreference;
+    private ContentObserver mContentObserver =
+            new ContentObserver(new Handler(Looper.getMainLooper())) {
+                @Override
+                public void onChange(boolean selfChange) {
+                    if (mPreference != null) {
+                        mPreference.setEnabled(
+                                getAvailabilityStatus() != DISABLED_DEPENDENT_SETTING);
+                    }
+                }
+            };
 
     public RedactNotificationPreferenceController(Context context, String settingKey) {
         super(context, settingKey);
 
         mUm = context.getSystemService(UserManager.class);
-        mDpm = context.getSystemService(DevicePolicyManager.class);
         mKm = context.getSystemService(KeyguardManager.class);
 
-        mProfileUserId = Utils.getManagedProfileId(mUm, UserHandle.myUserId());
+        mProfileUserId = UserHandle.myUserId();
+        final int[] profileIds = mUm.getProfileIdsWithDisabled(UserHandle.myUserId());
+
+        for (int profileId : profileIds) {
+            if (profileId != UserHandle.myUserId()) {
+                mProfileUserId = profileId;
+            }
+        }
+    }
+
+    @Override
+    public void displayPreference(PreferenceScreen screen) {
+        super.displayPreference(screen);
+        mPreference = screen.findPreference(getPreferenceKey());
+
+        int userId = KEY_LOCKSCREEN_REDACT.equals(getPreferenceKey())
+                ? UserHandle.myUserId() : mProfileUserId;
+        if (userId != UserHandle.USER_NULL) {
+            mPreference.setDisabledByAdmin(getEnforcedAdmin(userId));
+        }
     }
 
     @Override
@@ -76,7 +117,7 @@ public class RedactNotificationPreferenceController extends TogglePreferenceCont
     public int getAvailabilityStatus() {
         // hide work profile setting if no work profile
         if (KEY_LOCKSCREEN_WORK_PROFILE_REDACT.equals(getPreferenceKey())
-                && mProfileUserId == UserHandle.USER_NULL) {
+                && mProfileUserId == UserHandle.myUserId()) {
             return CONDITIONALLY_UNAVAILABLE;
         }
 
@@ -91,10 +132,8 @@ public class RedactNotificationPreferenceController extends TogglePreferenceCont
             return CONDITIONALLY_UNAVAILABLE;
         }
 
-        // all notifs hidden? admin doesn't allow notifs or redacted notifs? disabled
-        if (!getLockscreenNotificationsEnabled(userId)
-                || !adminAllowsNotifications(userId)
-                || !adminAllowsUnredactedNotifications(userId)) {
+        // all notifs hidden? disabled
+        if (!getLockscreenNotificationsEnabled(userId)) {
             return DISABLED_DEPENDENT_SETTING;
         }
 
@@ -108,22 +147,42 @@ public class RedactNotificationPreferenceController extends TogglePreferenceCont
         return AVAILABLE;
     }
 
-    private boolean adminAllowsNotifications(int userId) {
-        final int dpmFlags = mDpm.getKeyguardDisabledFeatures(null/* admin */, userId);
-        return (dpmFlags & KEYGUARD_DISABLE_SECURE_NOTIFICATIONS) == 0;
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_notifications;
     }
 
-    private boolean adminAllowsUnredactedNotifications(int userId) {
-        final int dpmFlags = mDpm.getKeyguardDisabledFeatures(null/* admin */, userId);
-        return (dpmFlags & KEYGUARD_DISABLE_UNREDACTED_NOTIFICATIONS) == 0;
+    @Override
+    public void onStart() {
+        mContext.getContentResolver().registerContentObserver(
+                Settings.Secure.getUriFor(Settings.Secure.LOCK_SCREEN_SHOW_NOTIFICATIONS),
+                false /* notifyForDescendants */, mContentObserver);
+    }
+
+    @Override
+    public void onStop() {
+        mContext.getContentResolver().unregisterContentObserver(mContentObserver);
+    }
+
+    private RestrictedLockUtils.EnforcedAdmin getEnforcedAdmin(int userId) {
+        RestrictedLockUtils.EnforcedAdmin admin =
+                RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(
+                        mContext, KEYGUARD_DISABLE_SECURE_NOTIFICATIONS, userId);
+        if (admin != null) {
+            return admin;
+        }
+        admin = RestrictedLockUtilsInternal.checkIfKeyguardFeaturesDisabled(
+                mContext, KEYGUARD_DISABLE_UNREDACTED_NOTIFICATIONS, userId);
+        return admin;
     }
 
     private boolean getAllowPrivateNotifications(int userId) {
         return Settings.Secure.getIntForUser(mContext.getContentResolver(),
-                LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS, 1, userId) != 0;
+                LOCK_SCREEN_ALLOW_PRIVATE_NOTIFICATIONS, 1, userId) != 0
+                && getEnforcedAdmin(userId) == null;
     }
 
-   private boolean getLockscreenNotificationsEnabled(int userId) {
+    private boolean getLockscreenNotificationsEnabled(int userId) {
         return Settings.Secure.getIntForUser(mContext.getContentResolver(),
                 Settings.Secure.LOCK_SCREEN_SHOW_NOTIFICATIONS, 1, userId) != 0;
     }

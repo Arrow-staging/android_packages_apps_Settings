@@ -16,6 +16,7 @@
 
 package com.android.settings.applications.appinfo;
 
+import static com.android.settings.applications.appinfo.AppInfoDashboardFragment.ACCESS_RESTRICTED_SETTINGS;
 import static com.android.settings.applications.appinfo.AppInfoDashboardFragment.ARG_PACKAGE_NAME;
 import static com.android.settings.applications.appinfo.AppInfoDashboardFragment.UNINSTALL_ALL_USERS_MENU;
 import static com.android.settings.applications.appinfo.AppInfoDashboardFragment.UNINSTALL_UPDATES;
@@ -165,8 +166,10 @@ public final class AppInfoDashboardFragmentTest {
         Menu menu = mock(Menu.class);
         final MenuItem uninstallUpdatesMenuItem = mock(MenuItem.class);
         final MenuItem uninstallForAllMenuItem = mock(MenuItem.class);
+        final MenuItem accessRestrictedMenuItem = mock(MenuItem.class);
         when(menu.findItem(UNINSTALL_UPDATES)).thenReturn(uninstallUpdatesMenuItem);
         when(menu.findItem(UNINSTALL_ALL_USERS_MENU)).thenReturn(uninstallForAllMenuItem);
+        when(menu.findItem(ACCESS_RESTRICTED_SETTINGS)).thenReturn(accessRestrictedMenuItem);
 
         // Setup work to prevent NPE
         final ApplicationInfo info = new ApplicationInfo();
@@ -297,7 +300,7 @@ public final class AppInfoDashboardFragmentTest {
         final List<UserInfo> userInfos = new ArrayList<>();
         userInfos.add(new UserInfo(userID1, "User1", UserInfo.FLAG_PRIMARY));
         userInfos.add(new UserInfo(userID2, "yue", UserInfo.FLAG_GUEST));
-        when(mUserManager.getUsers(true)).thenReturn(userInfos);
+        when(mUserManager.getAliveUsers()).thenReturn(userInfos);
         final ApplicationInfo appInfo = new ApplicationInfo();
         appInfo.flags = ApplicationInfo.FLAG_INSTALLED;
         when(mPackageManager.getApplicationInfoAsUser(
@@ -320,7 +323,7 @@ public final class AppInfoDashboardFragmentTest {
         final List<UserInfo> userInfos = new ArrayList<>();
         userInfos.add(new UserInfo(userID1, "User1", UserInfo.FLAG_PRIMARY));
         userInfos.add(new UserInfo(userID2, "yue", UserInfo.FLAG_GUEST));
-        when(mUserManager.getUsers(true)).thenReturn(userInfos);
+        when(mUserManager.getAliveUsers()).thenReturn(userInfos);
         final ApplicationInfo appInfo = new ApplicationInfo();
         appInfo.flags = ApplicationInfo.FLAG_INSTALLED;
         when(mPackageManager.getApplicationInfoAsUser(
@@ -382,6 +385,11 @@ public final class AppInfoDashboardFragmentTest {
         assertThat(intent.getValue().getBundleExtra(SettingsActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS)
                 .containsKey(ARG_PACKAGE_NAME))
                 .isTrue();
+    }
+
+    @Test
+    public void shouldSkipForInitialSUW_returnTrue() {
+        assertThat(mFragment.shouldSkipForInitialSUW()).isTrue();
     }
 
     @Implements(AppUtils.class)

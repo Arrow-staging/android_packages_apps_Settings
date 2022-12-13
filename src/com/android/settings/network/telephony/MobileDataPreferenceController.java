@@ -32,6 +32,7 @@ import androidx.preference.SwitchPreference;
 
 import com.android.settings.R;
 import com.android.settings.network.MobileDataContentObserver;
+import com.android.settings.wifi.WifiPickerTrackerHelper;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
@@ -53,6 +54,8 @@ public class MobileDataPreferenceController extends TelephonyTogglePreferenceCon
     int mDialogType;
     @VisibleForTesting
     boolean mNeedDialog;
+
+    private WifiPickerTrackerHelper mWifiPickerTrackerHelper;
 
     public MobileDataPreferenceController(Context context, String key) {
         super(context, key);
@@ -107,6 +110,10 @@ public class MobileDataPreferenceController extends TelephonyTogglePreferenceCon
         if (!mNeedDialog) {
             // Update data directly if we don't need dialog
             MobileNetworkUtils.setMobileDataEnabled(mContext, mSubId, isChecked, false);
+            if (mWifiPickerTrackerHelper != null
+                    && !mWifiPickerTrackerHelper.isCarrierNetworkProvisionEnabled(mSubId)) {
+                mWifiPickerTrackerHelper.setCarrierNetworkEnabled(isChecked);
+            }
             return true;
         }
 
@@ -115,6 +122,7 @@ public class MobileDataPreferenceController extends TelephonyTogglePreferenceCon
 
     @Override
     public boolean isChecked() {
+        mTelephonyManager = getTelephonyManager();
         return mTelephonyManager.isDataEnabled();
     }
 
@@ -128,6 +136,13 @@ public class MobileDataPreferenceController extends TelephonyTogglePreferenceCon
             preference.setEnabled(true);
             preference.setSummary(R.string.mobile_data_settings_summary);
         }
+
+        if (mSubId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            preference.setSelectable(false);
+            preference.setSummary(R.string.mobile_data_settings_summary_unavailable);
+        } else {
+            preference.setSelectable(true);
+        }
     }
 
     private boolean isOpportunistic() {
@@ -138,13 +153,32 @@ public class MobileDataPreferenceController extends TelephonyTogglePreferenceCon
     public void init(FragmentManager fragmentManager, int subId) {
         mFragmentManager = fragmentManager;
         mSubId = subId;
-        mTelephonyManager = TelephonyManager.from(mContext).createForSubscriptionId(mSubId);
+        mTelephonyManager = null;
+        mTelephonyManager = getTelephonyManager();
+    }
+
+    private TelephonyManager getTelephonyManager() {
+        if (mTelephonyManager != null) {
+            return mTelephonyManager;
+        }
+        TelephonyManager telMgr =
+                mContext.getSystemService(TelephonyManager.class);
+        if (mSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+            telMgr = telMgr.createForSubscriptionId(mSubId);
+        }
+        mTelephonyManager = telMgr;
+        return telMgr;
+    }
+
+    public void setWifiPickerTrackerHelper(WifiPickerTrackerHelper helper) {
+        mWifiPickerTrackerHelper = helper;
     }
 
     @VisibleForTesting
     boolean isDialogNeeded() {
         final boolean enableData = !isChecked();
-        final boolean isMultiSim = (mTelephonyManager.getSimCount() > 1);
+        mTelephonyManager = getTelephonyManager();
+        final boolean isMultiSim = (mTelephonyManager.getActiveModemCount() > 1);
         final int defaultSubId = mSubscriptionManager.getDefaultDataSubscriptionId();
         final boolean needToDisableOthers = mSubscriptionManager
                 .isActiveSubscriptionId(defaultSubId) && defaultSubId != mSubId;

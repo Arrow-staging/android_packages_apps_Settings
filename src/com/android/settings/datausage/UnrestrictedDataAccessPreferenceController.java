@@ -29,6 +29,7 @@ import com.android.settings.applications.AppStateBaseBridge;
 import com.android.settings.core.BasePreferenceController;
 import com.android.settings.dashboard.DashboardFragment;
 import com.android.settings.overlay.FeatureFactory;
+import com.android.settingslib.applications.AppUtils;
 import com.android.settingslib.applications.ApplicationsState;
 import com.android.settingslib.applications.ApplicationsState.AppEntry;
 import com.android.settingslib.applications.ApplicationsState.AppFilter;
@@ -41,7 +42,6 @@ import com.android.settingslib.core.lifecycle.events.OnStop;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.TreeSet;
-
 
 public class UnrestrictedDataAccessPreferenceController extends BasePreferenceController implements
         LifecycleObserver, OnStart, OnStop, OnDestroy, ApplicationsState.Callbacks,
@@ -91,7 +91,7 @@ public class UnrestrictedDataAccessPreferenceController extends BasePreferenceCo
 
     @Override
     public void onStart() {
-        mDataUsageBridge.resume();
+        mDataUsageBridge.resume(true /* forceLoadAllApps */);
     }
 
     @Override
@@ -125,6 +125,10 @@ public class UnrestrictedDataAccessPreferenceController extends BasePreferenceCo
         if (apps == null) {
             return;
         }
+
+        // Preload top visible icons of app list.
+        AppUtils.preloadTopIcons(mContext, apps,
+                mContext.getResources().getInteger(R.integer.config_num_visible_app_icons));
 
         // Create apps key set for removing useless preferences
         final Set<String> appsKeySet = new TreeSet<>();
@@ -186,11 +190,11 @@ public class UnrestrictedDataAccessPreferenceController extends BasePreferenceCo
         if (preference instanceof UnrestrictedDataAccessPreference) {
             final UnrestrictedDataAccessPreference
                     accessPreference = (UnrestrictedDataAccessPreference) preference;
-            boolean whitelisted = newValue == Boolean.TRUE;
-            logSpecialPermissionChange(whitelisted, accessPreference.getEntry().info.packageName);
-            mDataSaverBackend.setIsWhitelisted(accessPreference.getEntry().info.uid,
-                    accessPreference.getEntry().info.packageName, whitelisted);
-            accessPreference.getDataUsageState().isDataSaverWhitelisted = whitelisted;
+            boolean allowlisted = newValue == Boolean.TRUE;
+            logSpecialPermissionChange(allowlisted, accessPreference.getEntry().info.packageName);
+            mDataSaverBackend.setIsAllowlisted(accessPreference.getEntry().info.uid,
+                    accessPreference.getEntry().info.packageName, allowlisted);
+            accessPreference.getDataUsageState().isDataSaverAllowlisted = allowlisted;
             return true;
         }
         return false;
@@ -224,8 +228,8 @@ public class UnrestrictedDataAccessPreferenceController extends BasePreferenceCo
     }
 
     @VisibleForTesting
-    void logSpecialPermissionChange(boolean whitelisted, String packageName) {
-        final int logCategory = whitelisted ? SettingsEnums.APP_SPECIAL_PERMISSION_UNL_DATA_ALLOW
+    void logSpecialPermissionChange(boolean allowlisted, String packageName) {
+        final int logCategory = allowlisted ? SettingsEnums.APP_SPECIAL_PERMISSION_UNL_DATA_ALLOW
                 : SettingsEnums.APP_SPECIAL_PERMISSION_UNL_DATA_DENY;
         FeatureFactory.getFactory(mContext).getMetricsFeatureProvider().action(mContext,
                 logCategory, packageName);

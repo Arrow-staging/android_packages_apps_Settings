@@ -18,6 +18,7 @@ package com.android.settings;
 
 import android.app.Activity;
 import android.app.Dialog;
+import android.app.admin.DevicePolicyManager;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -44,8 +45,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.settings.core.InstrumentedPreferenceFragment;
 import com.android.settings.core.instrumentation.InstrumentedDialogFragment;
-import com.android.settings.search.actionbar.SearchMenuController;
-import com.android.settings.support.actionbar.HelpMenuController;
 import com.android.settings.support.actionbar.HelpResourceProvider;
 import com.android.settings.widget.HighlightablePreferenceGroupAdapter;
 import com.android.settings.widget.LoadingViewController;
@@ -55,6 +54,9 @@ import com.android.settingslib.core.instrumentation.Instrumentable;
 import com.android.settingslib.search.Indexable;
 import com.android.settingslib.widget.LayoutPreference;
 
+import com.google.android.material.appbar.AppBarLayout;
+import com.google.android.setupcompat.util.WizardManagerHelper;
+
 import java.util.UUID;
 
 /**
@@ -63,12 +65,13 @@ import java.util.UUID;
 public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceFragment
         implements DialogCreatable, HelpResourceProvider, Indexable {
 
-    private static final String TAG = "SettingsPreference";
+    private static final String TAG = "SettingsPreferenceFragment";
 
     private static final String SAVE_HIGHLIGHTED_KEY = "android:preference_highlighted";
 
     private static final int ORDER_FIRST = -1;
 
+    protected DevicePolicyManager mDevicePolicyManager;
     private SettingsDialogFragment mDialogFragment;
     // Cache the content resolver for async callbacks
     private ContentResolver mContentResolver;
@@ -110,9 +113,8 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
 
     @VisibleForTesting
     ViewGroup mPinnedHeaderFrameLayout;
-
+    private AppBarLayout mAppBarLayout;
     private LayoutPreference mHeader;
-
     private View mEmptyView;
     private LinearLayoutManager mLayoutManager;
     private ArrayMap<String, Preference> mPreferenceCache;
@@ -120,15 +122,22 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
 
     @VisibleForTesting
     public HighlightablePreferenceGroupAdapter mAdapter;
-    @VisibleForTesting
-    public boolean mPreferenceHighlighted = false;
+    private boolean mPreferenceHighlighted = false;
+
+    @Override
+    public void onAttach(Context context) {
+        if (shouldSkipForInitialSUW() && !WizardManagerHelper.isDeviceProvisioned(getContext())) {
+            Log.w(TAG, "Skip " + getClass().getSimpleName() + " before SUW completed.");
+            finish();
+        }
+        super.onAttach(context);
+    }
 
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
-        SearchMenuController.init(this /* host */);
-        HelpMenuController.init(this /* host */);
 
+        mDevicePolicyManager = getContext().getSystemService(DevicePolicyManager.class);
         if (icicle != null) {
             mPreferenceHighlighted = icicle.getBoolean(SAVE_HIGHLIGHTED_KEY);
         }
@@ -140,6 +149,7 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
             Bundle savedInstanceState) {
         final View root = super.onCreateView(inflater, container, savedInstanceState);
         mPinnedHeaderFrameLayout = root.findViewById(R.id.pinned_header);
+        mAppBarLayout = getActivity().findViewById(R.id.app_bar);
         return root;
     }
 
@@ -245,7 +255,7 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
             return;
         }
         if (mAdapter != null) {
-            mAdapter.requestHighlight(getView(), getListView());
+            mAdapter.requestHighlight(getView(), getListView(), mAppBarLayout);
         }
     }
 
@@ -256,6 +266,28 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
      */
     public int getInitialExpandedChildCount() {
         return 0;
+    }
+
+    /**
+     * Whether preference is allowing to be displayed to the user.
+     *
+     * @param preference to check if it can be displayed to the user (not hidding in expand area).
+     * @return {@code true} when preference is allowing to be displayed to the user.
+     * {@code false} when preference is hidden in expand area and not been displayed to the user.
+     */
+    protected boolean isPreferenceExpanded(Preference preference) {
+        return ((mAdapter == null)
+                || (mAdapter.getPreferenceAdapterPosition(preference) != RecyclerView.NO_POSITION));
+    }
+
+    /**
+     * Whether UI should be skipped in the initial SUW flow.
+     *
+     * @return {@code true} when UI should be skipped in the initial SUW flow.
+     * {@code false} when UI should not be skipped in the initial SUW flow.
+     */
+    protected boolean shouldSkipForInitialSUW() {
+        return false;
     }
 
     protected void onDataSetChanged() {
@@ -424,6 +456,13 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
      */
     protected Object getSystemService(final String name) {
         return getActivity().getSystemService(name);
+    }
+
+    /**
+     * Returns the specified system service from the owning Activity.
+     */
+    protected <T> T getSystemService(final Class<T> serviceClass) {
+        return getActivity().getSystemService(serviceClass);
     }
 
     /**
@@ -686,5 +725,41 @@ public abstract class SettingsPreferenceFragment extends InstrumentedPreferenceF
             return;
         }
         getActivity().setResult(result);
+    }
+
+    protected boolean isFinishingOrDestroyed() {
+        final Activity activity = getActivity();
+        return activity == null || activity.isFinishing() || activity.isDestroyed();
+    }
+
+    protected void replaceEnterprisePreferenceScreenTitle(String overrideKey, int resource) {
+        getActivity().setTitle(mDevicePolicyManager.getResources().getString(
+                overrideKey, () -> getString(resource)));
+    }
+
+    protected void replaceEnterpriseStringSummary(
+            String preferenceKey, String overrideKey, int resource) {
+        Preference preference = findPreference(preferenceKey);
+        if (preference == null) {
+            Log.d(TAG, "Could not find enterprise preference " + preferenceKey);
+            return;
+        }
+
+        preference.setSummary(
+                mDevicePolicyManager.getResources().getString(overrideKey,
+                        () -> getString(resource)));
+    }
+
+    protected void replaceEnterpriseStringTitle(
+            String preferenceKey, String overrideKey, int resource) {
+        Preference preference = findPreference(preferenceKey);
+        if (preference == null) {
+            Log.d(TAG, "Could not find enterprise preference " + preferenceKey);
+            return;
+        }
+
+        preference.setTitle(
+                mDevicePolicyManager.getResources().getString(overrideKey,
+                        () -> getString(resource)));
     }
 }

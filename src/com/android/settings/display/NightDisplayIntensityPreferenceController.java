@@ -23,6 +23,7 @@ import android.text.TextUtils;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
+import com.android.settings.R;
 import com.android.settings.core.SliderPreferenceController;
 import com.android.settings.widget.SeekBarPreference;
 
@@ -51,12 +52,23 @@ public class NightDisplayIntensityPreferenceController extends SliderPreferenceC
     }
 
     @Override
+    public boolean isPublicSlice() {
+        return true;
+    }
+
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_display;
+    }
+
+    @Override
     public void displayPreference(PreferenceScreen screen) {
         super.displayPreference(screen);
         final SeekBarPreference preference = screen.findPreference(getPreferenceKey());
         preference.setContinuousUpdates(true);
         preference.setMax(getMax());
         preference.setMin(getMin());
+        preference.setHapticFeedbackMode(SeekBarPreference.HAPTIC_FEEDBACK_MODE_ON_ENDS);
     }
 
     @Override

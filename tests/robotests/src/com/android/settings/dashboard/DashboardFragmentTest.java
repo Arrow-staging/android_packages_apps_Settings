@@ -48,7 +48,7 @@ import com.android.internal.logging.nano.MetricsProto.MetricsEvent;
 import com.android.settings.core.PreferenceControllerMixin;
 import com.android.settings.slices.BlockingSlicePrefController;
 import com.android.settings.testutils.FakeFeatureFactory;
-import com.android.settings.widget.MasterSwitchPreference;
+import com.android.settingslib.PrimarySwitchPreference;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 import com.android.settingslib.core.instrumentation.VisibilityLoggerMixin;
@@ -127,7 +127,7 @@ public class DashboardFragmentTest {
         final TestPreferenceController retrievedController = mTestFragment.use
                 (TestPreferenceController.class);
 
-        assertThat(controller).isSameAs(retrievedController);
+        assertThat(controller).isSameInstanceAs(retrievedController);
     }
 
     @Test
@@ -140,7 +140,22 @@ public class DashboardFragmentTest {
         final TestPreferenceController retrievedController = mTestFragment.use
                 (TestPreferenceController.class);
 
-        assertThat(controller1).isSameAs(retrievedController);
+        assertThat(controller1).isSameInstanceAs(retrievedController);
+    }
+
+    @Test
+    public void useAll_returnsAllControllersOfType() {
+        final TestPreferenceController controller1 = new TestPreferenceController(mContext);
+        final TestPreferenceController controller2 = new TestPreferenceController(mContext);
+        final SubTestPreferenceController controller3 = new SubTestPreferenceController(mContext);
+        mTestFragment.addPreferenceController(controller1);
+        mTestFragment.addPreferenceController(controller2);
+        mTestFragment.addPreferenceController(controller3);
+
+        final List<TestPreferenceController> retrievedControllers = mTestFragment.useAll(
+                TestPreferenceController.class);
+
+        assertThat(retrievedControllers).containsExactly(controller1, controller2);
     }
 
     @Test
@@ -283,6 +298,14 @@ public class DashboardFragmentTest {
     }
 
     @Test
+    public void forceUpdatePreferences_prefKeyNull_shouldNotCrash() {
+        mTestFragment.addPreferenceController(new TestPreferenceController(mContext));
+
+        // Should not crash
+        mTestFragment.forceUpdatePreferences();
+    }
+
+    @Test
     public void checkUiBlocker_noUiBlocker_controllerIsNull() {
         mTestFragment.mBlockerController = null;
         mControllers.add(new TestPreferenceController(mContext));
@@ -325,15 +348,15 @@ public class DashboardFragmentTest {
     }
 
     @Test
-    public void createPreference_isActivityTileAndHasSwitch_returnMasterSwitchPreference() {
+    public void createPreference_isActivityTileAndHasSwitch_returnPrimarySwitchPreference() {
         mActivityTile.getMetaData().putString(META_DATA_PREFERENCE_SWITCH_URI, "uri");
 
         final Preference pref = mTestFragment.createPreference(mActivityTile);
 
-        assertThat(pref).isInstanceOf(MasterSwitchPreference.class);
+        assertThat(pref).isInstanceOf(PrimarySwitchPreference.class);
     }
 
-    private static class TestPreferenceController extends AbstractPreferenceController
+    public static class TestPreferenceController extends AbstractPreferenceController
             implements PreferenceControllerMixin {
 
         private TestPreferenceController(Context context) {
@@ -360,14 +383,21 @@ public class DashboardFragmentTest {
         }
     }
 
-    private static class TestFragment extends DashboardFragment {
+    public static class SubTestPreferenceController extends TestPreferenceController {
 
-        public final PreferenceScreen mScreen;
+        private SubTestPreferenceController(Context context) {
+            super(context);
+        }
+    }
+
+    private static class TestFragment extends DashboardFragment {
 
         private final PreferenceManager mPreferenceManager;
         private final Context mContext;
         private final List<AbstractPreferenceController> mControllers;
         private final ContentResolver mContentResolver;
+
+        public final PreferenceScreen mScreen;
 
         public TestFragment(Context context) {
             mContext = context;
@@ -420,6 +450,7 @@ public class DashboardFragmentTest {
         protected ContentResolver getContentResolver() {
             return mContentResolver;
         }
+
     }
 
     private static class TestDynamicDataObserver extends DynamicDataObserver {

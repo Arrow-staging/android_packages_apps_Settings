@@ -74,8 +74,10 @@ public final class WifiSummaryUpdater extends SummaryUpdater {
     @Override
     public void register(boolean register) {
         if (register) {
+            mWifiTracker.fetchInitialState();
             notifyChangeIfNeeded();
-            mContext.registerReceiver(mReceiver, INTENT_FILTER);
+            mContext.registerReceiver(mReceiver, INTENT_FILTER,
+                    Context.RECEIVER_EXPORTED_UNAUDITED);
         } else {
             mContext.unregisterReceiver(mReceiver);
         }
@@ -90,12 +92,19 @@ public final class WifiSummaryUpdater extends SummaryUpdater {
         if (!mWifiTracker.connected) {
             return mContext.getString(R.string.disconnected);
         }
-        String ssid = WifiInfo.removeDoubleQuotes(mWifiTracker.ssid);
+        String ssid = WifiInfo.sanitizeSsid(mWifiTracker.ssid);
         if (TextUtils.isEmpty(mWifiTracker.statusLabel)) {
             return ssid;
         }
         return mContext.getResources().getString(
                 com.android.settingslib.R.string.preference_summary_default_combination,
                 ssid, mWifiTracker.statusLabel);
+    }
+
+    /**
+     * return true if Wi-Fi connected.
+     */
+    public boolean isWifiConnected() {
+        return mWifiTracker.connected;
     }
 }

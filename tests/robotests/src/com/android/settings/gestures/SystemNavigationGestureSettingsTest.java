@@ -24,14 +24,9 @@ import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_3BUTTON_OVE
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_GESTURAL;
 import static android.view.WindowManagerPolicyConstants.NAV_BAR_MODE_GESTURAL_OVERLAY;
 
-import static com.android.settings.gestures.SystemNavigationGestureSettings.BACK_GESTURE_INSET_DEFAULT_OVERLAY;
-import static com.android.settings.gestures.SystemNavigationGestureSettings.BACK_GESTURE_INSET_OVERLAYS;
 import static com.android.settings.gestures.SystemNavigationGestureSettings.KEY_SYSTEM_NAV_2BUTTONS;
 import static com.android.settings.gestures.SystemNavigationGestureSettings.KEY_SYSTEM_NAV_3BUTTONS;
 import static com.android.settings.gestures.SystemNavigationGestureSettings.KEY_SYSTEM_NAV_GESTURAL;
-import static com.android.settings.gestures.SystemNavigationGestureSettings.NAV_BAR_MODE_GESTURAL_OVERLAY_EXTRA_WIDE_BACK;
-import static com.android.settings.gestures.SystemNavigationGestureSettings.NAV_BAR_MODE_GESTURAL_OVERLAY_NARROW_BACK;
-import static com.android.settings.gestures.SystemNavigationGestureSettings.NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -39,7 +34,7 @@ import static junit.framework.Assert.assertEquals;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,10 +42,14 @@ import static org.mockito.Mockito.when;
 import android.content.Context;
 import android.content.om.IOverlayManager;
 import android.content.om.OverlayInfo;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
 import android.provider.SearchIndexableResource;
 
 import com.android.internal.R;
 import com.android.settings.testutils.shadow.SettingsShadowResources;
+import com.android.settingslib.search.SearchIndexableRaw;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -73,6 +72,8 @@ public class SystemNavigationGestureSettingsTest {
     @Mock
     private IOverlayManager mOverlayManager;
     @Mock
+    private PackageManager mPackageManager;
+    @Mock
     private OverlayInfo mOverlayInfoEnabled;
     @Mock
     private OverlayInfo mOverlayInfoDisabled;
@@ -81,22 +82,46 @@ public class SystemNavigationGestureSettingsTest {
     public void setUp() throws Exception {
         MockitoAnnotations.initMocks(this);
 
-        mContext = RuntimeEnvironment.application;
+        mContext = spy(RuntimeEnvironment.application);
         mSettings = new SystemNavigationGestureSettings();
 
         when(mOverlayInfoDisabled.isEnabled()).thenReturn(false);
         when(mOverlayInfoEnabled.isEnabled()).thenReturn(true);
         when(mOverlayManager.getOverlayInfo(any(), anyInt())).thenReturn(mOverlayInfoDisabled);
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
     }
 
     @Test
-    public void testSearchIndexProvider_shouldIndexResource() {
+    public void searchIndexProvider_shouldIndexResource() {
         final List<SearchIndexableResource> indexRes =
                 SystemNavigationGestureSettings.SEARCH_INDEX_DATA_PROVIDER.getXmlResourcesToIndex(
                         RuntimeEnvironment.application, true /* enabled */);
 
         assertThat(indexRes).isNotNull();
         assertThat(indexRes.get(0).xmlResId).isEqualTo(mSettings.getPreferenceScreenResId());
+    }
+
+    @Test
+    public void searchIndexProvider_gesturePackageExist_shouldBeIndexed()
+            throws NameNotFoundException {
+        PackageInfo info = new PackageInfo();
+        when(mPackageManager.getPackageInfo(NAV_BAR_MODE_GESTURAL_OVERLAY, 0))
+                .thenReturn(info);
+
+        final List<SearchIndexableRaw> indexRaws =
+                SystemNavigationGestureSettings.SEARCH_INDEX_DATA_PROVIDER
+                        .getRawDataToIndex(mContext, true /* enabled */);
+
+        assertThat(indexRaws).isNotEmpty();
+    }
+
+    @Test
+    public void searchIndexProvider_noNavigationPackageExist_shouldReturnEmpty() {
+        final List<SearchIndexableRaw> indexRaws =
+                SystemNavigationGestureSettings.SEARCH_INDEX_DATA_PROVIDER
+                        .getRawDataToIndex(mContext, true /* enabled */);
+
+        assertThat(indexRaws).isEmpty();
     }
 
     @Test
@@ -116,96 +141,16 @@ public class SystemNavigationGestureSettingsTest {
 
     @Test
     public void testSetCurrentSystemNavigationMode() throws Exception {
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 0);
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_GESTURAL);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_NARROW_BACK, USER_CURRENT);
-
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 1);
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_GESTURAL);
+        mSettings.setCurrentSystemNavigationMode(mOverlayManager, KEY_SYSTEM_NAV_GESTURAL);
         verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
                 NAV_BAR_MODE_GESTURAL_OVERLAY, USER_CURRENT);
 
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 2);
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_GESTURAL);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK, USER_CURRENT);
-
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 3);
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_GESTURAL);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_EXTRA_WIDE_BACK, USER_CURRENT);
-
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_2BUTTONS);
+        mSettings.setCurrentSystemNavigationMode(mOverlayManager, KEY_SYSTEM_NAV_2BUTTONS);
         verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
                 NAV_BAR_MODE_2BUTTON_OVERLAY, USER_CURRENT);
 
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_3BUTTONS);
+        mSettings.setCurrentSystemNavigationMode(mOverlayManager, KEY_SYSTEM_NAV_3BUTTONS);
         verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
                 NAV_BAR_MODE_3BUTTON_OVERLAY, USER_CURRENT);
-    }
-
-    @Test
-    public void testSetCurrentSystemNavigationMode_backSensitivityValuePersists() throws Exception {
-        SettingsShadowResources.overrideResource(
-                R.integer.config_navBarInteractionMode, NAV_BAR_MODE_3BUTTON);
-
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 2);
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_3BUTTONS);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_3BUTTON_OVERLAY, USER_CURRENT);
-
-        // Return to Gesture navigation, without setting the sensitivity value.
-        mSettings.setCurrentSystemNavigationMode(mContext, mOverlayManager,
-                KEY_SYSTEM_NAV_GESTURAL);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK, USER_CURRENT);
-    }
-
-    @Test
-    public void testGetBackSensitivity_default() {
-        assertEquals(BACK_GESTURE_INSET_DEFAULT_OVERLAY,
-                mSettings.getBackSensitivity(mContext, mOverlayManager));
-    }
-
-    @Test
-    public void testBackSensitivitySetterAndGetter_currentNavModeNotGestural() throws Exception {
-        SettingsShadowResources.overrideResource(
-                R.integer.config_navBarInteractionMode, NAV_BAR_MODE_3BUTTON);
-
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 3);
-        assertEquals(3, mSettings.getBackSensitivity(mContext, mOverlayManager));
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 2);
-        assertEquals(2, mSettings.getBackSensitivity(mContext, mOverlayManager));
-
-        verify(mOverlayManager, never()).setEnabledExclusiveInCategory(any(), anyInt());
-    }
-
-    @Test
-    public void testBackSensitivitySetterAndGetter_currentNavModeIsGestural() throws Exception {
-        SettingsShadowResources.overrideResource(
-                R.integer.config_navBarInteractionMode, NAV_BAR_MODE_GESTURAL);
-
-        when(mOverlayManager.getOverlayInfo(BACK_GESTURE_INSET_OVERLAYS[3], USER_CURRENT))
-                .thenReturn(mOverlayInfoEnabled);
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 3);
-        assertEquals(3, mSettings.getBackSensitivity(mContext, mOverlayManager));
-
-        when(mOverlayManager.getOverlayInfo(BACK_GESTURE_INSET_OVERLAYS[2], USER_CURRENT))
-                .thenReturn(mOverlayInfoEnabled);
-        mSettings.setBackSensitivity(mContext, mOverlayManager, 2);
-        assertEquals(2, mSettings.getBackSensitivity(mContext, mOverlayManager));
-
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_WIDE_BACK, USER_CURRENT);
-        verify(mOverlayManager, times(1)).setEnabledExclusiveInCategory(
-                NAV_BAR_MODE_GESTURAL_OVERLAY_EXTRA_WIDE_BACK, USER_CURRENT);
     }
 }

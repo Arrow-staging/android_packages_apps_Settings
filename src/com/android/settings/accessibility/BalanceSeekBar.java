@@ -16,6 +16,10 @@
 
 package com.android.settings.accessibility;
 
+import static android.view.HapticFeedbackConstants.CLOCK_TICK;
+
+import static com.android.settings.Utils.isNightMode;
+
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.Resources;
@@ -42,6 +46,7 @@ public class BalanceSeekBar extends SeekBar {
     private final Context mContext;
     private final Object mListenerLock = new Object();
     private OnSeekBarChangeListener mOnSeekBarChangeListener;
+    private int mLastProgress = -1;
     private final OnSeekBarChangeListener mProxySeekBarListener = new OnSeekBarChangeListener() {
         @Override
         public void onStopTrackingTouch(SeekBar seekBar) {
@@ -70,6 +75,12 @@ public class BalanceSeekBar extends SeekBar {
                         && progress < mCenter + mSnapThreshold) {
                     progress = mCenter;
                     seekBar.setProgress(progress); // direct update (fromUser becomes false)
+                }
+                if (progress != mLastProgress) {
+                    if (progress == mCenter || progress == getMin() || progress == getMax()) {
+                        seekBar.performHapticFeedback(CLOCK_TICK);
+                    }
+                    mLastProgress = progress;
                 }
                 final float balance = (progress - mCenter) * 0.01f;
                 Settings.System.putFloatForUser(mContext.getContentResolver(),
@@ -114,7 +125,7 @@ public class BalanceSeekBar extends SeekBar {
                 res.getDimensionPixelSize(R.dimen.balance_seekbar_center_marker_height));
         mCenterMarkerPaint = new Paint();
         // TODO use a more suitable colour?
-        mCenterMarkerPaint.setColor(Color.BLACK);
+        mCenterMarkerPaint.setColor(isNightMode(context) ? Color.WHITE : Color.BLACK);
         mCenterMarkerPaint.setStyle(Paint.Style.FILL);
         // Remove the progress colour
         setProgressTintList(ColorStateList.valueOf(Color.TRANSPARENT));
@@ -144,16 +155,11 @@ public class BalanceSeekBar extends SeekBar {
         // Draw a vertical line at 50% that represents centred balance
         int seekBarCenter = (canvas.getHeight() - getPaddingBottom()) / 2;
         canvas.save();
-        canvas.translate((canvas.getWidth() - mCenterMarkerRect.right) / 2,
+        canvas.translate((canvas.getWidth() - mCenterMarkerRect.right - getPaddingEnd()) / 2,
                 seekBarCenter - (mCenterMarkerRect.bottom / 2));
         canvas.drawRect(mCenterMarkerRect, mCenterMarkerPaint);
         canvas.restore();
         super.onDraw(canvas);
-    }
-
-    @VisibleForTesting
-    OnSeekBarChangeListener getProxySeekBarListener() {
-        return mProxySeekBarListener;
     }
 }
 

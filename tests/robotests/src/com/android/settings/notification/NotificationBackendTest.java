@@ -20,76 +20,137 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.app.INotificationManager;
 import android.app.role.RoleManager;
 import android.app.usage.UsageEvents;
+import android.bluetooth.BluetoothAdapter;
+import android.companion.AssociationInfo;
+import android.companion.ICompanionDeviceManager;
+import android.content.ComponentName;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.net.MacAddress;
+import android.os.Build;
 import android.os.Parcel;
 
 import com.android.settings.notification.NotificationBackend.AppRow;
+import com.android.settingslib.bluetooth.CachedBluetoothDevice;
+import com.android.settingslib.bluetooth.CachedBluetoothDeviceManager;
+import com.android.settingslib.bluetooth.LocalBluetoothManager;
 
+import com.google.common.collect.ImmutableList;
+
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 @RunWith(RobolectricTestRunner.class)
 public class NotificationBackendTest {
 
-    @Test
-    public void testMarkAppRow_unblockablePackage() {
-        AppRow appRow = new AppRow();
-        String packageName = "foo.bar.unblockable";
-        appRow.pkg = packageName;
-        String[] nonBlockablePkgs = new String[2];
-        nonBlockablePkgs[0] = packageName;
-        nonBlockablePkgs[1] = "some.other.package";
-        NotificationBackend.markAppRowWithBlockables(nonBlockablePkgs, appRow, packageName);
+    @Mock
+    LocalBluetoothManager mBm;
+    @Mock
+    ICompanionDeviceManager mCdm;
+    @Mock
+    CachedBluetoothDeviceManager mCbm;
+    ComponentName mCn = new ComponentName("a", "b");
+    @Mock
+    INotificationManager mInm;
+    NotificationBackend mNotificationBackend;
 
-        // This package has a package lock but no locked channels
+    @Before
+    public void setUp() {
+        MockitoAnnotations.initMocks(this);
+        when(mBm.getCachedDeviceManager()).thenReturn(mCbm);
+        mNotificationBackend = new NotificationBackend();
+        mNotificationBackend.setNm(mInm);
+    }
+
+    @Test
+    public void testMarkAppRow_fixedImportance() throws Exception {
+        PackageInfo pi = new PackageInfo();
+        pi.packageName = "test";
+        pi.applicationInfo = new ApplicationInfo();
+        pi.applicationInfo.packageName = "test";
+        pi.applicationInfo.uid = 123;
+
+        when(mInm.isImportanceLocked(pi.packageName, 123)).thenReturn(true);
+
+        AppRow appRow = new NotificationBackend().loadAppRow(RuntimeEnvironment.application,
+                mock(PackageManager.class), pi);
+
+        assertTrue(appRow.systemApp);
         assertTrue(appRow.lockedImportance);
     }
 
     @Test
-    public void testMarkAppRow_defaultPackage() {
+    public void testMarkAppRow_notFixedPermission() throws Exception {
         PackageInfo pi = new PackageInfo();
         pi.packageName = "test";
         pi.applicationInfo = new ApplicationInfo();
         pi.applicationInfo.packageName = "test";
-        List<String> roles = new ArrayList<>();
-        roles.add(RoleManager.ROLE_DIALER);
-        RoleManager rm = mock(RoleManager.class);
-        when(rm.getHeldRolesFromController(anyString())).thenReturn(roles);
+        pi.applicationInfo.uid = 123;
+
+        when(mInm.isImportanceLocked(anyString(), anyInt())).thenReturn(false);
 
         AppRow appRow = new NotificationBackend().loadAppRow(RuntimeEnvironment.application,
-                mock(PackageManager.class), rm, pi);
+                mock(PackageManager.class), pi);
 
-        assertTrue(appRow.systemApp);
+        assertFalse(appRow.systemApp);
+        assertFalse(appRow.lockedImportance);
     }
 
     @Test
-    public void testMarkAppRow_notDefaultPackage() {
+    public void testMarkAppRow_targetsT_noPermissionRequest() throws Exception {
         PackageInfo pi = new PackageInfo();
         pi.packageName = "test";
         pi.applicationInfo = new ApplicationInfo();
         pi.applicationInfo.packageName = "test";
-        List<String> roles = new ArrayList<>();
-        roles.add(RoleManager.ROLE_HOME);
-        RoleManager rm = mock(RoleManager.class);
-        when(rm.getHeldRolesFromController(anyString())).thenReturn(roles);
+        pi.applicationInfo.uid = 123;
+        pi.applicationInfo.targetSdkVersion= Build.VERSION_CODES.TIRAMISU;
+        pi.requestedPermissions = new String[] {"something"};
+
+        when(mInm.isPermissionFixed(pi.packageName, 0)).thenReturn(false);
 
         AppRow appRow = new NotificationBackend().loadAppRow(RuntimeEnvironment.application,
-                mock(PackageManager.class), rm, pi);
+                mock(PackageManager.class), pi);
 
         assertFalse(appRow.systemApp);
+        assertTrue(appRow.lockedImportance);
+    }
+
+    @Test
+    public void testMarkAppRow_targetsT_permissionRequest() throws Exception {
+        PackageInfo pi = new PackageInfo();
+        pi.packageName = "test";
+        pi.applicationInfo = new ApplicationInfo();
+        pi.applicationInfo.packageName = "test";
+        pi.applicationInfo.uid = 123;
+        pi.applicationInfo.targetSdkVersion= Build.VERSION_CODES.TIRAMISU;
+        pi.requestedPermissions = new String[] {"something",
+                android.Manifest.permission.POST_NOTIFICATIONS};
+
+        when(mInm.isPermissionFixed(pi.packageName, 0)).thenReturn(false);
+
+        AppRow appRow = new NotificationBackend().loadAppRow(RuntimeEnvironment.application,
+                mock(PackageManager.class), pi);
+
+        assertFalse(appRow.systemApp);
+        assertFalse(appRow.lockedImportance);
     }
 
     @Test
@@ -137,5 +198,85 @@ public class NotificationBackendTest {
         usageEvents.writeToParcel(parcel, 0);
         parcel.setDataPosition(0);
         return UsageEvents.CREATOR.createFromParcel(parcel);
+    }
+
+    @Test
+    public void getDeviceList_noAssociations() throws Exception {
+        when(mCdm.getAssociations(mCn.getPackageName(), 0)).thenReturn(null);
+
+        Collection<CachedBluetoothDevice> cachedDevices = new ArrayList<>();
+        CachedBluetoothDevice cbd1 = mock(CachedBluetoothDevice.class);
+        when(cbd1.getAddress()).thenReturn("00:00:00:00:00:10");
+        when(cbd1.getName()).thenReturn("Device 1");
+        cachedDevices.add(cbd1);
+        when(mCbm.getCachedDevicesCopy()).thenReturn(cachedDevices);
+
+        BluetoothAdapter.getDefaultAdapter().enable();
+
+        assertThat(new NotificationBackend().getDeviceList(
+                mCdm, mBm, mCn.getPackageName(), 0).toString()).isEmpty();
+    }
+
+    @Test
+    public void getDeviceList_associationsButNoDevice() throws Exception {
+        List<AssociationInfo> associations =
+                mockAssociations("00:00:00:00:00:10", "00:00:00:00:00:20");
+        when(mCdm.getAssociations(mCn.getPackageName(), 0)).thenReturn(associations);
+
+        when(mCbm.getCachedDevicesCopy()).thenReturn(new ArrayList<>());
+
+        assertThat(new NotificationBackend().getDeviceList(
+                mCdm, mBm, mCn.getPackageName(), 0).toString()).isEmpty();
+    }
+
+    @Test
+    public void getDeviceList_singleDevice() throws Exception {
+        String[] macs = { "00:00:00:00:00:10", "00:00:00:00:00:20" };
+        List<AssociationInfo> associations = mockAssociations(macs);
+        when(mCdm.getAssociations(mCn.getPackageName(), 0)).thenReturn(associations);
+
+        Collection<CachedBluetoothDevice> cachedDevices = new ArrayList<>();
+        CachedBluetoothDevice cbd1 = mock(CachedBluetoothDevice.class);
+        when(cbd1.getAddress()).thenReturn(macs[0]);
+        when(cbd1.getName()).thenReturn("Device 1");
+        cachedDevices.add(cbd1);
+        when(mCbm.getCachedDevicesCopy()).thenReturn(cachedDevices);
+
+        assertThat(new NotificationBackend().getDeviceList(
+                mCdm, mBm, mCn.getPackageName(), 0).toString()).isEqualTo("Device 1");
+    }
+
+    @Test
+    public void getDeviceList_multipleDevices() throws Exception {
+        String[] macs = { "00:00:00:00:00:10", "00:00:00:00:00:20" };
+        List<AssociationInfo> associations = mockAssociations(macs);
+        when(mCdm.getAssociations(mCn.getPackageName(), 0)).thenReturn(associations);
+
+        Collection<CachedBluetoothDevice> cachedDevices = new ArrayList<>();
+        CachedBluetoothDevice cbd1 = mock(CachedBluetoothDevice.class);
+        when(cbd1.getAddress()).thenReturn(macs[0]);
+        when(cbd1.getName()).thenReturn("Device 1");
+        cachedDevices.add(cbd1);
+
+        CachedBluetoothDevice cbd2 = mock(CachedBluetoothDevice.class);
+        when(cbd2.getAddress()).thenReturn(macs[1]);
+        when(cbd2.getName()).thenReturn("Device 2");
+        cachedDevices.add(cbd2);
+        when(mCbm.getCachedDevicesCopy()).thenReturn(cachedDevices);
+
+        assertThat(new NotificationBackend().getDeviceList(
+                mCdm, mBm, mCn.getPackageName(), 0).toString()).isEqualTo("Device 1, Device 2");
+    }
+
+    private ImmutableList<AssociationInfo> mockAssociations(String... macAddresses) {
+        final AssociationInfo[] associations = new AssociationInfo[macAddresses.length];
+        for (int index = 0; index < macAddresses.length; index++) {
+            final AssociationInfo association = mock(AssociationInfo.class);
+            when(association.isSelfManaged()).thenReturn(false);
+            when(association.getDeviceMacAddress())
+                    .thenReturn(MacAddress.fromString(macAddresses[index]));
+            associations[index] = association;
+        }
+        return ImmutableList.copyOf(associations);
     }
 }

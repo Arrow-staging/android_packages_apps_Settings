@@ -15,23 +15,17 @@
      limitations under the License.
 -->
 
-<RelativeLayout
+<androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical">
-
-        <include
+    android:fitsSystemWindows="true">
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_above="@id/add_network_button_bar"
-            android:layout_alignParentTop="true"
-            layout="@layout/wifi_dialog"/>
+            android:orientation="vertical">
+                <include layout="@layout/wifi_network_config"/>
 
-        <include
-            android:id="@+id/add_network_button_bar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_alignParentBottom="true"
-            layout="@*android:layout/alert_dialog_button_bar_material"/>
-</RelativeLayout>
+                <include layout="@*android:layout/alert_dialog_button_bar_material"/>
+        </LinearLayout>
+</androidx.core.widget.NestedScrollView>

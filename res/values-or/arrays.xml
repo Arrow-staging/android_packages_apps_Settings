@@ -50,6 +50,11 @@
   </string-array>
     <!-- no translation found for dark_ui_scheduler_preference_titles:0 (7465697698048662118) -->
     <!-- no translation found for dark_ui_scheduler_preference_titles:1 (4057198235664064478) -->
+    <!-- no translation found for dark_ui_scheduler_preference_titles:2 (8842756744447000897) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:0 (8160793372964333729) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:1 (1570862084158925417) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:2 (1527300254382984555) -->
+    <!-- no translation found for dark_ui_scheduler_with_bedtime_preference_titles:3 (5231566512901956369) -->
   <string-array name="lock_after_timeout_entries">
     <item msgid="2223808927866488981">"ତୁରନ୍ତ"</item>
     <item msgid="463591454172790676">"5 ସେକେଣ୍ଡ"</item>
@@ -97,11 +102,12 @@
   </string-array>
     <!-- no translation found for wifi_tether_security:0 (6312112980634811065) -->
     <!-- no translation found for wifi_tether_security:1 (1428294025896439258) -->
+    <!-- no translation found for wifi_tether_security:2 (6851763638266088835) -->
+    <!-- no translation found for wifi_tether_security:3 (5512131148045414341) -->
   <string-array name="eap_ocsp_type">
-    <item msgid="7202884222741437608">"ବୈଧ କରନ୍ତୁ ନାହିଁ"</item>
+    <item msgid="8568170800958331461">"ଯାଞ୍ଚ କରନ୍ତୁ ନାହିଁ"</item>
     <item msgid="5703177653586269306">"ସାର୍ଟିଫିକେଟ୍ ସ୍ଥିତି ପାଇଁ ଅନୁରୋଧ କରନ୍ତୁ"</item>
     <item msgid="326388247868439528">"ସାର୍ଟିଫିକେଟ୍ ସ୍ଥିତିର ଆବଶ୍ୟକତା ଅଛି"</item>
-    <item msgid="1090956283885790552">"ସମସ୍ତ ଅବିଶ୍ୱସନୀୟ ସାର୍ଟିଫିକେଟ୍ ସ୍ଥିତିର ଆବଶ୍ୟକତା ଅଛି"</item>
   </string-array>
   <string-array name="wifi_p2p_wps_setup">
     <item msgid="1446717102923442720">"ପୁଶ୍‌ ବଟନ୍‌"</item>
@@ -151,17 +157,23 @@
     <item msgid="9105006864434061405">"TTLS"</item>
     <item msgid="3199281439582632425">"PWD"</item>
   </string-array>
-    <!-- no translation found for wifi_peap_phase2_entries:0 (8082624033981656770) -->
-    <!-- no translation found for wifi_peap_phase2_entries:1 (4182817453412578800) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:0 (5943169794516984261) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:1 (2379904471264702148) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:2 (5248162884898921025) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:3 (3148964951886919224) -->
-    <!-- no translation found for wifi_peap_phase2_entries_with_sim_auth:4 (8987072060394684912) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:0 (7970149422845752634) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:1 (5204890303748068014) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:2 (2210309879499032393) -->
-    <!-- no translation found for wifi_ttls_phase2_entries:3 (6686694694122598353) -->
+  <string-array name="wifi_peap_phase2_entries">
+    <item msgid="8082624033981656770">"MSCHAPV2"</item>
+    <item msgid="4182817453412578800">"GTC"</item>
+  </string-array>
+  <string-array name="wifi_peap_phase2_entries_with_sim_auth">
+    <item msgid="5943169794516984261">"MSCHAPV2"</item>
+    <item msgid="2379904471264702148">"GTC"</item>
+    <item msgid="5248162884898921025">"SIM"</item>
+    <item msgid="3148964951886919224">"AKA"</item>
+    <item msgid="8987072060394684912">"AKA\'"</item>
+  </string-array>
+  <string-array name="wifi_ttls_phase2_entries">
+    <item msgid="7970149422845752634">"PAP"</item>
+    <item msgid="5204890303748068014">"MSCHAP"</item>
+    <item msgid="2210309879499032393">"MSCHAPV2"</item>
+    <item msgid="6686694694122598353">"GTC"</item>
+  </string-array>
   <string-array name="wifi_ip_settings">
     <item msgid="6665889765350160154">"DHCP"</item>
     <item msgid="6215795691318745695">"ଷ୍ଟାଟିକ୍"</item>
@@ -169,7 +181,7 @@
   <string-array name="wifi_proxy_settings">
     <item msgid="4669222334822978847">"କିଛି ନାହିଁ"</item>
     <item msgid="6242198071587397280">"ମାନୁଆଲ୍‌"</item>
-    <item msgid="464383874780058242">"ପ୍ରକ୍ସୀ ଅଟୋ-କନ୍‌ପିଗରେସନ୍"</item>
+    <item msgid="464383874780058242">"ପ୍ରକ୍ସି ଅଟୋ-କନଫିଗରେସନ୍"</item>
   </string-array>
   <string-array name="apn_auth_entries">
     <item msgid="2900892411844440682">"କିଛି ନୁହେଁ"</item>
@@ -199,6 +211,7 @@
     <item msgid="1396997182108950268">"1xRTT"</item>
     <item msgid="3658086883471544773">"IS95B"</item>
     <item msgid="6208908029106498824">"IS95A"</item>
+    <item msgid="5043127102327682718">"NR"</item>
   </string-array>
   <string-array name="mvno_type_entries">
     <item msgid="1909908032710683029">"କିଛି ନୁହେଁ"</item>
@@ -222,7 +235,7 @@
     <item msgid="8837238583601420163">"ଆନୁମାନିକ ଲୋକେସନ୍‌"</item>
     <item msgid="3205182755091629995">"ଫାଇନ୍‌ ଲୋକେସନ୍‌"</item>
     <item msgid="8952113542524604064">"GPS"</item>
-    <item msgid="50701215019227883">"କମ୍ପନ"</item>
+    <item msgid="50701215019227883">"ଭାଇବ୍ରେଟ୍"</item>
     <item msgid="2690144000353492014">"ଯୋଗାଯୋଗଗୁଡ଼ିକୁ ପଢ଼ନ୍ତୁ"</item>
     <item msgid="3858029424955955625">"ଯୋଗାଯୋଗଗୁଡିକ ପରିବର୍ତ୍ତନ କରନ୍ତୁ"</item>
     <item msgid="3439658954936709507">"କଲ୍‌ ଲଗ୍‌ ପଢ଼ନ୍ତୁ"</item>
@@ -242,7 +255,7 @@
     <item msgid="5167716820004184705">"SMS ପଠାନ୍ତୁ"</item>
     <item msgid="3834284815734286927">"ICC SMS ପଢ଼ନ୍ତୁ"</item>
     <item msgid="6394881108820762646">"ICC SMS ଲେଖନ୍ତୁ"</item>
-    <item msgid="3275060808384314406">"ସେଟିଙ୍ଗରେ ସଂଶୋଧନ କରନ୍ତୁ"</item>
+    <item msgid="3275060808384314406">"ସେଟିଂସ ପରିବର୍ତ୍ତନ କରନ୍ତୁ"</item>
     <item msgid="8672921438869137431">"ସ୍କ୍ରୀନ୍‌ର ଉପର ଭାଗରେ ଆଙ୍କନ୍ତୁ"</item>
     <item msgid="346101114322879720">"ବିଜ୍ଞପ୍ତିଗୁଡ଼ିକୁ ଆକ୍‌ସେସ୍‌ କରନ୍ତୁ"</item>
     <item msgid="4760681822601767255">"କ୍ୟାମେରା"</item>
@@ -256,7 +269,7 @@
     <item msgid="1249691739381713634">"ଭଏସ ଭଲ୍ୟୁମ"</item>
     <item msgid="6485000384018554920">"ରିଙ୍ଗ ଭଲ୍ୟୁମ୍"</item>
     <item msgid="3378000878531336372">"ମିଡିଆ ଭଲ୍ୟୁମ୍‌"</item>
-    <item msgid="5272927168355895681">"ଆଲାର୍ମର ଭଲ୍ୟୁମ୍‌"</item>
+    <item msgid="5272927168355895681">"ଆଲାରାମର ଭଲ୍ୟୁମ୍‌"</item>
     <item msgid="4422070755065530548">"ବିଜ୍ଞପ୍ତି ଭଲ୍ୟୁମ୍"</item>
     <item msgid="3250654589277825306">"ବ୍ଲୁଟୂଥ୍‍‌ ଭଲ୍ୟୁମ୍‌"</item>
     <item msgid="4212187233638382465">"ଜାଗ୍ରତ ରଖନ୍ତୁ"</item>
@@ -289,7 +302,7 @@
     <item msgid="7780927354556651567">"ଲୋକେସନ୍‌"</item>
     <item msgid="364182753727575631">"ଲୋକେସନ୍"</item>
     <item msgid="5728662879095632194">"ଲୋକେସନ୍‌"</item>
-    <item msgid="4104617224667554750">"କମ୍ପନ"</item>
+    <item msgid="4104617224667554750">"ଭାଇବ୍ରେଟ୍"</item>
     <item msgid="1623646715189708947">"ଯୋଗାଯୋଗଗୁଡ଼ିକ ପଢ଼ନ୍ତୁ"</item>
     <item msgid="5060760609109972207">"ଯୋଗାଯୋଗ ବଦଳାନ୍ତୁ"</item>
     <item msgid="7451260062940797278">"କଲ୍‌ ଲଗ୍‌ ପଢ଼ନ୍ତୁ"</item>
@@ -309,7 +322,7 @@
     <item msgid="9189359977063200554">"SMS/MMS ପଠାନ୍ତୁ"</item>
     <item msgid="6954817837534799424">"SMS/MMS ପଢ଼ନ୍ତୁ"</item>
     <item msgid="7921014514153395846">"SMS/MMS ଲେଖନ୍ତୁ"</item>
-    <item msgid="8997371825401751421">"ସେଟିଙ୍ଗଗୁଡ଼ିକ ବଦଳାନ୍ତୁ"</item>
+    <item msgid="8997371825401751421">"ସେଟିଂସ ବଦଳାନ୍ତୁ"</item>
     <item msgid="7005755175240764443">"ଉପର ଭାଗରେ ଆଙ୍କନ୍ତୁ"</item>
     <item msgid="8267704990417682222">"ବିଜ୍ଞପ୍ତି ଆକସେସ୍‌ କରନ୍ତୁ"</item>
     <item msgid="3180676986290096851">"କ୍ୟାମେରା"</item>
@@ -353,9 +366,14 @@
     <item msgid="2114661179947426734">"ଦିବ୍ୟାଙ୍ଗମାନଙ୍କ ପାଇଁ ସୁବିଧାଗୁଡ଼ିକର ଭଲ୍ୟୁମ୍‌"</item>
   </string-array>
   <string-array name="long_press_timeout_selector_titles">
-    <item msgid="6926391290986427331">"କମ୍"</item>
+    <item msgid="6926391290986427331">"କମ"</item>
     <item msgid="5118829513010894576">"ମଧ୍ୟମ"</item>
     <item msgid="6740026006576843477">"ଲମ୍ଵା"</item>
+  </string-array>
+  <string-array name="long_press_timeout_selector_list_titles">
+    <item msgid="8908021508913038488">"ଛୋଟ"</item>
+    <item msgid="7397961711906421599">"ମଧ୍ୟମ"</item>
+    <item msgid="4079132024502041928">"ଲମ୍ଵା"</item>
   </string-array>
   <string-array name="captioning_typeface_selector_titles">
     <item msgid="2166553138528640250">"ପୂର୍ବ-ନିର୍ଦ୍ଧାରିତ"</item>
@@ -371,14 +389,14 @@
   <string-array name="captioning_font_size_selector_titles">
     <item msgid="923916134548435468">"ବହୁତ ଛୋଟ"</item>
     <item msgid="5738147437573674872">"ଛୋଟ"</item>
-    <item msgid="8111006422178051129">"ସାଧାରଣ"</item>
+    <item msgid="4691660235626027304">"ମଧ୍ୟମ"</item>
     <item msgid="824386705928670045">"ବହୁତ ବଡ଼"</item>
     <item msgid="2790561781512874585">"ବହୁତ ବଡ଼"</item>
   </string-array>
   <string-array name="captioning_edge_type_selector_titles">
     <item msgid="70686029249840227">"ଡିଫଲ୍ଟ"</item>
     <item msgid="4224714345662348668">"କିଛି ନୁହେଁ"</item>
-    <item msgid="4132127611510627490">"ଆଉଟ୍‌ଲାଇନ୍‌"</item>
+    <item msgid="4132127611510627490">"Outline‌"</item>
     <item msgid="1226216870460161087">"ଡ୍ରପ୍‌ ଛାୟା"</item>
     <item msgid="2328414188644618697">"ଉଠିକରିଥିବା"</item>
     <item msgid="7758730980218689351">"ସଂକ୍ଷିପ୍ତ"</item>
@@ -390,12 +408,24 @@
     <item msgid="3237802033158517495">"100%"</item>
   </string-array>
   <string-array name="captioning_preset_selector_titles">
-    <item msgid="4180191497452407161">"ଆପ୍‌ର ପୂର୍ବ-ନିର୍ଦ୍ଧାରିତ ସେଟିଙ୍ଗ ବ୍ୟବହାର କରନ୍ତୁ"</item>
+    <item msgid="3880932435325583041">"ଆପ୍ ଦ୍ୱାରା ସେଟ୍ କରନ୍ତୁ"</item>
     <item msgid="8719204526359229387">"କଳା ଉପରେ ଧଳା"</item>
     <item msgid="5410164687403735103">"ଧଳା ଉପରେ କଳା"</item>
     <item msgid="1119043472912497241">"କଳା ଉପରେ ହଳଦିଆ"</item>
     <item msgid="2836895041823327816">"ନୀଳ ଉପରେ ହଳଦିଆ"</item>
     <item msgid="747238414788976867">"କଷ୍ଟମ୍‌"</item>
+  </string-array>
+  <string-array name="accessibility_button_location_selector_titles">
+    <item msgid="6485511780196327736">"ଅନ୍ୟ ଆପଗୁଡ଼ିକ ଉପରେ ଫ୍ଲୋଟ୍ ହେଉଛି"</item>
+    <item msgid="3605616699204153590">"ନାଭିଗେସନ୍ ବାର୍"</item>
+  </string-array>
+  <string-array name="accessibility_button_gesture_selector_titles">
+    <item msgid="2370918472773154939">"ବଟନ୍"</item>
+    <item msgid="6922258575853746220">"ଜେଶ୍ଚର୍"</item>
+  </string-array>
+  <string-array name="accessibility_button_size_selector_titles">
+    <item msgid="7482952318152486459">"ଛୋଟ"</item>
+    <item msgid="1666628329913333563">"ବଡ଼"</item>
   </string-array>
   <string-array name="vpn_types_long">
     <item msgid="6621806338070912611">"PPTP VPN"</item>
@@ -404,6 +434,9 @@
     <item msgid="3792393562235791509">"ସେୟାର୍‌ କରାଯାଇଥିବା କୀ’ଗୁଡ଼ିକ ସହିତ IPSec VPN ଏବଂ Xauth ସତ୍ୟାପନ"</item>
     <item msgid="2484564813864139237">"ସର୍ଟିଫିକେଟ୍‌ ଏବଂ Xauth ପ୍ରାମାଣିକୀକରଣ ସହ IPSec VPN"</item>
     <item msgid="68918911194507915">"ସର୍ଟିଫିକେଟ୍‌ ଓ ହାଇବ୍ରିଡ୍‌ ସତ୍ୟାପନ ସହ IPSec VPN"</item>
+    <item msgid="4631647675167100375">"ସାର୍ଟିଫିକେଟଗୁଡ଼ିକ ଏବଂ ଉପଯୋଗକର୍ତ୍ତାନାମ/ପାସୱାର୍ଡ ପ୍ରାମାଣିକତା ସହ IKEv2/IPSec VPN"</item>
+    <item msgid="8812228622975052811">"ପୂର୍ବରୁ ସେୟାର୍ କରାଯାଇଥିବା କୀଗୁଡ଼ିକ ସହ IKEv2/IPSec VPN"</item>
+    <item msgid="6630554779981113046">"ସାର୍ଟିଫିକେଟଗୁଡ଼ିକ ସହ IKEv2/IPSec VPN"</item>
   </string-array>
   <string-array name="vpn_proxy_settings">
     <item msgid="7165538292837266997">"କିଛିନାହିଁ"</item>
@@ -440,24 +473,24 @@
     <item msgid="5777152116210127847">"ଶ୍ରେଷ୍ଠ ଗତିବିଧି"</item>
     <item msgid="1834030155560727324">"ଜରୁରୀ (ଫୋର୍‌ଗ୍ରାଉଣ୍ଡ)"</item>
     <item msgid="8494424742994426350">"ଗୁରୁତ୍ଵପୁର୍ଣ୍ଣ (ପୃଷ୍ଠପଟ)"</item>
-    <item msgid="5099332663422156149">"ବ୍ୟାକଅପ୍"</item>
+    <item msgid="5099332663422156149">"ବ୍ୟାକଅପ"</item>
     <item msgid="7701089238529887617">"ଭାରୀ"</item>
     <item msgid="3006466648960525485">"ସେବା (ଚାଲୁଛି)"</item>
     <item msgid="2253476667031759713">"ସେବା (ରିଷ୍ଟାର୍ଟ ହେଉଛି)"</item>
     <item msgid="5209576689975321486">"ପ୍ରାପକ"</item>
-    <item msgid="7243761414719310364">"ହୋମ୍‌"</item>
+    <item msgid="7243761414719310364">"ହୋମ"</item>
     <item msgid="3674963093565630781">"ଶେଷ ଗତିବିଧି"</item>
     <item msgid="5545221272903898598">"କ୍ୟାଶ୍ ହୋଇଥିବା (କାର୍ଯ୍ୟକଳାପ)"</item>
     <item msgid="3164591924266309710">"କ୍ୟାଶ୍ ହୋଇଥିବା (କାର୍ଯ୍ୟକଳାପ କ୍ଲାଏଣ୍ଟ)"</item>
     <item msgid="8186970968968646288">"କ୍ୟାଶ୍ ହୋଇଥିବା (ଖାଲି)"</item>
   </string-array>
   <string-array name="color_picker">
-    <item msgid="3230992859486877963">"ଟିଲ୍"</item>
+    <item msgid="7216413848731287689">"ସିଆନ୍"</item>
     <item msgid="5661027589207588703">"ନୀଳ"</item>
-    <item msgid="3795787248113275442">"ଇଣ୍ଡିଗୋ"</item>
+    <item msgid="1219738214736244749">"ସବୁଜ"</item>
     <item msgid="6331809026622602308">"ବାଇଗଣୀ"</item>
-    <item msgid="6390546163902724700">"ଗୋଲାପୀ"</item>
-    <item msgid="6618900408138432102">"ନାଲି"</item>
+    <item msgid="6390546163902724700">"ଗୋଲାପି"</item>
+    <item msgid="6500473130620545980">"କମଳା"</item>
   </string-array>
   <string-array name="automatic_storage_management_days">
     <item msgid="8896644025110620477">"30 ଦିନରୁ ଅଧିକ ପୁରୁଣା"</item>
@@ -476,8 +509,8 @@
     <item msgid="2047166446768045816">"ମିଟର୍ ହୋଇନଥିବା ରୂପେ ବିବେଚନା କରନ୍ତୁ"</item>
   </string-array>
   <string-array name="wifi_privacy_entries">
-    <item msgid="3485945604919292489">"ରେଣ୍ଡମାଇଜ୍ ହୋଇଥିବା MAC ବ୍ୟବହାର କରନ୍ତୁ (ଡିଫଲ୍ଟ)"</item>
-    <item msgid="741680937828608749">"MAC ଡିଭାଇସ୍ ବ୍ୟବହାର କରନ୍ତୁ"</item>
+    <item msgid="3485945604919292489">"ରେଣ୍ଡମାଇଜ୍ଡ MAC ବ୍ୟବହାର କରନ୍ତୁ (ଡିଫଲ୍ଟ)"</item>
+    <item msgid="741680937828608749">"MAC ଡିଭାଇସ ବ୍ୟବହାର କରନ୍ତୁ"</item>
   </string-array>
   <string-array name="wifi_hidden_entries">
     <item msgid="342232116597649254">"ନା"</item>
@@ -488,13 +521,13 @@
     <item msgid="3761390980253394079">"ଉଜ୍ବଳ"</item>
   </string-array>
   <string-array name="autofill_logging_level_entries">
-    <item msgid="2263571982739726576">"ଅଫ୍"</item>
+    <item msgid="2263571982739726576">"ବନ୍ଦ"</item>
     <item msgid="4295717421282345505">"ଡିବଗ୍ କରନ୍ତୁ"</item>
     <item msgid="8657797891533816070">"ଶବ୍ଦବହୁଳ"</item>
   </string-array>
   <string-array name="cdma_system_select_choices">
-    <item msgid="1205665684426617345">"କେବଳ ହୋମ୍ ନେଟ୍‌ୱର୍କ"</item>
-    <item msgid="6691772120712000966">"ସ୍ୱଚାଳିତ"</item>
+    <item msgid="1205665684426617345">"କେବଳ ହୋମ"</item>
+    <item msgid="6691772120712000966">"ଅଟୋମେଟିକ"</item>
   </string-array>
   <string-array name="preferred_network_mode_choices">
     <item msgid="5746729990546256950">"GSM/WCDMA ପସନ୍ଦ କରାଯାଇଛି"</item>
@@ -507,7 +540,7 @@
     <item msgid="30756226617172695">"CDMA/EvDo/GSM/WCDMA"</item>
     <item msgid="2847125869624632806">"CDMA + LTE/EvDo"</item>
     <item msgid="2247906254631766720">"GSM/WCDMA/LTE"</item>
-    <item msgid="1091258946200124345">"ଗ୍ଲୋବାଲ୍"</item>
+    <item msgid="4147872615520331421">"LTE/CDMA/EvDo/GSM/WCDMA"</item>
     <item msgid="2908834445708457736">"LTE"</item>
     <item msgid="2947411877551747693">"LTE / WCDMA"</item>
     <item msgid="7723670142495874534">"କେବଳ TDSCDMA"</item>
@@ -524,7 +557,7 @@
     <item msgid="8150548370973671395">"NR/LTE"</item>
     <item msgid="5237423971422723128">"NR/LTE/CDMA/EvDo"</item>
     <item msgid="6856991565745877075">"NR/LTE/GSM/WCDMA"</item>
-    <item msgid="473436147270962091">"NR/LTE/CDMA/EvDo/GSM/WCDMA"</item>
+    <item msgid="8908263949185004366">"ଗ୍ଲୋବାଲ୍"</item>
     <item msgid="6692179237956480280">"NR/LTE/WCDMA"</item>
     <item msgid="8160757136163231885">"NR/LTE/TDSCDMA"</item>
     <item msgid="2207530656708814396">"NR/LTE/TDSCDMA/GSM"</item>
@@ -536,15 +569,26 @@
     <item msgid="6242790734457941014">"RUIM/SIM"</item>
     <item msgid="8980776035119085660">"NV"</item>
   </string-array>
-  <string-array name="preferred_network_mode_choices_world_mode">
-    <item msgid="8219021147046131771">"ଗ୍ଲୋବାଲ୍"</item>
-    <item msgid="5291208617720023560">"LTE / CDMA"</item>
-    <item msgid="6742002477816975742">"LTE / GSM / UMTS"</item>
-  </string-array>
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:0 (1841976293698111057) -->
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:1 (6822859933189908133) -->
     <!-- no translation found for enhanced_4g_lte_mode_title_variant:2 (4543171628914168621) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:0 (6624400115590055120) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:1 (5783108243674842461) -->
     <!-- no translation found for enhanced_4g_lte_mode_sumary_variant:2 (2605068646093321511) -->
+    <!-- no translation found for rtt_setting_mode:1 (7903019313228349427) -->
+    <!-- no translation found for rtt_setting_mode:2 (8525285145696236811) -->
+    <!-- no translation found for rtt_setting_mode:3 (7725394146877517088) -->
+  <string-array name="nfc_payment_favor">
+    <item msgid="9104058551372383947">"ସର୍ବଦା"</item>
+    <item msgid="5283665583617307336">"ଅନ୍ୟ ଏକ ପେମେଣ୍ଟ ଆପ ଖୋଲା ଥିବା ସମୟ ବ୍ୟତୀତ"</item>
+  </string-array>
+  <string-array name="nfc_payment_favor_values">
+    <item msgid="2373999996715432397">"0"</item>
+    <item msgid="5305176997036663262">"1"</item>
+  </string-array>
+  <string-array name="switch_to_user_zero_when_docked_timeout_entries">
+    <item msgid="4844842227131211168">"କେବେ ବି ନୁହେଁ"</item>
+    <item msgid="5065465585332446709">"1 ମିନିଟ ପରେ"</item>
+    <item msgid="622807566366131941">"5 ମିନିଟ ପରେ"</item>
+  </string-array>
 </resources>

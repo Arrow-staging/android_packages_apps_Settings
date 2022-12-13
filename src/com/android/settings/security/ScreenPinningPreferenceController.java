@@ -24,23 +24,21 @@ import com.android.settings.core.BasePreferenceController;
 
 public class ScreenPinningPreferenceController extends BasePreferenceController {
 
-    private static final String KEY_SCREEN_PINNING = "screen_pinning_settings";
-
-    public ScreenPinningPreferenceController(Context context) {
-        super(context, KEY_SCREEN_PINNING);
+    public ScreenPinningPreferenceController(Context context, String key) {
+        super(context, key);
     }
 
     @Override
     public int getAvailabilityStatus() {
         return mContext.getResources().getBoolean(R.bool.config_show_screen_pinning_settings)
-                ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
+                ? AVAILABLE : CONDITIONALLY_UNAVAILABLE;
     }
 
     @Override
     public CharSequence getSummary() {
         return Settings.System.getInt(mContext.getContentResolver(),
                 Settings.System.LOCK_TO_APP_ENABLED, 0) != 0
-                ? mContext.getText(R.string.switch_on_text)
-                : mContext.getText(R.string.switch_off_text);
+                ? mContext.getText(R.string.screen_pinning_switch_on_text)
+                : mContext.getText(R.string.screen_pinning_switch_off_text);
     }
 }

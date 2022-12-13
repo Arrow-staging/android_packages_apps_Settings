@@ -20,10 +20,13 @@ import static android.Manifest.permission.READ_SEARCH_INDEXABLES;
 
 import android.app.PendingIntent;
 import android.app.slice.SliceManager;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.StrictMode;
 import android.provider.Settings;
 import android.provider.SettingsSlicesContract;
@@ -41,9 +44,11 @@ import androidx.slice.Slice;
 import androidx.slice.SliceProvider;
 
 import com.android.settings.R;
+import com.android.settings.Utils;
 import com.android.settings.bluetooth.BluetoothSliceBuilder;
 import com.android.settings.core.BasePreferenceController;
-import com.android.settings.notification.ZenModeSliceBuilder;
+import com.android.settings.notification.VolumeSeekBarPreferenceController;
+import com.android.settings.notification.zen.ZenModeSliceBuilder;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.SliceBroadcastRelay;
 import com.android.settingslib.utils.ThreadUtils;
@@ -102,12 +107,6 @@ public class SettingsSliceProvider extends SliceProvider {
             "com.android.settings.slice.action.SLIDER_CHANGED";
 
     /**
-     * Action passed for copy data for the Copyable Slices.
-     */
-    public static final String ACTION_COPY =
-            "com.android.settings.slice.action.COPY";
-
-    /**
      * Intent Extra passed for the key identifying the Setting Slice.
      */
     public static final String EXTRA_SLICE_KEY = "com.android.settings.slice.extra.key";
@@ -136,14 +135,21 @@ public class SettingsSliceProvider extends SliceProvider {
     @VisibleForTesting
     Map<Uri, SliceData> mSliceWeakDataCache;
 
+    @VisibleForTesting
     final Map<Uri, SliceBackgroundWorker> mPinnedWorkers = new ArrayMap<>();
+
+    private Boolean mNightMode;
+    private boolean mFirstSlicePinned;
+    private boolean mFirstSliceBound;
 
     public SettingsSliceProvider() {
         super(READ_SEARCH_INDEXABLES);
+        Log.d(TAG, "init");
     }
 
     @Override
     public boolean onCreateSliceProvider() {
+        Log.d(TAG, "onCreateSliceProvider");
         mSlicesDatabaseAccessor = new SlicesDatabaseAccessor(getContext());
         mSliceWeakDataCache = new WeakHashMap<>();
         return true;
@@ -151,6 +157,10 @@ public class SettingsSliceProvider extends SliceProvider {
 
     @Override
     public void onSlicePinned(Uri sliceUri) {
+        if (!mFirstSlicePinned) {
+            Log.d(TAG, "onSlicePinned: " + sliceUri);
+            mFirstSlicePinned = true;
+        }
         if (CustomSliceRegistry.isValidUri(sliceUri)) {
             final Context context = getContext();
             final CustomSliceable sliceable = FeatureFactory.getFactory(context)
@@ -177,12 +187,18 @@ public class SettingsSliceProvider extends SliceProvider {
 
     @Override
     public void onSliceUnpinned(Uri sliceUri) {
-        SliceBroadcastRelay.unregisterReceivers(getContext(), sliceUri);
+        final Context context = getContext();
+        if (!VolumeSliceHelper.unregisterUri(context, sliceUri)) {
+            SliceBroadcastRelay.unregisterReceivers(context, sliceUri);
+        }
         ThreadUtils.postOnMainThread(() -> stopBackgroundWorker(sliceUri));
     }
 
     @Override
     public Slice onBindSlice(Uri sliceUri) {
+        if (!mFirstSliceBound) {
+            Log.d(TAG, "onBindSlice start: " + sliceUri);
+        }
         final StrictMode.ThreadPolicy oldPolicy = StrictMode.getThreadPolicy();
         try {
             if (!ThreadUtils.isMainThread()) {
@@ -195,6 +211,16 @@ public class SettingsSliceProvider extends SliceProvider {
             if (blockedKeys.contains(key)) {
                 Log.e(TAG, "Requested blocked slice with Uri: " + sliceUri);
                 return null;
+            }
+
+            final boolean nightMode = Utils.isNightMode(getContext());
+            if (mNightMode == null) {
+                mNightMode = nightMode;
+                getContext().setTheme(R.style.Theme_SettingsBase);
+            } else if (mNightMode != nightMode) {
+                Log.d(TAG, "Night mode changed, reload theme");
+                mNightMode = nightMode;
+                getContext().getTheme().rebase();
             }
 
             // Before adding a slice to {@link CustomSliceManager}, please get approval
@@ -227,7 +253,7 @@ public class SettingsSliceProvider extends SliceProvider {
                         .createWifiCallingPreferenceSlice(sliceUri);
             }
 
-            SliceData cachedSliceData = mSliceWeakDataCache.get(sliceUri);
+            final SliceData cachedSliceData = mSliceWeakDataCache.get(sliceUri);
             if (cachedSliceData == null) {
                 loadSliceInBackground(sliceUri);
                 return getSliceStub(sliceUri);
@@ -240,6 +266,10 @@ public class SettingsSliceProvider extends SliceProvider {
             return SliceBuilderUtils.buildSlice(getContext(), cachedSliceData);
         } finally {
             StrictMode.setThreadPolicy(oldPolicy);
+            if (!mFirstSliceBound) {
+                Log.v(TAG, "onBindSlice end");
+                mFirstSliceBound = true;
+            }
         }
     }
 
@@ -265,16 +295,29 @@ public class SettingsSliceProvider extends SliceProvider {
     @Override
     public Collection<Uri> onGetSliceDescendants(Uri uri) {
         final List<Uri> descendants = new ArrayList<>();
-        final Pair<Boolean, String> pathData = SliceBuilderUtils.getPathData(uri);
+        Uri finalUri = uri;
+
+        if (isPrivateSlicesNeeded(finalUri)) {
+            descendants.addAll(
+                    mSlicesDatabaseAccessor.getSliceUris(finalUri.getAuthority(),
+                            false /* isPublicSlice */));
+            Log.d(TAG, "provide " + descendants.size() + " non-public slices");
+            finalUri = new Uri.Builder()
+                    .scheme(ContentResolver.SCHEME_CONTENT)
+                    .authority(finalUri.getAuthority())
+                    .build();
+        }
+
+        final Pair<Boolean, String> pathData = SliceBuilderUtils.getPathData(finalUri);
 
         if (pathData != null) {
             // Uri has a full path and will not have any descendants.
-            descendants.add(uri);
+            descendants.add(finalUri);
             return descendants;
         }
 
-        final String authority = uri.getAuthority();
-        final String path = uri.getPath();
+        final String authority = finalUri.getAuthority();
+        final String path = finalUri.getPath();
         final boolean isPathEmpty = path.isEmpty();
 
         // Path is anything but empty, "action", or "intent". Return empty list.
@@ -286,7 +329,7 @@ public class SettingsSliceProvider extends SliceProvider {
         }
 
         // Add all descendants from db with matching authority.
-        descendants.addAll(mSlicesDatabaseAccessor.getSliceUris(authority));
+        descendants.addAll(mSlicesDatabaseAccessor.getSliceUris(authority, true /*isPublicSlice*/));
 
         if (isPathEmpty && TextUtils.isEmpty(authority)) {
             // No path nor authority. Return all possible Uris by adding all special slice uri
@@ -298,7 +341,7 @@ public class SettingsSliceProvider extends SliceProvider {
                     .collect(Collectors.toList());
             descendants.addAll(customSlices);
         }
-        grantWhitelistedPackagePermissions(getContext(), descendants);
+        grantAllowlistedPackagePermissions(getContext(), descendants);
         return descendants;
     }
 
@@ -306,30 +349,31 @@ public class SettingsSliceProvider extends SliceProvider {
     @Override
     public PendingIntent onCreatePermissionRequest(@NonNull Uri sliceUri,
             @NonNull String callingPackage) {
-        final Intent settingsIntent = new Intent(Settings.ACTION_SETTINGS);
+        final Intent settingsIntent = new Intent(Settings.ACTION_SETTINGS)
+                .setPackage(Utils.SETTINGS_PACKAGE_NAME);
         final PendingIntent noOpIntent = PendingIntent.getActivity(getContext(),
-                0 /* requestCode */, settingsIntent, 0 /* flags */);
+                0 /* requestCode */, settingsIntent, PendingIntent.FLAG_IMMUTABLE);
         return noOpIntent;
     }
 
     @VisibleForTesting
-    static void grantWhitelistedPackagePermissions(Context context, List<Uri> descendants) {
+    static void grantAllowlistedPackagePermissions(Context context, List<Uri> descendants) {
         if (descendants == null) {
             Log.d(TAG, "No descendants to grant permission with, skipping.");
         }
-        final String[] whitelistPackages =
-                context.getResources().getStringArray(R.array.slice_whitelist_package_names);
-        if (whitelistPackages == null || whitelistPackages.length == 0) {
-            Log.d(TAG, "No packages to whitelist, skipping.");
+        final String[] allowlistPackages =
+                context.getResources().getStringArray(R.array.slice_allowlist_package_names);
+        if (allowlistPackages == null || allowlistPackages.length == 0) {
+            Log.d(TAG, "No packages to allowlist, skipping.");
             return;
         } else {
             Log.d(TAG, String.format(
-                    "Whitelisting %d uris to %d pkgs.",
-                    descendants.size(), whitelistPackages.length));
+                    "Allowlisting %d uris to %d pkgs.",
+                    descendants.size(), allowlistPackages.length));
         }
         final SliceManager sliceManager = context.getSystemService(SliceManager.class);
         for (Uri descendant : descendants) {
-            for (String toPackage : whitelistPackages) {
+            for (String toPackage : allowlistPackages) {
                 sliceManager.grantSlicePermission(toPackage, descendant);
             }
         }
@@ -359,7 +403,13 @@ public class SettingsSliceProvider extends SliceProvider {
 
         final IntentFilter filter = controller.getIntentFilter();
         if (filter != null) {
-            registerIntentToUri(filter, uri);
+            if (controller instanceof VolumeSeekBarPreferenceController) {
+                // Register volume slices to a broadcast relay to reduce unnecessary UI updates
+                VolumeSliceHelper.registerIntentToUri(getContext(), filter, uri,
+                        ((VolumeSeekBarPreferenceController) controller).getAudioStream());
+            } else {
+                registerIntentToUri(filter, uri);
+            }
         }
 
         ThreadUtils.postOnMainThread(() -> startBackgroundWorker(controller, uri));
@@ -395,13 +445,31 @@ public class SettingsSliceProvider extends SliceProvider {
         try {
             KEY_VALUE_LIST_PARSER.setString(value);
         } catch (IllegalArgumentException e) {
-            Log.e(TAG, "Bad Settings Slices Whitelist flags", e);
+            Log.e(TAG, "Bad Settings Slices Allowlist flags", e);
             return set;
         }
 
         final String[] parsedValues = parseStringArray(value);
         Collections.addAll(set, parsedValues);
         return set;
+    }
+
+    @VisibleForTesting
+    boolean isPrivateSlicesNeeded(Uri uri) {
+        final String queryUri = getContext().getString(R.string.config_non_public_slice_query_uri);
+
+        if (!TextUtils.isEmpty(queryUri) && TextUtils.equals(uri.toString(), queryUri)) {
+            // check if the calling package is eligible for private slices
+            final int callingUid = Binder.getCallingUid();
+            final boolean hasPermission = getContext().checkPermission(
+                    android.Manifest.permission.READ_SEARCH_INDEXABLES, Binder.getCallingPid(),
+                    callingUid) == PackageManager.PERMISSION_GRANTED;
+            final String callingPackage = getContext().getPackageManager()
+                    .getPackagesForUid(callingUid)[0];
+            return hasPermission && TextUtils.equals(callingPackage,
+                    getContext().getString(R.string.config_settingsintelligence_package_name));
+        }
+        return false;
     }
 
     private void startBackgroundWorker(Sliceable sliceable, Uri uri) {
@@ -418,14 +486,14 @@ public class SettingsSliceProvider extends SliceProvider {
         final SliceBackgroundWorker worker = SliceBackgroundWorker.getInstance(
                 getContext(), sliceable, uri);
         mPinnedWorkers.put(uri, worker);
-        worker.onSlicePinned();
+        worker.pin();
     }
 
     private void stopBackgroundWorker(Uri uri) {
         final SliceBackgroundWorker worker = mPinnedWorkers.get(uri);
         if (worker != null) {
             Log.d(TAG, "Stopping background worker for: " + uri);
-            worker.onSliceUnpinned();
+            worker.unpin();
             mPinnedWorkers.remove(uri);
         }
     }

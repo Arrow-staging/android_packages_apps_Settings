@@ -23,7 +23,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.UserHandle;
-import android.text.TextUtils;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
@@ -32,11 +31,12 @@ import androidx.preference.PreferenceScreen;
 
 import com.android.internal.widget.LockPatternUtils;
 import com.android.settings.R;
+import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.core.PreferenceControllerMixin;
+import com.android.settings.core.SettingsBaseActivity;
 import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.password.ChooseLockSettingsHelper;
 import com.android.settings.security.SecurityFeatureProvider;
-import com.android.settings.security.SecuritySettings;
 import com.android.settingslib.RestrictedPreference;
 import com.android.settingslib.core.AbstractPreferenceController;
 import com.android.settingslib.core.lifecycle.Lifecycle;
@@ -44,7 +44,10 @@ import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnCreate;
 import com.android.settingslib.core.lifecycle.events.OnResume;
 import com.android.settingslib.core.lifecycle.events.OnSaveInstanceState;
+import com.android.settingslib.search.SearchIndexableRaw;
+import com.android.settingslib.transition.SettingsTransitionHelper;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class TrustAgentListPreferenceController extends AbstractPreferenceController
@@ -60,12 +63,15 @@ public class TrustAgentListPreferenceController extends AbstractPreferenceContro
 
     private final LockPatternUtils mLockPatternUtils;
     private final TrustAgentManager mTrustAgentManager;
-    private final SecuritySettings mHost;
+    private final SettingsPreferenceFragment mHost;
 
     private Intent mTrustAgentClickIntent;
     private PreferenceCategory mSecurityCategory;
 
-    public TrustAgentListPreferenceController(Context context, SecuritySettings host,
+    @VisibleForTesting
+    final List<String> mTrustAgentsKeyList;
+
+    public TrustAgentListPreferenceController(Context context, SettingsPreferenceFragment host,
             Lifecycle lifecycle) {
         super(context);
         final SecurityFeatureProvider provider = FeatureFactory.getFactory(context)
@@ -73,6 +79,7 @@ public class TrustAgentListPreferenceController extends AbstractPreferenceContro
         mHost = host;
         mLockPatternUtils = provider.getLockPatternUtils(context);
         mTrustAgentManager = provider.getTrustAgentManager();
+        mTrustAgentsKeyList = new ArrayList();
         if (lifecycle != null) {
             lifecycle.addObserver(this);
         }
@@ -112,14 +119,19 @@ public class TrustAgentListPreferenceController extends AbstractPreferenceContro
 
     @Override
     public boolean handlePreferenceTreeClick(Preference preference) {
-        if (!TextUtils.equals(preference.getKey(), getPreferenceKey())) {
+        if (!mTrustAgentsKeyList.contains(preference.getKey())) {
             return super.handlePreferenceTreeClick(preference);
         }
-        final ChooseLockSettingsHelper helper = new ChooseLockSettingsHelper(
-                mHost.getActivity(), mHost);
+
+        final ChooseLockSettingsHelper.Builder builder =
+                new ChooseLockSettingsHelper.Builder(mHost.getActivity(), mHost);
+        final boolean confirmationLaunched = builder.setRequestCode(CHANGE_TRUST_AGENT_SETTINGS)
+                .setTitle(preference.getTitle())
+                .show();
+
         mTrustAgentClickIntent = preference.getIntent();
-        boolean confirmationLaunched = helper.launchConfirmationActivity(
-                CHANGE_TRUST_AGENT_SETTINGS, preference.getTitle());
+        mTrustAgentClickIntent.putExtra(SettingsBaseActivity.EXTRA_PAGE_TRANSITION_TYPE,
+                SettingsTransitionHelper.TransitionType.TRANSITION_SLIDE);
 
         if (!confirmationLaunched && mTrustAgentClickIntent != null) {
             // If this returns false, it means no password confirmation is required.
@@ -134,34 +146,70 @@ public class TrustAgentListPreferenceController extends AbstractPreferenceContro
         updateTrustAgents();
     }
 
+
+    @Override
+    public void updateDynamicRawDataToIndex(List<SearchIndexableRaw> rawData) {
+        if (!isAvailable()) {
+            return;
+        }
+
+        final List<TrustAgentManager.TrustAgentComponentInfo> agents = getActiveTrustAgents(
+                mContext);
+        if (agents == null) {
+            return;
+        }
+
+        for (int i = 0, size = agents.size(); i < size; i++) {
+            final SearchIndexableRaw raw = new SearchIndexableRaw(mContext);
+            final TrustAgentManager.TrustAgentComponentInfo agent = agents.get(i);
+
+            raw.key = PREF_KEY_TRUST_AGENT + i;
+            raw.title = agent.title;
+            rawData.add(raw);
+        }
+    }
+
+    /**
+     * @return The active trust agents from TrustAgentManager.
+     */
+    private List<TrustAgentManager.TrustAgentComponentInfo> getActiveTrustAgents(Context context) {
+        return mTrustAgentManager.getActiveTrustAgents(context, mLockPatternUtils);
+    }
+
     private void updateTrustAgents() {
         if (mSecurityCategory == null) {
             return;
         }
+        // If for some reason the preference is no longer available, don't proceed to add.
+        if (!isAvailable()) {
+            return;
+        }
+        final List<TrustAgentManager.TrustAgentComponentInfo> agents = getActiveTrustAgents(
+                mContext);
+        if (agents == null) {
+            return;
+        }
+
         // First remove all old trust agents.
-        while (true) {
-            final Preference oldAgent = mSecurityCategory.findPreference(PREF_KEY_TRUST_AGENT);
+        for (int i = 0, size = agents.size(); i < size; i++) {
+            String key = PREF_KEY_TRUST_AGENT + i;
+            final Preference oldAgent = mSecurityCategory.findPreference(key);
             if (oldAgent == null) {
                 break;
             } else {
                 mSecurityCategory.removePreference(oldAgent);
             }
         }
-        // If for some reason the preference is no longer available, don't proceed to add.
-        if (!isAvailable()) {
-            return;
-        }
+        mTrustAgentsKeyList.clear();
+
         // Then add new ones.
         final boolean hasSecurity = mLockPatternUtils.isSecure(MY_USER_ID);
-        final List<TrustAgentManager.TrustAgentComponentInfo> agents =
-                mTrustAgentManager.getActiveTrustAgents(mContext, mLockPatternUtils);
-        if (agents == null) {
-            return;
-        }
-        for (TrustAgentManager.TrustAgentComponentInfo agent : agents) {
+        for (int i = 0, size = agents.size(); i < size; i++) {
             final RestrictedPreference trustAgentPreference =
                     new RestrictedPreference(mSecurityCategory.getContext());
-            trustAgentPreference.setKey(PREF_KEY_TRUST_AGENT);
+            TrustAgentManager.TrustAgentComponentInfo agent = agents.get(i);
+            mTrustAgentsKeyList.add(PREF_KEY_TRUST_AGENT + i);
+            trustAgentPreference.setKey(PREF_KEY_TRUST_AGENT + i);
             trustAgentPreference.setTitle(agent.title);
             trustAgentPreference.setSummary(agent.summary);
             // Create intent for this preference.

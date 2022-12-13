@@ -98,7 +98,8 @@ public class BluetoothSliceBuilder {
                 SettingsSlicesContract.KEY_BLUETOOTH).build();
         return SliceBuilderUtils.buildSearchResultPageIntent(context,
                 BluetoothDashboardFragment.class.getName(), null /* key */, screenTitle,
-                SettingsEnums.SETTINGS_CONNECTED_DEVICE_CATEGORY)
+                SettingsEnums.SETTINGS_CONNECTED_DEVICE_CATEGORY,
+                R.string.menu_key_connected_devices)
                 .setClassName(context.getPackageName(), SubSettings.class.getName())
                 .setData(contentUri);
     }
@@ -129,13 +130,13 @@ public class BluetoothSliceBuilder {
     private static PendingIntent getPrimaryAction(Context context) {
         final Intent intent = getIntent(context);
         return PendingIntent.getActivity(context, 0 /* requestCode */,
-                intent, 0 /* flags */);
+                intent, PendingIntent.FLAG_IMMUTABLE);
     }
 
     private static PendingIntent getBroadcastIntent(Context context) {
         final Intent intent = new Intent(ACTION_BLUETOOTH_SLICE_CHANGED)
                 .setClass(context, SliceBroadcastReceiver.class);
         return PendingIntent.getBroadcast(context, 0 /* requestCode */, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
     }
 }

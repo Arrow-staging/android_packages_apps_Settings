@@ -22,7 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
-import android.net.wifi.WifiConfiguration;
+import android.net.wifi.SoftApConfiguration;
 import android.net.wifi.WifiManager;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -106,6 +106,9 @@ public class HotspotConditionController implements ConditionalCardController {
     @Override
     public void startMonitoringStateChange() {
         mAppContext.registerReceiver(mReceiver, WIFI_AP_STATE_FILTER);
+        // The intent WIFI_AP_STATE_CHANGED_ACTION is not sticky intent anymore after SC-V2
+        // Handle the initial state after register the receiver.
+        mConditionManager.onConditionChanged();
     }
 
     @Override
@@ -114,13 +117,12 @@ public class HotspotConditionController implements ConditionalCardController {
     }
 
     private CharSequence getSsid() {
-        WifiConfiguration wifiConfig = mWifiManager.getWifiApConfiguration();
-        if (wifiConfig == null) {
+        final SoftApConfiguration softApConfig = mWifiManager.getSoftApConfiguration();
+        if (softApConfig == null) {
             // Should never happen.
             return "";
-        } else {
-            return wifiConfig.SSID;
         }
+        return softApConfig.getSsid();
     }
 
     public class Receiver extends BroadcastReceiver {

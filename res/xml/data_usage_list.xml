@@ -17,13 +17,20 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
 
     <PreferenceCategory
-        android:key="usage_amount">
+        android:key="usage_amount"
+        android:title="@string/summary_placeholder">
 
         <com.android.settings.datausage.ChartDataUsagePreference
             android:key="chart_data" />
 
         <Preference
+            android:key="operator_warning"
             android:summary="@string/operator_warning"
+            android:selectable="false" />
+
+        <Preference
+            android:key="non_carrier_data_usage_warning"
+            android:summary="@string/non_carrier_data_usage_warning"
             android:selectable="false" />
 
     </PreferenceCategory>

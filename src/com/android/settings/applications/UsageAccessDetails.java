@@ -15,6 +15,11 @@
  */
 package com.android.settings.applications;
 
+import static android.app.AppOpsManager.OP_GET_USAGE_STATS;
+import static android.app.AppOpsManager.OP_LOADER_USAGE_STATS;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.WORK_PROFILE_DISABLE_USAGE_ACCESS_WARNING;
+
+import android.Manifest;
 import android.app.AppOpsManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.settings.SettingsEnums;
@@ -70,7 +75,7 @@ public class UsageAccessDetails extends AppInfoWithHeader implements OnPreferenc
 
         getPreferenceScreen().setTitle(R.string.usage_access);
         mSwitchPref.setTitle(R.string.permit_usage_access);
-        mUsageDesc.setSummary(R.string.usage_access_description);
+        mUsageDesc.setTitle(R.string.usage_access_description);
 
         mSwitchPref.setOnPreferenceChangeListener(this);
 
@@ -92,7 +97,9 @@ public class UsageAccessDetails extends AppInfoWithHeader implements OnPreferenc
                     new AlertDialog.Builder(getContext())
                             .setIcon(com.android.internal.R.drawable.ic_dialog_alert_material)
                             .setTitle(android.R.string.dialog_alert_title)
-                            .setMessage(R.string.work_profile_usage_access_warning)
+                            .setMessage(mDpm.getResources().getString(
+                                    WORK_PROFILE_DISABLE_USAGE_ACCESS_WARNING,
+                                    () -> getString(R.string.work_profile_usage_access_warning)))
                             .setPositiveButton(R.string.okay, null)
                             .show();
                 }
@@ -104,10 +111,28 @@ public class UsageAccessDetails extends AppInfoWithHeader implements OnPreferenc
         return false;
     }
 
+    private static boolean doesAnyPermissionMatch(String permissionToMatch, String[] permissions) {
+        for (String permission : permissions) {
+            if (permissionToMatch.equals(permission)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void setHasAccess(boolean newState) {
         logSpecialPermissionChange(newState, mPackageName);
-        mAppOpsManager.setMode(AppOpsManager.OP_GET_USAGE_STATS, mPackageInfo.applicationInfo.uid,
-                mPackageName, newState ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED);
+
+        final int newAppOpMode = newState ? AppOpsManager.MODE_ALLOWED : AppOpsManager.MODE_IGNORED;
+        final int uid = mPackageInfo.applicationInfo.uid;
+        if (doesAnyPermissionMatch(Manifest.permission.PACKAGE_USAGE_STATS,
+                mUsageState.packageInfo.requestedPermissions)) {
+            mAppOpsManager.setMode(OP_GET_USAGE_STATS, uid, mPackageName, newAppOpMode);
+        }
+        if (doesAnyPermissionMatch(Manifest.permission.LOADER_USAGE_STATS,
+                mUsageState.packageInfo.requestedPermissions)) {
+            mAppOpsManager.setMode(OP_LOADER_USAGE_STATS, uid, mPackageName, newAppOpMode);
+        }
     }
 
     @VisibleForTesting

@@ -20,11 +20,14 @@ import android.widget.ProgressBar;
 
 import androidx.preference.PreferenceViewHolder;
 
+import com.android.settings.R;
 import com.android.settingslib.AppItem;
 import com.android.settingslib.net.UidDetail;
 import com.android.settingslib.net.UidDetailProvider;
 import com.android.settingslib.utils.ThreadUtils;
-import com.android.settingslib.widget.apppreference.AppPreference;
+import com.android.settingslib.widget.AppPreference;
+
+import java.text.NumberFormat;
 
 public class AppDataUsagePreference extends AppPreference {
 
@@ -47,6 +50,9 @@ public class AppDataUsagePreference extends AppPreference {
         if (mDetail != null) {
             setAppInfo();
         } else {
+            // Set a placeholder title before starting to fetch real title, this is necessary
+            // to avoid preference height change.
+            setTitle(R.string.summary_placeholder);
             ThreadUtils.postOnBackgroundThread(() -> {
                 mDetail = provider.getUidDetail(mItem.key, true /* blocking */);
                 ThreadUtils.postOnMainThread(() -> setAppInfo());
@@ -66,6 +72,8 @@ public class AppDataUsagePreference extends AppPreference {
             progress.setVisibility(View.VISIBLE);
         }
         progress.setProgress(mPercent);
+        progress.setContentDescription(
+                NumberFormat.getPercentInstance().format((double) mPercent / 100));
     }
 
     private void setAppInfo() {

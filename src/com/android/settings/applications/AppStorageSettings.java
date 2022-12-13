@@ -54,6 +54,7 @@ import com.android.settings.R;
 import com.android.settings.Utils;
 import com.android.settings.deviceinfo.StorageWizardMoveConfirm;
 import com.android.settingslib.RestrictedLockUtils;
+import com.android.settingslib.applications.AppUtils;
 import com.android.settingslib.applications.ApplicationsState.Callbacks;
 import com.android.settingslib.applications.StorageStatsSource;
 import com.android.settingslib.applications.StorageStatsSource.AppStorageStats;
@@ -311,17 +312,13 @@ public class AppStorageSettings extends AppInfoWithHeader
             if (appHasSpaceManagementUI) {
                 mButtonsPref.setButton1Text(R.string.manage_space_text);
             } else {
-                mButtonsPref
-                        .setButton1Text(R.string.clear_user_data_text)
-                        .setButton1Icon(R.drawable.ic_settings_delete);
+                mButtonsPref.setButton1Text(R.string.clear_user_data_text);
             }
-            mButtonsPref
-                    .setButton1Text(R.string.clear_user_data_text)
-                    .setButton1Icon(R.drawable.ic_settings_delete)
+            mButtonsPref.setButton1Icon(R.drawable.ic_settings_delete)
                     .setButton1OnClickListener(v -> handleClearDataClick());
         }
 
-        if (mAppsControlDisallowedBySystem) {
+        if (mAppsControlDisallowedBySystem || AppUtils.isMainlineModule(mPm, mPackageName)) {
             mButtonsPref.setButton1Enabled(false);
         }
     }
@@ -371,7 +368,12 @@ public class AppStorageSettings extends AppInfoWithHeader
         }
         ActivityManager am = (ActivityManager)
                 getActivity().getSystemService(Context.ACTIVITY_SERVICE);
-        boolean res = am.clearApplicationUserData(packageName, mClearDataObserver);
+        boolean res = false;
+        try {
+            res = am.clearApplicationUserData(packageName, mClearDataObserver);
+        } catch (SecurityException e) {
+            Log.i(TAG, "Failed to clear application user data: " + e);
+        }
         if (!res) {
             // Clearing data failed for some obscure reason. Just log error for now
             Log.i(TAG, "Couldn't clear application user data for package:" + packageName);
@@ -489,7 +491,8 @@ public class AppStorageSettings extends AppInfoWithHeader
                 return new AlertDialog.Builder(getActivity())
                         .setTitle(getActivity().getText(R.string.clear_data_dlg_title))
                         .setMessage(getActivity().getText(R.string.clear_data_dlg_text))
-                        .setPositiveButton(R.string.dlg_ok, new DialogInterface.OnClickListener() {
+                        .setPositiveButton(R.string.dlg_delete,
+                                new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog, int which) {
                                 // Clear user data here
                                 initiateClearUserData();
@@ -579,7 +582,7 @@ public class AppStorageSettings extends AppInfoWithHeader
                         .setButton2OnClickListener(v -> handleClearCacheClick());
             }
         }
-        if (mAppsControlDisallowedBySystem) {
+        if (mAppsControlDisallowedBySystem || AppUtils.isMainlineModule(mPm, mPackageName)) {
             mButtonsPref.setButton1Enabled(false).setButton2Enabled(false);
         }
     }

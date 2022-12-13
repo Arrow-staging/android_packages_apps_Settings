@@ -23,23 +23,20 @@ import android.content.Context;
 import android.telephony.SubscriptionInfo;
 import android.telephony.SubscriptionManager;
 
-import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.OnLifecycleEvent;
 import androidx.preference.PreferenceScreen;
 
-import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
 import com.android.settings.network.SubscriptionUtil;
 import com.android.settings.network.SubscriptionsChangeListener;
-import com.android.settings.widget.SwitchBar;
-import com.android.settingslib.widget.LayoutPreference;
+import com.android.settings.widget.SettingsMainSwitchPreference;
 
 /** This controls a switch to allow enabling/disabling a mobile network */
 public class MobileNetworkSwitchController extends BasePreferenceController implements
         SubscriptionsChangeListener.SubscriptionsChangeListenerClient, LifecycleObserver {
     private static final String TAG = "MobileNetworkSwitchCtrl";
-    private SwitchBar mSwitchBar;
+    private SettingsMainSwitchPreference mSwitchBar;
     private int mSubId;
     private SubscriptionsChangeListener mChangeListener;
     private SubscriptionManager mSubscriptionManager;
@@ -51,8 +48,7 @@ public class MobileNetworkSwitchController extends BasePreferenceController impl
         mChangeListener = new SubscriptionsChangeListener(context, this);
     }
 
-    public void init(Lifecycle lifecycle, int subId) {
-        lifecycle.addObserver(this);
+    void init(int subId) {
         mSubId = subId;
     }
 
@@ -70,18 +66,16 @@ public class MobileNetworkSwitchController extends BasePreferenceController impl
     @Override
     public void displayPreference(PreferenceScreen screen) {
         super.displayPreference(screen);
-        final LayoutPreference pref = screen.findPreference(mPreferenceKey);
-        mSwitchBar = pref.findViewById(R.id.switch_bar);
-        mSwitchBar.setSwitchBarText(R.string.mobile_network_use_sim_on,
-                R.string.mobile_network_use_sim_off);
+        mSwitchBar = (SettingsMainSwitchPreference) screen.findPreference(mPreferenceKey);
 
-        mSwitchBar.addOnSwitchChangeListener((switchView, isChecked) -> {
+        mSwitchBar.setOnBeforeCheckedChangeListener((toggleSwitch, isChecked) -> {
             // TODO b/135222940: re-evaluate whether to use
             // mSubscriptionManager#isSubscriptionEnabled
-            if (mSubscriptionManager.isActiveSubId(mSubId) != isChecked
-                    && (!mSubscriptionManager.setSubscriptionEnabled(mSubId, isChecked))) {
-                mSwitchBar.setChecked(!isChecked);
+            if (mSubscriptionManager.isActiveSubscriptionId(mSubId) != isChecked) {
+                SubscriptionUtil.startToggleSubscriptionDialogActivity(mContext, mSubId, isChecked);
+                return true;
             }
+            return false;
         });
         update();
     }
@@ -99,15 +93,14 @@ public class MobileNetworkSwitchController extends BasePreferenceController impl
             }
         }
 
-        // For eSIM, we always want the toggle. The telephony stack doesn't currently support
-        // disabling a pSIM directly (b/133379187), so we for now we don't include this on pSIM.
-        if (subInfo == null || !subInfo.isEmbedded()) {
+        // For eSIM, we always want the toggle. If telephony stack support disabling a pSIM
+        // directly, we show the toggle.
+        if (subInfo == null || (!subInfo.isEmbedded() && !SubscriptionUtil.showToggleForPhysicalSim(
+                mSubscriptionManager))) {
             mSwitchBar.hide();
         } else {
             mSwitchBar.show();
-            // TODO b/135222940: re-evaluate whether to use
-            // mSubscriptionManager#isSubscriptionEnabled
-            mSwitchBar.setChecked(mSubscriptionManager.isActiveSubId(mSubId));
+            mSwitchBar.setCheckedInternal(mSubscriptionManager.isActiveSubscriptionId(mSubId));
         }
     }
 
@@ -118,7 +111,8 @@ public class MobileNetworkSwitchController extends BasePreferenceController impl
     }
 
     @Override
-    public void onAirplaneModeChanged(boolean airplaneModeEnabled) {}
+    public void onAirplaneModeChanged(boolean airplaneModeEnabled) {
+    }
 
     @Override
     public void onSubscriptionsChanged() {

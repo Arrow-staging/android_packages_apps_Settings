@@ -24,6 +24,7 @@ import android.text.TextUtils;
 import androidx.preference.Preference;
 import androidx.preference.SwitchPreference;
 
+import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
 import com.android.settings.overlay.FeatureFactory;
 
@@ -32,6 +33,7 @@ import com.android.settings.overlay.FeatureFactory;
  */
 public class SmartBatteryPreferenceController extends BasePreferenceController implements
         Preference.OnPreferenceChangeListener {
+
     private static final String KEY_SMART_BATTERY = "smart_battery";
     private static final int ON = 1;
     private static final int OFF = 0;
@@ -53,6 +55,16 @@ public class SmartBatteryPreferenceController extends BasePreferenceController i
     @Override
     public boolean isSliceable() {
         return TextUtils.equals(getPreferenceKey(), "smart_battery");
+    }
+
+    @Override
+    public boolean isPublicSlice() {
+        return true;
+    }
+
+    @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_battery;
     }
 
     @Override

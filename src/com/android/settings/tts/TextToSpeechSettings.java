@@ -38,6 +38,7 @@ import android.util.Log;
 import android.util.Pair;
 
 import androidx.appcompat.app.AlertDialog;
+import androidx.lifecycle.ViewModelProviders;
 import androidx.preference.ListPreference;
 import androidx.preference.Preference;
 
@@ -45,6 +46,7 @@ import com.android.settings.R;
 import com.android.settings.SettingsActivity;
 import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.Utils;
+import com.android.settings.overlay.FeatureFactory;
 import com.android.settings.search.BaseSearchIndexProvider;
 import com.android.settings.widget.GearPreference;
 import com.android.settings.widget.SeekBarPreference;
@@ -205,13 +207,18 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
             mLocalePreference.setEnabled(entries.length > 0);
         }
 
-        mTts = new TextToSpeech(getActivity().getApplicationContext(), mInitListener);
+        final TextToSpeechViewModel ttsViewModel =
+                ViewModelProviders.of(this).get(TextToSpeechViewModel.class);
+        Pair<TextToSpeech, Boolean> ttsAndNew = ttsViewModel.getTtsAndWhetherNew(mInitListener);
+        mTts = ttsAndNew.first;
+        // If the TTS object is not newly created, we need to run the setup on the settings side to
+        // ensure that we can use the TTS object.
+        if (!ttsAndNew.second) {
+            successSetup();
+        }
 
         setTtsUtteranceProgressListener();
         initSettings();
-
-        // Prevent restarting the TTS connection on rotation
-        setRetainInstance(true);
     }
 
     @Override
@@ -227,13 +234,21 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
             return;
         }
         if (!mTts.getDefaultEngine().equals(mTts.getCurrentEngine())) {
+            final TextToSpeechViewModel ttsViewModel =
+                    ViewModelProviders.of(this).get(TextToSpeechViewModel.class);
             try {
-                mTts.shutdown();
-                mTts = null;
+                // If the current engine isn't the default engine shut down the current engine in
+                // preparation for creating the new engine.
+                ttsViewModel.shutdownTts();
             } catch (Exception e) {
                 Log.e(TAG, "Error shutting down TTS engine" + e);
             }
-            mTts = new TextToSpeech(getActivity().getApplicationContext(), mInitListener);
+            final Pair<TextToSpeech, Boolean> ttsAndNew =
+                    ttsViewModel.getTtsAndWhetherNew(mInitListener);
+            mTts = ttsAndNew.first;
+            if (!ttsAndNew.second) {
+                successSetup();
+            }
             setTtsUtteranceProgressListener();
             initSettings();
         } else {
@@ -277,15 +292,6 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        if (mTts != null) {
-            mTts.shutdown();
-            mTts = null;
-        }
-    }
-
-    @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
 
@@ -312,11 +318,15 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
         mDefaultRatePref.setProgress(getSeekBarProgressFromValue(KEY_DEFAULT_RATE, mDefaultRate));
         mDefaultRatePref.setOnPreferenceChangeListener(this);
         mDefaultRatePref.setMax(getSeekBarProgressFromValue(KEY_DEFAULT_RATE, MAX_SPEECH_RATE));
+        mDefaultRatePref.setContinuousUpdates(true);
+        mDefaultRatePref.setHapticFeedbackMode(SeekBarPreference.HAPTIC_FEEDBACK_MODE_ON_ENDS);
 
         mDefaultPitchPref.setProgress(
                 getSeekBarProgressFromValue(KEY_DEFAULT_PITCH, mDefaultPitch));
         mDefaultPitchPref.setOnPreferenceChangeListener(this);
         mDefaultPitchPref.setMax(getSeekBarProgressFromValue(KEY_DEFAULT_PITCH, MAX_SPEECH_PITCH));
+        mDefaultPitchPref.setContinuousUpdates(true);
+        mDefaultPitchPref.setHapticFeedbackMode(SeekBarPreference.HAPTIC_FEEDBACK_MODE_ON_ENDS);
 
         if (mTts != null) {
             mCurrentEngine = mTts.getCurrentEngine();
@@ -375,8 +385,7 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
     public void onInitEngine(int status) {
         if (status == TextToSpeech.SUCCESS) {
             if (DBG) Log.d(TAG, "TTS engine for settings screen initialized.");
-            checkDefaultLocale();
-            getActivity().runOnUiThread(() -> mLocalePreference.setEnabled(true));
+            successSetup();
         } else {
             if (DBG) {
                 Log.d(TAG,
@@ -384,6 +393,12 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
             }
             updateWidgetState(false);
         }
+    }
+
+    /** Initialize TTS Settings on successful engine init. */
+    private void successSetup() {
+        checkDefaultLocale();
+        getActivity().runOnUiThread(() -> mLocalePreference.setEnabled(true));
     }
 
     private void checkDefaultLocale() {
@@ -710,8 +725,7 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
     }
 
     private void updateTTSSetting(String key, int value) {
-        Secure.putInt(
-                    getContentResolver(), key, value);
+        Secure.putInt(getContentResolver(), key, value);
         final int managedProfileUserId =
                 Utils.getManagedProfileId(mUserManager, UserHandle.myUserId());
         if (managedProfileUserId != UserHandle.USER_NULL) {
@@ -789,6 +803,8 @@ public class TextToSpeechSettings extends SettingsPreferenceFragment
             } else {
                 Log.e(TAG, "settingsIntent is null");
             }
+            FeatureFactory.getFactory(getContext()).getMetricsFeatureProvider()
+                    .logClickedPreference(p, getMetricsCategory());
         }
     }
 

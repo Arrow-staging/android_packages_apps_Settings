@@ -16,40 +16,54 @@
 
 package com.android.settings.fuelgauge;
 
+import android.content.ComponentName;
 import android.content.Context;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
 
 import com.android.settings.R;
 import com.android.settings.core.BasePreferenceController;
+import com.android.settings.overlay.FeatureFactory;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
+import com.android.settingslib.utils.ThreadUtils;
 
 public class TopLevelBatteryPreferenceController extends BasePreferenceController implements
-        LifecycleObserver, OnStart, OnStop {
+        LifecycleObserver, OnStart, OnStop, BatteryPreferenceController {
 
+    @VisibleForTesting
+    protected boolean mIsBatteryPresent = true;
+    @VisibleForTesting
+    Preference mPreference;
     private final BatteryBroadcastReceiver mBatteryBroadcastReceiver;
-    private Preference mPreference;
     private BatteryInfo mBatteryInfo;
+    private BatteryStatusFeatureProvider mBatteryStatusFeatureProvider;
+    private String mBatteryStatusLabel;
 
     public TopLevelBatteryPreferenceController(Context context, String preferenceKey) {
         super(context, preferenceKey);
         mBatteryBroadcastReceiver = new BatteryBroadcastReceiver(mContext);
         mBatteryBroadcastReceiver.setBatteryChangedListener(type -> {
+            if (type == BatteryBroadcastReceiver.BatteryUpdateType.BATTERY_NOT_PRESENT) {
+                mIsBatteryPresent = false;
+            }
             BatteryInfo.getBatteryInfo(mContext, info -> {
                 mBatteryInfo = info;
                 updateState(mPreference);
             }, true /* shortString */);
         });
+
+        mBatteryStatusFeatureProvider = FeatureFactory.getFactory(context)
+                .getBatteryStatusFeatureProvider(context);
     }
 
     @Override
     public int getAvailabilityStatus() {
         return mContext.getResources().getBoolean(R.bool.config_show_top_level_battery)
-                ? AVAILABLE_UNSEARCHABLE
-                : UNSUPPORTED_ON_DEVICE;
+                ? AVAILABLE : UNSUPPORTED_ON_DEVICE;
     }
 
     @Override
@@ -70,23 +84,83 @@ public class TopLevelBatteryPreferenceController extends BasePreferenceControlle
 
     @Override
     public CharSequence getSummary() {
-        return getDashboardLabel(mContext, mBatteryInfo);
+        return getSummary(true /* batteryStatusUpdate */);
     }
 
-    static CharSequence getDashboardLabel(Context context, BatteryInfo info) {
+    private CharSequence getSummary(boolean batteryStatusUpdate) {
+        // Display help message if battery is not present.
+        if (!mIsBatteryPresent) {
+            return mContext.getText(R.string.battery_missing_message);
+        }
+        return getDashboardLabel(mContext, mBatteryInfo, batteryStatusUpdate);
+    }
+
+    protected CharSequence getDashboardLabel(Context context, BatteryInfo info,
+            boolean batteryStatusUpdate) {
         if (info == null || context == null) {
             return null;
         }
-        CharSequence label;
+
+        if (batteryStatusUpdate) {
+            setSummaryAsync(info);
+        }
+
+        return (mBatteryStatusLabel == null) ? generateLabel(info) : mBatteryStatusLabel;
+    }
+
+    private void setSummaryAsync(BatteryInfo info) {
+        ThreadUtils.postOnBackgroundThread(() -> {
+            final boolean triggerBatteryStatusUpdate =
+                    mBatteryStatusFeatureProvider.triggerBatteryStatusUpdate(this, info);
+            ThreadUtils.postOnMainThread(() -> {
+                if (!triggerBatteryStatusUpdate) {
+                    mBatteryStatusLabel = null; // will generateLabel()
+                }
+                mPreference.setSummary(
+                        (mBatteryStatusLabel == null) ? generateLabel(info) : mBatteryStatusLabel);
+            });
+        });
+    }
+
+    private CharSequence generateLabel(BatteryInfo info) {
         if (!info.discharging && info.chargeLabel != null) {
-            label = info.chargeLabel;
+            return info.chargeLabel;
         } else if (info.remainingLabel == null) {
-            label = info.batteryPercentString;
+            return info.batteryPercentString;
         } else {
-            label = context.getString(R.string.power_remaining_settings_home_page,
+            return mContext.getString(R.string.power_remaining_settings_home_page,
                     info.batteryPercentString,
                     info.remainingLabel);
         }
-        return label;
+    }
+
+    /**
+     * Callback which receives text for the label.
+     */
+    public void updateBatteryStatus(String label, BatteryInfo info) {
+        mBatteryStatusLabel = label; // Null if adaptive charging is not active
+
+        if (mPreference != null) {
+            // Do not triggerBatteryStatusUpdate(), otherwise there will be an infinite loop
+            final CharSequence summary = getSummary(false /* batteryStatusUpdate */);
+            if (summary != null) {
+                mPreference.setSummary(summary);
+            }
+        }
+    }
+
+    @VisibleForTesting
+    protected static ComponentName convertClassPathToComponentName(String classPath) {
+        if (classPath == null || classPath.isEmpty()) {
+            return null;
+        }
+        String[] split = classPath.split("\\.");
+        int classNameIndex = split.length - 1;
+        if (classNameIndex < 0) {
+            return null;
+        }
+        int lastPkgIndex = classPath.length() - split[classNameIndex].length() - 1;
+        String pkgName = lastPkgIndex > 0 ? classPath.substring(0, lastPkgIndex) : "";
+        return new ComponentName(pkgName, split[classNameIndex]);
     }
 }

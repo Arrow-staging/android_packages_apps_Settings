@@ -21,16 +21,17 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 import android.content.Context;
-import android.net.wifi.WifiConfiguration;
 
 import androidx.preference.DropDownPreference;
 
 import com.android.settings.R;
+import com.android.wifitrackerlib.WifiEntry;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
 
@@ -42,7 +43,7 @@ public class WifiMeteredPreferenceController2Test {
     private static final int METERED_OVERRIDE_NOT_METERED = 2;
 
     @Mock
-    private WifiConfiguration mWifiConfiguration;
+    private WifiEntry mWifiEntry;
 
     private WifiMeteredPreferenceController2 mPreferenceController;
     private Context mContext;
@@ -50,10 +51,11 @@ public class WifiMeteredPreferenceController2Test {
 
     @Before
     public void setUp() {
+        MockitoAnnotations.initMocks(this);
         mContext = RuntimeEnvironment.application;
 
         mPreferenceController = spy(
-                new WifiMeteredPreferenceController2(mContext, mWifiConfiguration));
+                new WifiMeteredPreferenceController2(mContext, mWifiEntry));
         mDropDownPreference = new DropDownPreference(mContext);
         mDropDownPreference.setEntries(R.array.wifi_metered_entries);
         mDropDownPreference.setEntryValues(R.array.wifi_metered_values);
@@ -84,13 +86,5 @@ public class WifiMeteredPreferenceController2Test {
         mPreferenceController.updateState(mDropDownPreference);
 
         assertThat(mDropDownPreference.getEntry()).isEqualTo("Detect automatically");
-    }
-
-    @Test
-    public void testController_resilientToNullConfig() {
-        mPreferenceController = spy(new WifiMeteredPreferenceController2(mContext, null));
-
-        mPreferenceController.getMeteredOverride();
-        mPreferenceController.onPreferenceChange(mDropDownPreference, 1);
     }
 }

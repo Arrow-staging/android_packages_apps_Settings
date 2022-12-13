@@ -15,20 +15,17 @@
  */
 package com.android.settings.core;
 
+import static android.text.Layout.HYPHENATION_FREQUENCY_NORMAL_FAST;
+
 import android.annotation.LayoutRes;
-import android.annotation.Nullable;
 import android.app.ActivityManager;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.TypedArray;
-import android.os.AsyncTask;
+import android.graphics.text.LineBreakConfig;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.util.ArraySet;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -36,96 +33,142 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.widget.Toolbar;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.fragment.app.FragmentActivity;
 
 import com.android.settings.R;
+import com.android.settings.SetupWizardUtils;
 import com.android.settings.SubSettings;
-import com.android.settings.dashboard.CategoryManager;
+import com.android.settings.core.CategoryMixin.CategoryHandler;
+import com.android.settingslib.core.lifecycle.HideNonSystemOverlayMixin;
+import com.android.settingslib.transition.SettingsTransitionHelper.TransitionType;
 
+import com.google.android.material.appbar.AppBarLayout;
+import com.google.android.material.appbar.CollapsingToolbarLayout;
+import com.google.android.material.resources.TextAppearanceConfig;
 import com.google.android.setupcompat.util.WizardManagerHelper;
+import com.google.android.setupdesign.util.ThemeHelper;
 
-import java.util.ArrayList;
-import java.util.List;
+/** Base activity for Settings pages */
+public class SettingsBaseActivity extends FragmentActivity implements CategoryHandler {
 
-public class SettingsBaseActivity extends FragmentActivity {
+    /**
+     * What type of page transition should be apply.
+     */
+    public static final String EXTRA_PAGE_TRANSITION_TYPE = "page_transition_type";
 
     protected static final boolean DEBUG_TIMING = false;
     private static final String TAG = "SettingsBaseActivity";
-    private static final String DATA_SCHEME_PKG = "package";
+    private static final int DEFAULT_REQUEST = -1;
+    private static final float TOOLBAR_LINE_SPACING_MULTIPLIER = 1.1f;
 
-    // Serves as a temporary list of tiles to ignore until we heard back from the PM that they
-    // are disabled.
-    private static ArraySet<ComponentName> sTileBlacklist = new ArraySet<>();
+    protected CategoryMixin mCategoryMixin;
+    protected CollapsingToolbarLayout mCollapsingToolbarLayout;
+    protected AppBarLayout mAppBarLayout;
+    private Toolbar mToolbar;
 
-    private final PackageReceiver mPackageReceiver = new PackageReceiver();
-    private final List<CategoryListener> mCategoryListeners = new ArrayList<>();
+    @Override
+    public CategoryMixin getCategoryMixin() {
+        return mCategoryMixin;
+    }
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (isFinishing()) {
+            return;
+        }
         if (isLockTaskModePinned() && !isSettingsRunOnTop()) {
             Log.w(TAG, "Devices lock task mode pinned.");
             finish();
         }
         final long startTime = System.currentTimeMillis();
         getLifecycle().addObserver(new HideNonSystemOverlayMixin(this));
+        TextAppearanceConfig.setShouldLoadFontSynchronously(true);
+
+        mCategoryMixin = new CategoryMixin(this);
+        getLifecycle().addObserver(mCategoryMixin);
 
         final TypedArray theme = getTheme().obtainStyledAttributes(android.R.styleable.Theme);
         if (!theme.getBoolean(android.R.styleable.Theme_windowNoTitle, false)) {
             requestWindowFeature(Window.FEATURE_NO_TITLE);
         }
         // Apply SetupWizard light theme during setup flow. This is for SubSettings pages.
-        if (WizardManagerHelper.isAnySetupWizard(getIntent()) && this instanceof SubSettings) {
-            setTheme(R.style.LightTheme_SubSettings_SetupWizard);
+        final boolean isAnySetupWizard = WizardManagerHelper.isAnySetupWizard(getIntent());
+        if (isAnySetupWizard && this instanceof SubSettings) {
+            setTheme(SetupWizardUtils.getTheme(this, getIntent()));
+            setTheme(R.style.SettingsPreferenceTheme_SetupWizard);
+            ThemeHelper.trySetDynamicColor(this);
         }
-        super.setContentView(R.layout.settings_base_layout);
 
+        if (isToolbarEnabled() && !isAnySetupWizard) {
+            super.setContentView(R.layout.collapsing_toolbar_base_layout);
+            mCollapsingToolbarLayout = findViewById(R.id.collapsing_toolbar);
+            mAppBarLayout = findViewById(R.id.app_bar);
+            if (mCollapsingToolbarLayout != null) {
+                mCollapsingToolbarLayout.setLineSpacingMultiplier(TOOLBAR_LINE_SPACING_MULTIPLIER);
+                mCollapsingToolbarLayout.setHyphenationFrequency(HYPHENATION_FREQUENCY_NORMAL_FAST);
+                mCollapsingToolbarLayout.setStaticLayoutBuilderConfigurer(builder ->
+                        builder.setLineBreakConfig(
+                                new LineBreakConfig.Builder()
+                                        .setLineBreakWordStyle(
+                                                LineBreakConfig.LINE_BREAK_WORD_STYLE_PHRASE)
+                                        .build()));
+            }
+            disableCollapsingToolbarLayoutScrollingBehavior();
+        } else {
+            super.setContentView(R.layout.settings_base_layout);
+        }
+
+        // This is to hide the toolbar from those pages which don't need a toolbar originally.
         final Toolbar toolbar = findViewById(R.id.action_bar);
-        if (theme.getBoolean(android.R.styleable.Theme_windowNoTitle, false)) {
+        if (!isToolbarEnabled() || isAnySetupWizard) {
             toolbar.setVisibility(View.GONE);
             return;
         }
         setActionBar(toolbar);
 
         if (DEBUG_TIMING) {
-            Log.d(TAG, "onCreate took " + (System.currentTimeMillis() - startTime)
-                    + " ms");
+            Log.d(TAG, "onCreate took " + (System.currentTimeMillis() - startTime) + " ms");
         }
+    }
+
+    @Override
+    public void setActionBar(@androidx.annotation.Nullable Toolbar toolbar) {
+        super.setActionBar(toolbar);
+
+        mToolbar = toolbar;
     }
 
     @Override
     public boolean onNavigateUp() {
         if (!super.onNavigateUp()) {
-            finish();
+            finishAfterTransition();
         }
         return true;
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-        final IntentFilter filter = new IntentFilter(Intent.ACTION_PACKAGE_ADDED);
-        filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
-        filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
-        filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
-        filter.addDataScheme(DATA_SCHEME_PKG);
-        registerReceiver(mPackageReceiver, filter);
-
-        updateCategories();
+    public void startActivityForResult(Intent intent, int requestCode,
+            @androidx.annotation.Nullable Bundle options) {
+        final int transitionType = getTransitionType(intent);
+        super.startActivityForResult(intent, requestCode, options);
+        if (transitionType == TransitionType.TRANSITION_SLIDE) {
+            overridePendingTransition(R.anim.sud_slide_next_in, R.anim.sud_slide_next_out);
+        } else if (transitionType == TransitionType.TRANSITION_FADE) {
+            overridePendingTransition(android.R.anim.fade_in, R.anim.sud_stay);
+        }
     }
 
     @Override
     protected void onPause() {
-        unregisterReceiver(mPackageReceiver);
+        // For accessibility activities launched from setup wizard.
+        if (getTransitionType(getIntent()) == TransitionType.TRANSITION_FADE) {
+            overridePendingTransition(R.anim.sud_stay, android.R.anim.fade_out);
+        }
         super.onPause();
-    }
-
-    public void addCategoryListener(CategoryListener listener) {
-        mCategoryListeners.add(listener);
-    }
-
-    public void remCategoryListener(CategoryListener listener) {
-        mCategoryListeners.remove(listener);
     }
 
     @Override
@@ -147,11 +190,30 @@ public class SettingsBaseActivity extends FragmentActivity {
         ((ViewGroup) findViewById(R.id.content_frame)).addView(view, params);
     }
 
-    private void onCategoriesChanged() {
-        final int N = mCategoryListeners.size();
-        for (int i = 0; i < N; i++) {
-            mCategoryListeners.get(i).onCategoriesChanged();
+    @Override
+    public void setTitle(CharSequence title) {
+        super.setTitle(title);
+        if (mCollapsingToolbarLayout != null) {
+            mCollapsingToolbarLayout.setTitle(title);
         }
+    }
+
+    @Override
+    public void setTitle(int titleId) {
+        super.setTitle(getText(titleId));
+        if (mCollapsingToolbarLayout != null) {
+            mCollapsingToolbarLayout.setTitle(getText(titleId));
+        }
+    }
+
+    /**
+     * SubSetting page should show a toolbar by default. If the page wouldn't show a toolbar,
+     * override this method and return false value.
+     *
+     * @return ture by default
+     */
+    protected boolean isToolbarEnabled() {
+        return true;
     }
 
     private boolean isLockTaskModePinned() {
@@ -177,9 +239,9 @@ public class SettingsBaseActivity extends FragmentActivity {
         boolean isEnabled = state == PackageManager.COMPONENT_ENABLED_STATE_ENABLED;
         if (isEnabled != enabled || state == PackageManager.COMPONENT_ENABLED_STATE_DEFAULT) {
             if (enabled) {
-                sTileBlacklist.remove(component);
+                mCategoryMixin.removeFromDenylist(component);
             } else {
-                sTileBlacklist.add(component);
+                mCategoryMixin.addToDenylist(component);
             }
             pm.setComponentEnabledSetting(component, enabled
                             ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED
@@ -190,42 +252,27 @@ public class SettingsBaseActivity extends FragmentActivity {
         return false;
     }
 
-    /**
-     * Updates dashboard categories. Only necessary to call this after setTileEnabled
-     */
-    public void updateCategories() {
-        new CategoriesUpdateTask().execute();
+    private void disableCollapsingToolbarLayoutScrollingBehavior() {
+        if (mAppBarLayout == null) {
+            return;
+        }
+        final CoordinatorLayout.LayoutParams params =
+                (CoordinatorLayout.LayoutParams) mAppBarLayout.getLayoutParams();
+        final AppBarLayout.Behavior behavior = new AppBarLayout.Behavior();
+        behavior.setDragCallback(
+                new AppBarLayout.Behavior.DragCallback() {
+                    @Override
+                    public boolean canDrag(@NonNull AppBarLayout appBarLayout) {
+                        return false;
+                    }
+                });
+        params.setBehavior(behavior);
     }
 
-    public interface CategoryListener {
-        void onCategoriesChanged();
-    }
-
-    private class CategoriesUpdateTask extends AsyncTask<Void, Void, Void> {
-
-        private final CategoryManager mCategoryManager;
-
-        public CategoriesUpdateTask() {
-            mCategoryManager = CategoryManager.get(SettingsBaseActivity.this);
+    private int getTransitionType(Intent intent) {
+        if (intent == null) {
+            return TransitionType.TRANSITION_NONE;
         }
-
-        @Override
-        protected Void doInBackground(Void... params) {
-            mCategoryManager.reloadAllCategories(SettingsBaseActivity.this);
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void result) {
-            mCategoryManager.updateCategoryFromBlacklist(sTileBlacklist);
-            onCategoriesChanged();
-        }
-    }
-
-    private class PackageReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            updateCategories();
-        }
+        return intent.getIntExtra(EXTRA_PAGE_TRANSITION_TYPE, TransitionType.TRANSITION_NONE);
     }
 }

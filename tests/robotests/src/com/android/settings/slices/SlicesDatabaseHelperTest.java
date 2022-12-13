@@ -31,6 +31,7 @@ import com.android.settings.testutils.DatabaseTestUtils;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
@@ -59,6 +60,7 @@ public class SlicesDatabaseHelperTest {
     }
 
     @Test
+    @Ignore
     public void testDatabaseSchema() {
         Cursor cursor = mDatabase.rawQuery("SELECT * FROM slices_index", null);
         String[] columnNames = cursor.getColumnNames();
@@ -82,10 +84,11 @@ public class SlicesDatabaseHelperTest {
     }
 
     @Test
+    @Ignore
     public void testUpgrade_dropsOldData() {
-        ContentValues dummyValues = getDummyRow();
+        ContentValues mockValues = getMockRow();
 
-        mDatabase.replaceOrThrow(SlicesDatabaseHelper.Tables.TABLE_SLICES_INDEX, null, dummyValues);
+        mDatabase.replaceOrThrow(SlicesDatabaseHelper.Tables.TABLE_SLICES_INDEX, null, mockValues);
         Cursor baseline = mDatabase.rawQuery("SELECT * FROM slices_index", null);
         assertThat(baseline.getCount()).isEqualTo(1);
 
@@ -96,6 +99,7 @@ public class SlicesDatabaseHelperTest {
     }
 
     @Test
+    @Ignore
     public void testIndexState_buildAndLocaleSet() {
         mSlicesDatabaseHelper.reconstruct(mDatabase);
 
@@ -108,6 +112,7 @@ public class SlicesDatabaseHelperTest {
     }
 
     @Test
+    @Ignore
     public void testLocaleChanges_newIndexingState() {
         mSlicesDatabaseHelper.reconstruct(mDatabase);
         mSlicesDatabaseHelper.setIndexedState();
@@ -118,6 +123,7 @@ public class SlicesDatabaseHelperTest {
     }
 
     @Test
+    @Ignore
     public void testBuildFingerprintChanges_newIndexingState() {
         mSlicesDatabaseHelper.reconstruct(mDatabase);
         mSlicesDatabaseHelper.setIndexedState();
@@ -126,7 +132,7 @@ public class SlicesDatabaseHelperTest {
         assertThat(mSlicesDatabaseHelper.isSliceDataIndexed()).isFalse();
     }
 
-    private ContentValues getDummyRow() {
+    private ContentValues getMockRow() {
         final ContentValues values = new ContentValues();
         values.put(IndexColumns.KEY, "key");
         values.put(IndexColumns.TITLE, "title");

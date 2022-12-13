@@ -54,7 +54,7 @@ public class BluetoothA2dpConfigStore {
         mChannelMode = channelMode;
     }
 
-    public void setCodecSpecific1Value(int codecSpecific1Value) {
+    public void setCodecSpecific1Value(long codecSpecific1Value) {
         mCodecSpecific1Value = codecSpecific1Value;
     }
 
@@ -71,10 +71,16 @@ public class BluetoothA2dpConfigStore {
     }
 
     public BluetoothCodecConfig createCodecConfig() {
-        return new BluetoothCodecConfig(mCodecType, mCodecPriority,
-                mSampleRate, mBitsPerSample,
-                mChannelMode, mCodecSpecific1Value,
-                mCodecSpecific2Value, mCodecSpecific3Value,
-                mCodecSpecific4Value);
+        return new BluetoothCodecConfig.Builder()
+                .setCodecType(mCodecType)
+                .setCodecPriority(mCodecPriority)
+                .setSampleRate(mSampleRate)
+                .setBitsPerSample(mBitsPerSample)
+                .setChannelMode(mChannelMode)
+                .setCodecSpecific1(mCodecSpecific1Value)
+                .setCodecSpecific2(mCodecSpecific2Value)
+                .setCodecSpecific3(mCodecSpecific3Value)
+                .setCodecSpecific4(mCodecSpecific4Value)
+                .build();
     }
 }

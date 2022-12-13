@@ -17,7 +17,6 @@
 package com.android.settings.datausage;
 
 import android.content.Context;
-import android.net.INetworkStatsService;
 import android.net.NetworkPolicyManager;
 import android.net.NetworkTemplate;
 import android.os.INetworkManagementService;
@@ -26,10 +25,12 @@ import android.os.UserManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
-import com.android.settings.core.BasePreferenceController;
-import com.android.settingslib.NetworkPolicyEditor;
-
 import androidx.preference.PreferenceScreen;
+
+import com.android.settings.core.BasePreferenceController;
+import com.android.settings.datausage.DataUsageUtils;
+import com.android.settings.datausage.lib.DataUsageLib;
+import com.android.settingslib.NetworkPolicyEditor;
 
 public class BillingCyclePreferenceController extends BasePreferenceController {
     private int mSubscriptionId;
@@ -50,21 +51,19 @@ public class BillingCyclePreferenceController extends BasePreferenceController {
         TemplatePreference.NetworkServices services = new TemplatePreference.NetworkServices();
         services.mNetworkService = INetworkManagementService.Stub.asInterface(
                 ServiceManager.getService(Context.NETWORKMANAGEMENT_SERVICE));
-        services.mStatsService = INetworkStatsService.Stub.asInterface(
-                ServiceManager.getService(Context.NETWORK_STATS_SERVICE));
         services.mPolicyManager = mContext.getSystemService(NetworkPolicyManager.class);
         services.mPolicyEditor = new NetworkPolicyEditor(services.mPolicyManager);
         services.mTelephonyManager = mContext.getSystemService(TelephonyManager.class);
         services.mSubscriptionManager = mContext.getSystemService(SubscriptionManager.class);
         services.mUserManager = mContext.getSystemService(UserManager.class);
 
-        NetworkTemplate template = DataUsageUtils.getMobileTemplate(mContext, mSubscriptionId);
+        NetworkTemplate template = DataUsageLib.getMobileTemplate(mContext, mSubscriptionId);
 
         preference.setTemplate(template, mSubscriptionId, services);
     }
 
     @Override
     public int getAvailabilityStatus() {
-        return AVAILABLE;
+        return DataUsageUtils.hasMobileData(mContext) ? AVAILABLE : CONDITIONALLY_UNAVAILABLE;
     }
 }

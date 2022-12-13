@@ -21,13 +21,18 @@ import static org.mockito.Mockito.when;
 
 import android.content.Context;
 
+import com.android.settings.accessibility.AccessibilityMetricsFeatureProvider;
+import com.android.settings.accessibility.AccessibilitySearchFeatureProvider;
 import com.android.settings.accounts.AccountFeatureProvider;
 import com.android.settings.applications.ApplicationFeatureProvider;
 import com.android.settings.aware.AwareFeatureProvider;
+import com.android.settings.biometrics.face.FaceFeatureProvider;
 import com.android.settings.bluetooth.BluetoothFeatureProvider;
 import com.android.settings.dashboard.DashboardFeatureProvider;
 import com.android.settings.dashboard.suggestions.SuggestionFeatureProvider;
 import com.android.settings.enterprise.EnterprisePrivacyFeatureProvider;
+import com.android.settings.fuelgauge.BatterySettingsFeatureProvider;
+import com.android.settings.fuelgauge.BatteryStatusFeatureProvider;
 import com.android.settings.fuelgauge.PowerUsageFeatureProvider;
 import com.android.settings.gestures.AssistGestureFeatureProvider;
 import com.android.settings.homepage.contextualcards.ContextualCardFeatureProvider;
@@ -39,8 +44,11 @@ import com.android.settings.overlay.SurveyFeatureProvider;
 import com.android.settings.panel.PanelFeatureProvider;
 import com.android.settings.search.SearchFeatureProvider;
 import com.android.settings.security.SecurityFeatureProvider;
+import com.android.settings.security.SecuritySettingsFeatureProvider;
 import com.android.settings.slices.SlicesFeatureProvider;
 import com.android.settings.users.UserFeatureProvider;
+import com.android.settings.vpn2.AdvancedVpnFeatureProvider;
+import com.android.settings.wifi.WifiTrackerLibProvider;
 import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 
 import org.mockito.Answers;
@@ -53,6 +61,8 @@ public class FakeFeatureFactory extends FeatureFactory {
 
     public final SupportFeatureProvider supportFeatureProvider;
     public final MetricsFeatureProvider metricsFeatureProvider;
+    public final BatteryStatusFeatureProvider batteryStatusFeatureProvider;
+    public final BatterySettingsFeatureProvider batterySettingsFeatureProvider;
     public final PowerUsageFeatureProvider powerUsageFeatureProvider;
     public final DashboardFeatureProvider dashboardFeatureProvider;
     public final DockUpdaterFeatureProvider dockUpdaterFeatureProvider;
@@ -65,13 +75,20 @@ public class FakeFeatureFactory extends FeatureFactory {
     public final UserFeatureProvider userFeatureProvider;
     public final AssistGestureFeatureProvider assistGestureFeatureProvider;
     public final AccountFeatureProvider mAccountFeatureProvider;
-    public final ContextualCardFeatureProvider mContextualCardFeatureProvider;
     public final BluetoothFeatureProvider mBluetoothFeatureProvider;
     public final AwareFeatureProvider mAwareFeatureProvider;
+    public final FaceFeatureProvider mFaceFeatureProvider;
 
     public PanelFeatureProvider panelFeatureProvider;
     public SlicesFeatureProvider slicesFeatureProvider;
     public SearchFeatureProvider searchFeatureProvider;
+    public ContextualCardFeatureProvider mContextualCardFeatureProvider;
+
+    public WifiTrackerLibProvider wifiTrackerLibProvider;
+    public SecuritySettingsFeatureProvider securitySettingsFeatureProvider;
+    public AccessibilitySearchFeatureProvider mAccessibilitySearchFeatureProvider;
+    public AccessibilityMetricsFeatureProvider mAccessibilityMetricsFeatureProvider;
+    public AdvancedVpnFeatureProvider mAdvancedVpnFeatureProvider;
 
     /**
      * Call this in {@code @Before} method of the test class to use fake factory.
@@ -96,6 +113,8 @@ public class FakeFeatureFactory extends FeatureFactory {
     public FakeFeatureFactory() {
         supportFeatureProvider = mock(SupportFeatureProvider.class);
         metricsFeatureProvider = mock(MetricsFeatureProvider.class);
+        batteryStatusFeatureProvider = mock(BatteryStatusFeatureProvider.class);
+        batterySettingsFeatureProvider = mock(BatterySettingsFeatureProvider.class);
         powerUsageFeatureProvider = mock(PowerUsageFeatureProvider.class);
         dashboardFeatureProvider = mock(DashboardFeatureProvider.class);
         dockUpdaterFeatureProvider = mock(DockUpdaterFeatureProvider.class);
@@ -114,6 +133,12 @@ public class FakeFeatureFactory extends FeatureFactory {
         panelFeatureProvider = mock(PanelFeatureProvider.class);
         mBluetoothFeatureProvider = mock(BluetoothFeatureProvider.class);
         mAwareFeatureProvider = mock(AwareFeatureProvider.class);
+        mFaceFeatureProvider = mock(FaceFeatureProvider.class);
+        wifiTrackerLibProvider = mock(WifiTrackerLibProvider.class);
+        securitySettingsFeatureProvider = mock(SecuritySettingsFeatureProvider.class);
+        mAccessibilitySearchFeatureProvider = mock(AccessibilitySearchFeatureProvider.class);
+        mAccessibilityMetricsFeatureProvider = mock(AccessibilityMetricsFeatureProvider.class);
+        mAdvancedVpnFeatureProvider = mock(AdvancedVpnFeatureProvider.class);
     }
 
     @Override
@@ -129,6 +154,16 @@ public class FakeFeatureFactory extends FeatureFactory {
     @Override
     public MetricsFeatureProvider getMetricsFeatureProvider() {
         return metricsFeatureProvider;
+    }
+
+    @Override
+    public BatteryStatusFeatureProvider getBatteryStatusFeatureProvider(Context context) {
+        return batteryStatusFeatureProvider;
+    }
+
+    @Override
+    public BatterySettingsFeatureProvider getBatterySettingsFeatureProvider(Context context) {
+        return batterySettingsFeatureProvider;
     }
 
     @Override
@@ -207,12 +242,42 @@ public class FakeFeatureFactory extends FeatureFactory {
     }
 
     @Override
-    public BluetoothFeatureProvider getBluetoothFeatureProvider(Context context) {
+    public BluetoothFeatureProvider getBluetoothFeatureProvider() {
         return mBluetoothFeatureProvider;
     }
 
     @Override
     public AwareFeatureProvider getAwareFeatureProvider() {
         return mAwareFeatureProvider;
+    }
+
+    @Override
+    public FaceFeatureProvider getFaceFeatureProvider() {
+        return mFaceFeatureProvider;
+    }
+
+    @Override
+    public WifiTrackerLibProvider getWifiTrackerLibProvider() {
+        return wifiTrackerLibProvider;
+    }
+
+    @Override
+    public SecuritySettingsFeatureProvider getSecuritySettingsFeatureProvider() {
+        return securitySettingsFeatureProvider;
+    }
+
+    @Override
+    public AccessibilitySearchFeatureProvider getAccessibilitySearchFeatureProvider() {
+        return mAccessibilitySearchFeatureProvider;
+    }
+
+    @Override
+    public AccessibilityMetricsFeatureProvider getAccessibilityMetricsFeatureProvider() {
+        return mAccessibilityMetricsFeatureProvider;
+    }
+
+    @Override
+    public AdvancedVpnFeatureProvider getAdvancedVpnFeatureProvider() {
+        return mAdvancedVpnFeatureProvider;
     }
 }

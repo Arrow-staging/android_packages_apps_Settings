@@ -16,6 +16,7 @@
 
 package com.android.settings.security.screenlock;
 
+import static android.app.admin.DevicePolicyResources.Strings.Settings.DISABLED_BY_IT_ADMIN_TITLE;
 import static android.provider.Settings.System.SCREEN_OFF_TIMEOUT;
 
 import android.app.admin.DevicePolicyManager;
@@ -112,7 +113,7 @@ public class LockAfterTimeoutPreferenceController extends AbstractPreferenceCont
                     mDPM.getMaximumTimeToLock(null /* admin */, UserHandle.myUserId());
             final long displayTimeout = Math.max(0,
                     Settings.System.getInt(mContext.getContentResolver(), SCREEN_OFF_TIMEOUT, 0));
-            // This setting is a slave to display timeout when a device policy is enforced.
+            // This setting is a secondary to display timeout when a device policy is enforced.
             // As such, maxLockTimeout = adminTimeout - displayTimeout.
             // If there isn't enough time, shows "immediately" setting.
             final long maxTimeout = Math.max(0, adminTimeout - displayTimeout);
@@ -123,7 +124,8 @@ public class LockAfterTimeoutPreferenceController extends AbstractPreferenceCont
     private void updateLockAfterPreferenceSummary(TimeoutListPreference preference) {
         final CharSequence summary;
         if (preference.isDisabledByAdmin()) {
-            summary = mContext.getText(R.string.disabled_by_policy_title);
+            summary = mDPM.getResources().getString(DISABLED_BY_IT_ADMIN_TITLE,
+                    () -> mContext.getString(R.string.disabled_by_policy_title));
         } else {
             // Update summary message with current value
             long currentTimeout = Settings.Secure.getLong(mContext.getContentResolver(),

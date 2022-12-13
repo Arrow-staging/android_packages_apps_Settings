@@ -37,18 +37,19 @@ import android.os.UserManager;
 import android.text.TextUtils;
 import android.util.ArrayMap;
 import android.util.Log;
-import android.util.SparseArray;
 
 import androidx.annotation.VisibleForTesting;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceGroup;
 import androidx.preference.PreferenceScreen;
-import androidx.preference.SwitchPreference;
 
 import com.android.settings.core.BasePreferenceController;
+import com.android.settings.overlay.FeatureFactory;
+import com.android.settingslib.core.instrumentation.MetricsFeatureProvider;
 import com.android.settingslib.core.lifecycle.LifecycleObserver;
 import com.android.settingslib.core.lifecycle.events.OnStart;
 import com.android.settingslib.core.lifecycle.events.OnStop;
+import com.android.settingslib.widget.AppSwitchPreference;
 import com.android.settingslib.widget.FooterPreference;
 
 import org.xmlpull.v1.XmlPullParserException;
@@ -71,12 +72,12 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
     private final UserManager mUm;
     private final PackageManager mPackageManager;
     private final IPackageManager mIPackageManager;
+    private final MetricsFeatureProvider mMetricsFeatureProvider;
     /**
      * Internal collection of device admin info objects for all profiles associated with the current
      * user.
      */
     private final ArrayList<DeviceAdminListItem> mAdmins = new ArrayList<>();
-    private final SparseArray<ComponentName> mProfileOwnerComponents = new SparseArray<>();
 
     private final BroadcastReceiver mBroadcastReceiver = new BroadcastReceiver() {
         @Override
@@ -91,6 +92,7 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
 
     private PreferenceGroup mPreferenceGroup;
     private FooterPreference mFooterPreference;
+    private boolean mFirstLaunch = true;
 
     static {
         FILTER.addAction(ACTION_DEVICE_POLICY_MANAGER_STATE_CHANGED);
@@ -102,6 +104,7 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
         mUm = (UserManager) context.getSystemService(Context.USER_SERVICE);
         mPackageManager = mContext.getPackageManager();
         mIPackageManager = AppGlobals.getPackageManager();
+        mMetricsFeatureProvider = FeatureFactory.getFactory(context).getMetricsFeatureProvider();
     }
 
     @Override
@@ -114,6 +117,19 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
         super.displayPreference(screen);
         mPreferenceGroup = screen.findPreference(getPreferenceKey());
         mFooterPreference = mPreferenceGroup.findPreference(KEY_DEVICE_ADMIN_FOOTER);
+
+        updateList();
+    }
+
+    @Override
+    public void updateState(Preference preference) {
+        super.updateState(preference);
+        if (mFirstLaunch) {
+            mFirstLaunch = false;
+            // When first launch, updateList() is already be called in displayPreference().
+        } else {
+            updateList();
+        }
     }
 
     @Override
@@ -121,19 +137,6 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
         mContext.registerReceiverAsUser(
                 mBroadcastReceiver, UserHandle.ALL, FILTER,
                 null /* broadcastPermission */, null /* scheduler */);
-    }
-
-    @Override
-    public void updateState(Preference preference) {
-        super.updateState(preference);
-        mProfileOwnerComponents.clear();
-        final List<UserHandle> profiles = mUm.getUserProfiles();
-        final int profilesSize = profiles.size();
-        for (int i = 0; i < profilesSize; ++i) {
-            final int profileId = profiles.get(i).getIdentifier();
-            mProfileOwnerComponents.put(profileId, mDPM.getProfileOwnerAsUser(profileId));
-        }
-        updateList();
     }
 
     @Override
@@ -164,32 +167,32 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
         if (mFooterPreference != null) {
             mFooterPreference.setVisible(mAdmins.isEmpty());
         }
-        final Map<String, SwitchPreference> preferenceCache = new ArrayMap<>();
+        final Map<String, AppSwitchPreference> preferenceCache = new ArrayMap<>();
         final Context prefContext = mPreferenceGroup.getContext();
         final int childrenCount = mPreferenceGroup.getPreferenceCount();
         for (int i = 0; i < childrenCount; i++) {
             final Preference pref = mPreferenceGroup.getPreference(i);
-            if (!(pref instanceof SwitchPreference)) {
+            if (!(pref instanceof AppSwitchPreference)) {
                 continue;
             }
-            final SwitchPreference appSwitch = (SwitchPreference) pref;
+            final AppSwitchPreference appSwitch = (AppSwitchPreference) pref;
             preferenceCache.put(appSwitch.getKey(), appSwitch);
         }
         for (DeviceAdminListItem item : mAdmins) {
             final String key = item.getKey();
-            SwitchPreference pref = preferenceCache.remove(key);
+            AppSwitchPreference pref = preferenceCache.remove(key);
             if (pref == null) {
-                pref = new SwitchPreference(prefContext);
+                pref = new AppSwitchPreference(prefContext);
                 mPreferenceGroup.addPreference(pref);
             }
             bindPreference(item, pref);
         }
-        for (SwitchPreference unusedCacheItem : preferenceCache.values()) {
+        for (AppSwitchPreference unusedCacheItem : preferenceCache.values()) {
             mPreferenceGroup.removePreference(unusedCacheItem);
         }
     }
 
-    private void bindPreference(DeviceAdminListItem item, SwitchPreference pref) {
+    private void bindPreference(DeviceAdminListItem item, AppSwitchPreference pref) {
         pref.setKey(item.getKey());
         pref.setTitle(item.getName());
         pref.setIcon(item.getIcon());
@@ -197,11 +200,13 @@ public class DeviceAdminListPreferenceController extends BasePreferenceControlle
         pref.setSummary(item.getDescription());
         pref.setEnabled(item.isEnabled());
         pref.setOnPreferenceClickListener(preference -> {
+            mMetricsFeatureProvider.logClickedPreference(preference, getMetricsCategory());
             final UserHandle user = item.getUser();
             mContext.startActivityAsUser(item.getLaunchIntent(mContext), user);
             return true;
         });
         pref.setOnPreferenceChangeListener((preference, newValue) -> false);
+        pref.setSingleLineTitle(true);
     }
 
     /**

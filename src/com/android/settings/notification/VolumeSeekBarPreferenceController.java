@@ -23,6 +23,7 @@ import androidx.lifecycle.LifecycleObserver;
 import androidx.lifecycle.OnLifecycleEvent;
 import androidx.preference.PreferenceScreen;
 
+import com.android.settings.R;
 import com.android.settings.notification.VolumeSeekBarPreference.Callback;
 import com.android.settingslib.core.lifecycle.Lifecycle;
 
@@ -76,6 +77,11 @@ public abstract class VolumeSeekBarPreferenceController extends
     }
 
     @Override
+    public int getSliceHighlightMenuRes() {
+        return R.string.menu_key_sound;
+    }
+
+    @Override
     public int getSliderPosition() {
         if (mPreference != null) {
             return mPreference.getProgress();
@@ -107,7 +113,10 @@ public abstract class VolumeSeekBarPreferenceController extends
         return mHelper.getMinVolume(getAudioStream());
     }
 
-    protected abstract int getAudioStream();
+    /**
+     * @return the audio stream type
+     */
+    public abstract int getAudioStream();
 
     protected abstract int getMuteIcon();
 

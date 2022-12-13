@@ -38,6 +38,7 @@ import android.widget.FrameLayout;
 import android.widget.Spinner;
 
 import androidx.fragment.app.FragmentActivity;
+import androidx.loader.app.LoaderManager;
 import androidx.preference.PreferenceManager;
 
 import com.android.settings.R;
@@ -71,6 +72,8 @@ public class DataUsageListTest {
     private MobileDataEnabledListener mMobileDataEnabledListener;
     @Mock
     private TemplatePreference.NetworkServices mNetworkServices;
+    @Mock
+    private LoaderManager mLoaderManager;
 
     private Activity mActivity;
     private DataUsageList mDataUsageList;
@@ -90,10 +93,12 @@ public class DataUsageListTest {
         ReflectionHelpers.setField(mDataUsageList, "mDataStateListener",
                 mMobileDataEnabledListener);
         ReflectionHelpers.setField(mDataUsageList, "services", mNetworkServices);
+        doReturn(mLoaderManager).when(mDataUsageList).getLoaderManager();
+        mDataUsageList.mLoadingViewController = mock(LoadingViewController.class);
     }
 
     @Test
-    public void resumePause_shouldListenUnlistenDataStateChange() {
+    public void resume_shouldListenDataStateChange() {
         ReflectionHelpers.setField(
                 mDataUsageList, "mVisibilityLoggerMixin", mock(VisibilityLoggerMixin.class));
         ReflectionHelpers.setField(
@@ -103,6 +108,17 @@ public class DataUsageListTest {
 
         verify(mMobileDataEnabledListener).start(anyInt());
 
+        mDataUsageList.onPause();
+    }
+
+    @Test
+    public void pause_shouldUnlistenDataStateChange() {
+        ReflectionHelpers.setField(
+                mDataUsageList, "mVisibilityLoggerMixin", mock(VisibilityLoggerMixin.class));
+        ReflectionHelpers.setField(
+                mDataUsageList, "mPreferenceManager", mock(PreferenceManager.class));
+
+        mDataUsageList.onResume();
         mDataUsageList.onPause();
 
         verify(mMobileDataEnabledListener).stop();
@@ -192,8 +208,6 @@ public class DataUsageListTest {
 
     @Test
     public void onLoadFinished_networkCycleDataCallback_shouldShowCycleSpinner() {
-        final LoadingViewController loadingViewController = mock(LoadingViewController.class);
-        mDataUsageList.mLoadingViewController = loadingViewController;
         final Spinner spinner = getSpinner(getHeader());
         spinner.setVisibility(View.INVISIBLE);
         mDataUsageList.mCycleSpinner = spinner;
@@ -203,6 +217,14 @@ public class DataUsageListTest {
         mDataUsageList.mNetworkCycleDataCallbacks.onLoadFinished(null, null);
 
         assertThat(spinner.getVisibility()).isEqualTo(View.VISIBLE);
+    }
+
+    @Test
+    public void onPause_shouldDestroyLoaders() {
+        mDataUsageList.onPause();
+
+        verify(mLoaderManager).destroyLoader(DataUsageList.LOADER_CHART_DATA);
+        verify(mLoaderManager).destroyLoader(DataUsageList.LOADER_SUMMARY);
     }
 
     private View getHeader() {

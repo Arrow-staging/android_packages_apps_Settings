@@ -16,6 +16,7 @@ package com.android.settings.datausage;
 import static com.android.settingslib.RestrictedLockUtilsInternal.checkIfMeteredDataRestricted;
 
 import android.content.Context;
+import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
 import android.view.View;
 
@@ -24,11 +25,13 @@ import androidx.preference.PreferenceViewHolder;
 import com.android.settings.R;
 import com.android.settings.applications.appinfo.AppInfoDashboardFragment;
 import com.android.settings.dashboard.DashboardFragment;
-import com.android.settings.widget.AppSwitchPreference;
 import com.android.settingslib.RestrictedLockUtils.EnforcedAdmin;
 import com.android.settingslib.RestrictedPreferenceHelper;
+import com.android.settingslib.applications.AppUtils;
 import com.android.settingslib.applications.ApplicationsState;
 import com.android.settingslib.applications.ApplicationsState.AppEntry;
+import com.android.settingslib.utils.ThreadUtils;
+import com.android.settingslib.widget.AppSwitchPreference;
 
 public class UnrestrictedDataAccessPreference extends AppSwitchPreference implements
         DataSaverBackend.Listener {
@@ -39,12 +42,12 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
     private final DataSaverBackend mDataSaverBackend;
     private final DashboardFragment mParentFragment;
     private final RestrictedPreferenceHelper mHelper;
+    private Drawable mCacheIcon;
 
     public UnrestrictedDataAccessPreference(final Context context, AppEntry entry,
             ApplicationsState applicationsState, DataSaverBackend dataSaverBackend,
             DashboardFragment parentFragment) {
         super(context);
-        setWidgetLayoutResource(R.layout.restricted_switch_widget);
         mHelper = new RestrictedPreferenceHelper(context, this, null);
         mEntry = entry;
         mDataUsageState = (AppStateDataUsageBridge.DataUsageState) mEntry.extraInfo;
@@ -56,8 +59,13 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
                 UserHandle.getUserId(entry.info.uid)));
         updateState();
         setKey(generateKey(mEntry));
-        if (mEntry.icon != null) {
-            setIcon(mEntry.icon);
+
+        mCacheIcon = AppUtils.getIconFromCache(mEntry);
+        if (mCacheIcon != null) {
+            setIcon(mCacheIcon);
+        } else {
+            // Set empty icon as default.
+            setIcon(R.drawable.empty_icon);
         }
     }
 
@@ -79,15 +87,15 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
 
     @Override
     protected void onClick() {
-        if (mDataUsageState.isDataSaverBlacklisted) {
-            // app is blacklisted, launch App Data Usage screen
+        if (mDataUsageState != null && mDataUsageState.isDataSaverDenylisted) {
+            // app is denylisted, launch App Data Usage screen
             AppInfoDashboardFragment.startAppInfoFragment(AppDataUsage.class,
                     R.string.data_usage_app_summary_title,
                     null /* arguments */,
                     mParentFragment,
                     mEntry);
         } else {
-            // app is not blacklisted, let superclass handle toggle switch
+            // app is not denylisted, let superclass handle toggle switch
             super.onClick();
         }
     }
@@ -101,16 +109,13 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
 
     @Override
     public void onBindViewHolder(PreferenceViewHolder holder) {
-        if (mEntry.icon == null) {
-            holder.itemView.post(new Runnable() {
-                @Override
-                public void run() {
-                    // Ensure we have an icon before binding.
-                    mApplicationsState.ensureIcon(mEntry);
-                    // This might trigger us to bind again, but it gives an easy way to only
-                    // load the icon once its needed, so its probably worth it.
-                    setIcon(mEntry.icon);
-                }
+        if (mCacheIcon == null) {
+            ThreadUtils.postOnBackgroundThread(() -> {
+                final Drawable icon = AppUtils.getIcon(getContext(), mEntry);
+                ThreadUtils.postOnMainThread(() -> {
+                    setIcon(icon);
+                    mCacheIcon = icon;
+                });
             });
         }
         final boolean disabledByAdmin = isDisabledByAdmin();
@@ -119,16 +124,12 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
             widgetFrame.setVisibility(View.VISIBLE);
         } else {
             widgetFrame.setVisibility(
-                    mDataUsageState != null && mDataUsageState.isDataSaverBlacklisted
+                    mDataUsageState != null && mDataUsageState.isDataSaverDenylisted
                             ? View.INVISIBLE : View.VISIBLE);
         }
         super.onBindViewHolder(holder);
 
         mHelper.onBindViewHolder(holder);
-        holder.findViewById(R.id.restricted_icon).setVisibility(
-                disabledByAdmin ? View.VISIBLE : View.GONE);
-        holder.findViewById(android.R.id.switch_widget).setVisibility(
-                disabledByAdmin ? View.GONE : View.VISIBLE);
     }
 
     @Override
@@ -136,17 +137,17 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
     }
 
     @Override
-    public void onWhitelistStatusChanged(int uid, boolean isWhitelisted) {
+    public void onAllowlistStatusChanged(int uid, boolean isAllowlisted) {
         if (mDataUsageState != null && mEntry.info.uid == uid) {
-            mDataUsageState.isDataSaverWhitelisted = isWhitelisted;
+            mDataUsageState.isDataSaverAllowlisted = isAllowlisted;
             updateState();
         }
     }
 
     @Override
-    public void onBlacklistStatusChanged(int uid, boolean isBlacklisted) {
+    public void onDenylistStatusChanged(int uid, boolean isDenylisted) {
         if (mDataUsageState != null && mEntry.info.uid == uid) {
-            mDataUsageState.isDataSaverBlacklisted = isBlacklisted;
+            mDataUsageState.isDataSaverDenylisted = isDenylisted;
             updateState();
         }
     }
@@ -167,15 +168,15 @@ public class UnrestrictedDataAccessPreference extends AppSwitchPreference implem
         mHelper.setDisabledByAdmin(admin);
     }
 
-    // Sets UI state based on whitelist/blacklist status.
+    // Sets UI state based on allowlist/denylist status.
     public void updateState() {
         setTitle(mEntry.label);
         if (mDataUsageState != null) {
-            setChecked(mDataUsageState.isDataSaverWhitelisted);
+            setChecked(mDataUsageState.isDataSaverAllowlisted);
             if (isDisabledByAdmin()) {
                 setSummary(R.string.disabled_by_admin);
-            } else if (mDataUsageState.isDataSaverBlacklisted) {
-                setSummary(R.string.restrict_background_blacklisted);
+            } else if (mDataUsageState.isDataSaverDenylisted) {
+                setSummary(R.string.restrict_background_blocklisted);
             } else {
                 setSummary("");
             }

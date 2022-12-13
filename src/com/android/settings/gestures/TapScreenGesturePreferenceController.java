@@ -21,9 +21,9 @@ import static android.provider.Settings.Secure.DOZE_TAP_SCREEN_GESTURE;
 import android.annotation.UserIdInt;
 import android.content.Context;
 import android.hardware.display.AmbientDisplayConfiguration;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
-import android.text.TextUtils;
 
 public class TapScreenGesturePreferenceController extends GesturePreferenceController {
 
@@ -54,7 +54,7 @@ public class TapScreenGesturePreferenceController extends GesturePreferenceContr
     }
 
     @Override
-    public boolean isSliceable() {
+    public boolean isPublicSlice() {
         return true;
     }
 
@@ -75,8 +75,10 @@ public class TapScreenGesturePreferenceController extends GesturePreferenceContr
 
     @Override
     public boolean setChecked(boolean isChecked) {
-        return Settings.Secure.putInt(mContext.getContentResolver(), DOZE_TAP_SCREEN_GESTURE,
-                isChecked ? 1 : 0);
+        boolean success = Settings.Secure.putInt(mContext.getContentResolver(),
+                DOZE_TAP_SCREEN_GESTURE, isChecked ? 1 : 0);
+        SystemProperties.set("persist.sys.tap_gesture", isChecked ? "1" : "0");
+        return success;
     }
 
     private AmbientDisplayConfiguration getAmbientConfig() {

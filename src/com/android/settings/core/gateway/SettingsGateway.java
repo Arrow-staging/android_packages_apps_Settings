@@ -16,9 +16,11 @@
 
 package com.android.settings.core.gateway;
 
+import com.android.settings.AllInOneTetherSettings;
 import com.android.settings.DisplaySettings;
 import com.android.settings.IccLockSettings;
-import com.android.settings.MasterClear;
+import com.android.settings.MainClear;
+import com.android.settings.MainClearConfirm;
 import com.android.settings.Settings;
 import com.android.settings.TestingSettings;
 import com.android.settings.TetherSettings;
@@ -27,35 +29,53 @@ import com.android.settings.accessibility.AccessibilityDetailsSettingsFragment;
 import com.android.settings.accessibility.AccessibilitySettings;
 import com.android.settings.accessibility.AccessibilitySettingsForSetupWizard;
 import com.android.settings.accessibility.CaptionPropertiesFragment;
+import com.android.settings.accessibility.TextReadingPreferenceFragmentForSetupWizard;
+import com.android.settings.accessibility.ToggleColorInversionPreferenceFragment;
 import com.android.settings.accessibility.ToggleDaltonizerPreferenceFragment;
+import com.android.settings.accessibility.ToggleReduceBrightColorsPreferenceFragment;
 import com.android.settings.accounts.AccountDashboardFragment;
 import com.android.settings.accounts.AccountSyncSettings;
 import com.android.settings.accounts.ChooseAccountFragment;
 import com.android.settings.accounts.ManagedProfileSettings;
-import com.android.settings.applications.AppAndNotificationDashboardFragment;
+import com.android.settings.applications.AppDashboardFragment;
 import com.android.settings.applications.ProcessStatsSummary;
 import com.android.settings.applications.ProcessStatsUi;
 import com.android.settings.applications.UsageAccessDetails;
+import com.android.settings.applications.appinfo.AlarmsAndRemindersDetails;
 import com.android.settings.applications.appinfo.AppInfoDashboardFragment;
+import com.android.settings.applications.appinfo.AppLocaleDetails;
 import com.android.settings.applications.appinfo.DrawOverlayDetails;
 import com.android.settings.applications.appinfo.ExternalSourcesDetails;
+import com.android.settings.applications.appinfo.ManageExternalStorageDetails;
+import com.android.settings.applications.appinfo.MediaManagementAppsDetails;
 import com.android.settings.applications.appinfo.WriteSettingsDetails;
 import com.android.settings.applications.appops.BackgroundCheckSummary;
 import com.android.settings.applications.assist.ManageAssist;
 import com.android.settings.applications.manageapplications.ManageApplications;
 import com.android.settings.applications.managedomainurls.ManageDomainUrls;
 import com.android.settings.applications.specialaccess.deviceadmin.DeviceAdminSettings;
+import com.android.settings.applications.specialaccess.interactacrossprofiles.InteractAcrossProfilesDetails;
+import com.android.settings.applications.specialaccess.interactacrossprofiles.InteractAcrossProfilesSettings;
 import com.android.settings.applications.specialaccess.notificationaccess.NotificationAccessDetails;
 import com.android.settings.applications.specialaccess.pictureinpicture.PictureInPictureDetails;
 import com.android.settings.applications.specialaccess.pictureinpicture.PictureInPictureSettings;
+import com.android.settings.applications.specialaccess.premiumsms.PremiumSmsAccess;
+import com.android.settings.applications.specialaccess.turnscreenon.TurnScreenOnDetails;
+import com.android.settings.applications.specialaccess.turnscreenon.TurnScreenOnSettings;
 import com.android.settings.applications.specialaccess.vrlistener.VrListenerSettings;
 import com.android.settings.applications.specialaccess.zenaccess.ZenAccessDetails;
 import com.android.settings.backup.PrivacySettings;
 import com.android.settings.backup.ToggleBackupSettingFragment;
 import com.android.settings.backup.UserBackupSettingsActivity;
+import com.android.settings.biometrics.combination.CombinedBiometricProfileSettings;
+import com.android.settings.biometrics.combination.CombinedBiometricSettings;
 import com.android.settings.biometrics.face.FaceSettings;
 import com.android.settings.biometrics.fingerprint.FingerprintSettings;
+import com.android.settings.bluetooth.BluetoothBroadcastDialog;
 import com.android.settings.bluetooth.BluetoothDeviceDetailsFragment;
+import com.android.settings.bluetooth.BluetoothFindBroadcastsFragment;
+import com.android.settings.bluetooth.BluetoothPairingDetail;
+import com.android.settings.bugreporthandler.BugReportHandlerPicker;
 import com.android.settings.connecteddevice.AdvancedConnectedDeviceDashboardFragment;
 import com.android.settings.connecteddevice.ConnectedDeviceDashboardFragment;
 import com.android.settings.connecteddevice.PreviouslyConnectedDeviceDashboardFragment;
@@ -67,26 +87,30 @@ import com.android.settings.datetime.DateTimeSettings;
 import com.android.settings.deletionhelper.AutomaticStorageManagerSettings;
 import com.android.settings.development.DevelopmentSettingsDashboardFragment;
 import com.android.settings.deviceinfo.PrivateVolumeForget;
-import com.android.settings.deviceinfo.PrivateVolumeSettings;
 import com.android.settings.deviceinfo.PublicVolumeSettings;
 import com.android.settings.deviceinfo.StorageDashboardFragment;
-import com.android.settings.deviceinfo.StorageSettings;
 import com.android.settings.deviceinfo.aboutphone.MyDeviceInfoFragment;
 import com.android.settings.deviceinfo.firmwareversion.FirmwareVersionSettings;
 import com.android.settings.deviceinfo.legal.ModuleLicensesDashboard;
+import com.android.settings.display.AutoBrightnessSettings;
 import com.android.settings.display.NightDisplaySettings;
+import com.android.settings.display.SmartAutoRotatePreferenceFragment;
+import com.android.settings.display.darkmode.DarkModeSettingsFragment;
 import com.android.settings.dream.DreamSettings;
 import com.android.settings.enterprise.EnterprisePrivacySettings;
 import com.android.settings.fuelgauge.AdvancedPowerUsageDetail;
-import com.android.settings.fuelgauge.PowerUsageSummary;
 import com.android.settings.fuelgauge.batterysaver.BatterySaverScheduleSettings;
 import com.android.settings.fuelgauge.batterysaver.BatterySaverSettings;
+import com.android.settings.fuelgauge.batteryusage.PowerUsageSummary;
 import com.android.settings.gestures.AssistGestureSettings;
+import com.android.settings.gestures.ButtonNavigationSettingsFragment;
 import com.android.settings.gestures.DoubleTapPowerSettings;
 import com.android.settings.gestures.DoubleTapScreenSettings;
 import com.android.settings.gestures.DoubleTwistGestureSettings;
-import com.android.settings.gestures.GlobalActionsPanelSettings;
+import com.android.settings.gestures.GestureNavigationSettingsFragment;
+import com.android.settings.gestures.OneHandedSettings;
 import com.android.settings.gestures.PickupGestureSettings;
+import com.android.settings.gestures.PowerMenuSettings;
 import com.android.settings.gestures.SwipeToNotificationSettings;
 import com.android.settings.gestures.SystemNavigationGestureSettings;
 import com.android.settings.inputmethod.AvailableVirtualKeyboardFragment;
@@ -97,37 +121,44 @@ import com.android.settings.inputmethod.UserDictionaryList;
 import com.android.settings.inputmethod.UserDictionarySettings;
 import com.android.settings.language.LanguageAndInputSettings;
 import com.android.settings.localepicker.LocaleListEditor;
+import com.android.settings.location.LocationServices;
 import com.android.settings.location.LocationSettings;
-import com.android.settings.location.ScanningSettings;
-import com.android.settings.network.ApnEditor;
-import com.android.settings.network.ApnSettings;
+import com.android.settings.location.WifiScanningFragment;
 import com.android.settings.network.MobileNetworkListFragment;
 import com.android.settings.network.NetworkDashboardFragment;
+import com.android.settings.network.NetworkProviderSettings;
+import com.android.settings.network.apn.ApnEditor;
+import com.android.settings.network.apn.ApnSettings;
+import com.android.settings.network.telephony.MobileNetworkSettings;
+import com.android.settings.network.telephony.NetworkSelectSettings;
 import com.android.settings.nfc.AndroidBeam;
 import com.android.settings.nfc.PaymentSettings;
-import com.android.settings.notification.AppBubbleNotificationSettings;
-import com.android.settings.notification.AppNotificationSettings;
-import com.android.settings.notification.ChannelNotificationSettings;
 import com.android.settings.notification.ConfigureNotificationSettings;
 import com.android.settings.notification.NotificationAccessSettings;
 import com.android.settings.notification.NotificationAssistantPicker;
-import com.android.settings.notification.NotificationStation;
 import com.android.settings.notification.SoundSettings;
-import com.android.settings.notification.ZenAccessSettings;
-import com.android.settings.notification.ZenModeAutomationSettings;
-import com.android.settings.notification.ZenModeBlockedEffectsSettings;
-import com.android.settings.notification.ZenModeEventRuleSettings;
-import com.android.settings.notification.ZenModeScheduleRuleSettings;
-import com.android.settings.notification.ZenModeSettings;
+import com.android.settings.notification.app.AppBubbleNotificationSettings;
+import com.android.settings.notification.app.AppNotificationSettings;
+import com.android.settings.notification.app.ChannelNotificationSettings;
+import com.android.settings.notification.app.ConversationListSettings;
+import com.android.settings.notification.history.NotificationStation;
+import com.android.settings.notification.zen.ZenAccessSettings;
+import com.android.settings.notification.zen.ZenModeAutomationSettings;
+import com.android.settings.notification.zen.ZenModeBlockedEffectsSettings;
+import com.android.settings.notification.zen.ZenModeEventRuleSettings;
+import com.android.settings.notification.zen.ZenModeScheduleRuleSettings;
+import com.android.settings.notification.zen.ZenModeSettings;
 import com.android.settings.password.ChooseLockPassword;
 import com.android.settings.password.ChooseLockPattern;
 import com.android.settings.print.PrintJobSettingsFragment;
 import com.android.settings.print.PrintSettingsFragment;
+import com.android.settings.privacy.PrivacyControlsFragment;
 import com.android.settings.privacy.PrivacyDashboardFragment;
-import com.android.settings.security.CryptKeeperSettings;
 import com.android.settings.security.LockscreenDashboardFragment;
+import com.android.settings.security.SecurityAdvancedSettings;
 import com.android.settings.security.SecuritySettings;
 import com.android.settings.shortcut.CreateShortcut;
+import com.android.settings.sound.MediaControlsSettings;
 import com.android.settings.support.SupportDashboardActivity;
 import com.android.settings.system.ResetDashboardFragment;
 import com.android.settings.system.SystemDashboardFragment;
@@ -141,11 +172,10 @@ import com.android.settings.wifi.ConfigureWifiSettings;
 import com.android.settings.wifi.WifiAPITest;
 import com.android.settings.wifi.WifiInfo;
 import com.android.settings.wifi.WifiSettings;
-import com.android.settings.wifi.WifiSettings2;
 import com.android.settings.wifi.calling.WifiCallingDisclaimerFragment;
 import com.android.settings.wifi.calling.WifiCallingSettings;
+import com.android.settings.wifi.details.WifiNetworkDetailsFragment;
 import com.android.settings.wifi.p2p.WifiP2pSettings;
-import com.android.settings.wifi.savedaccesspoints.SavedAccessPointsWifiSettings;
 import com.android.settings.wifi.savedaccesspoints2.SavedAccessPointsWifiSettings2;
 import com.android.settings.wifi.tether.WifiTetherSettings;
 
@@ -158,12 +188,14 @@ public class SettingsGateway {
     public static final String[] ENTRY_FRAGMENTS = {
             AdvancedConnectedDeviceDashboardFragment.class.getName(),
             CreateShortcut.class.getName(),
+            BluetoothPairingDetail.class.getName(),
             WifiSettings.class.getName(),
-            WifiSettings2.class.getName(),
+            WifiNetworkDetailsFragment.class.getName(),
             ConfigureWifiSettings.class.getName(),
-            SavedAccessPointsWifiSettings.class.getName(),
             SavedAccessPointsWifiSettings2.class.getName(),
+            AllInOneTetherSettings.class.getName(),
             TetherSettings.class.getName(),
+            SmartAutoRotatePreferenceFragment.class.getName(),
             WifiP2pSettings.class.getName(),
             WifiTetherSettings.class.getName(),
             BackgroundCheckSummary.class.getName(),
@@ -185,21 +217,25 @@ public class SettingsGateway {
             ProcessStatsUi.class.getName(),
             NotificationStation.class.getName(),
             LocationSettings.class.getName(),
+            WifiScanningFragment.class.getName(),
             PrivacyDashboardFragment.class.getName(),
-            ScanningSettings.class.getName(),
+            PrivacyControlsFragment.class.getName(),
+            LocationServices.class.getName(),
             SecuritySettings.class.getName(),
+            SecurityAdvancedSettings.class.getName(),
             UsageAccessDetails.class.getName(),
             PrivacySettings.class.getName(),
             DeviceAdminSettings.class.getName(),
             AccessibilityDetailsSettingsFragment.class.getName(),
             AccessibilitySettings.class.getName(),
             AccessibilitySettingsForSetupWizard.class.getName(),
+            TextReadingPreferenceFragmentForSetupWizard.class.getName(),
             CaptionPropertiesFragment.class.getName(),
             ToggleDaltonizerPreferenceFragment.class.getName(),
+            ToggleColorInversionPreferenceFragment.class.getName(),
+            ToggleReduceBrightColorsPreferenceFragment.class.getName(),
             TextToSpeechSettings.class.getName(),
-            StorageSettings.class.getName(),
             PrivateVolumeForget.class.getName(),
-            PrivateVolumeSettings.class.getName(),
             PublicVolumeSettings.class.getName(),
             DevelopmentSettingsDashboardFragment.class.getName(),
             AndroidBeam.class.getName(),
@@ -209,13 +245,14 @@ public class SettingsGateway {
             AssistGestureSettings.class.getName(),
             FaceSettings.class.getName(),
             FingerprintSettings.FingerprintSettingsFragment.class.getName(),
+            CombinedBiometricSettings.class.getName(),
+            CombinedBiometricProfileSettings.class.getName(),
             SwipeToNotificationSettings.class.getName(),
             DoubleTapPowerSettings.class.getName(),
             DoubleTapScreenSettings.class.getName(),
             PickupGestureSettings.class.getName(),
             DoubleTwistGestureSettings.class.getName(),
             SystemNavigationGestureSettings.class.getName(),
-            CryptKeeperSettings.class.getName(),
             DataUsageSummary.class.getName(),
             DreamSettings.class.getName(),
             UserSettings.class.getName(),
@@ -233,6 +270,7 @@ public class SettingsGateway {
             PhysicalKeyboardFragment.class.getName(),
             ZenModeSettings.class.getName(),
             SoundSettings.class.getName(),
+            ConversationListSettings.class.getName(),
             ConfigureNotificationSettings.class.getName(),
             ChooseLockPassword.ChooseLockPasswordFragment.class.getName(),
             ChooseLockPattern.ChooseLockPatternFragment.class.getName(),
@@ -253,17 +291,20 @@ public class SettingsGateway {
             DrawOverlayDetails.class.getName(),
             WriteSettingsDetails.class.getName(),
             ExternalSourcesDetails.class.getName(),
+            ManageExternalStorageDetails.class.getName(),
             WallpaperTypeSettings.class.getName(),
             VrListenerSettings.class.getName(),
             PictureInPictureSettings.class.getName(),
             PictureInPictureDetails.class.getName(),
+            PremiumSmsAccess.class.getName(),
             ManagedProfileSettings.class.getName(),
             ChooseAccountFragment.class.getName(),
             IccLockSettings.class.getName(),
             TestingSettings.class.getName(),
             WifiAPITest.class.getName(),
             WifiInfo.class.getName(),
-            MasterClear.class.getName(),
+            MainClear.class.getName(),
+            MainClearConfirm.class.getName(),
             ResetDashboardFragment.class.getName(),
             NightDisplaySettings.class.getName(),
             ManageDomainUrls.class.getName(),
@@ -273,26 +314,45 @@ public class SettingsGateway {
             NetworkDashboardFragment.class.getName(),
             ConnectedDeviceDashboardFragment.class.getName(),
             UsbDetailsFragment.class.getName(),
-            AppAndNotificationDashboardFragment.class.getName(),
+            AppDashboardFragment.class.getName(),
             WifiCallingDisclaimerFragment.class.getName(),
             AccountDashboardFragment.class.getName(),
             EnterprisePrivacySettings.class.getName(),
             WebViewAppPicker.class.getName(),
             LockscreenDashboardFragment.class.getName(),
             BluetoothDeviceDetailsFragment.class.getName(),
+            BluetoothBroadcastDialog.class.getName(),
+            BluetoothFindBroadcastsFragment.class.getName(),
             DataUsageList.class.getName(),
             ToggleBackupSettingFragment.class.getName(),
             PreviouslyConnectedDeviceDashboardFragment.class.getName(),
             BatterySaverScheduleSettings.class.getName(),
             MobileNetworkListFragment.class.getName(),
-            GlobalActionsPanelSettings.class.getName()
+            PowerMenuSettings.class.getName(),
+            DarkModeSettingsFragment.class.getName(),
+            BugReportHandlerPicker.class.getName(),
+            GestureNavigationSettingsFragment.class.getName(),
+            ButtonNavigationSettingsFragment.class.getName(),
+            InteractAcrossProfilesSettings.class.getName(),
+            InteractAcrossProfilesDetails.class.getName(),
+            MediaControlsSettings.class.getName(),
+            NetworkProviderSettings.class.getName(),
+            NetworkSelectSettings.class.getName(),
+            AlarmsAndRemindersDetails.class.getName(),
+            MediaManagementAppsDetails.class.getName(),
+            AutoBrightnessSettings.class.getName(),
+            OneHandedSettings.class.getName(),
+            MobileNetworkSettings.class.getName(),
+            AppLocaleDetails.class.getName(),
+            TurnScreenOnSettings.class.getName(),
+            TurnScreenOnDetails.class.getName()
     };
 
     public static final String[] SETTINGS_FOR_RESTRICTED = {
             // Home page
             Settings.NetworkDashboardActivity.class.getName(),
             Settings.ConnectedDeviceDashboardActivity.class.getName(),
-            Settings.AppAndNotificationDashboardActivity.class.getName(),
+            Settings.AppDashboardActivity.class.getName(),
             Settings.DisplaySettingsActivity.class.getName(),
             Settings.SoundSettingsActivity.class.getName(),
             Settings.StorageDashboardActivity.class.getName(),
@@ -305,8 +365,9 @@ public class SettingsGateway {
             SupportDashboardActivity.class.getName(),
             // Home page > Network & Internet
             Settings.WifiSettingsActivity.class.getName(),
-            Settings.WifiSettings2Activity.class.getName(),
             Settings.DataUsageSummaryActivity.class.getName(),
+            Settings.NetworkProviderSettingsActivity.class.getName(),
+            Settings.NetworkSelectActivity.class.getName(),
             // Home page > Connected devices
             Settings.BluetoothSettingsActivity.class.getName(),
             Settings.WifiDisplaySettingsActivity.class.getName(),
@@ -316,6 +377,8 @@ public class SettingsGateway {
             Settings.ConfigureNotificationSettingsActivity.class.getName(),
             Settings.ManageApplicationsActivity.class.getName(),
             Settings.PaymentSettingsActivity.class.getName(),
+            // Home page > Display
+            Settings.AdaptiveBrightnessActivity.class.getName(),
             // Home page > Security & screen lock
             Settings.LocationSettingsActivity.class.getName(),
             // Home page > System

@@ -16,7 +16,8 @@
 
 package com.android.settings.security;
 
-import static com.android.settings.security.SecuritySettings.UNIFY_LOCK_CONFIRM_DEVICE_REQUEST;
+import static android.app.admin.DevicePolicyResources.Strings.Settings.WORK_PROFILE_SET_UNLOCK_LAUNCH_PICKER_TITLE;
+
 import static com.android.settings.security.SecuritySettings.UNIFY_LOCK_CONFIRM_PROFILE_REQUEST;
 import static com.android.settings.security.SecuritySettings.UNUNIFY_LOCK_CONFIRM_DEVICE_REQUEST;
 
@@ -34,6 +35,7 @@ import androidx.preference.PreferenceScreen;
 import com.android.internal.widget.LockPatternUtils;
 import com.android.internal.widget.LockscreenCredential;
 import com.android.settings.R;
+import com.android.settings.SettingsPreferenceFragment;
 import com.android.settings.Utils;
 import com.android.settings.core.PreferenceControllerMixin;
 import com.android.settings.core.SubSettingLauncher;
@@ -43,17 +45,20 @@ import com.android.settings.password.ChooseLockSettingsHelper;
 import com.android.settingslib.RestrictedLockUtilsInternal;
 import com.android.settingslib.RestrictedSwitchPreference;
 import com.android.settingslib.core.AbstractPreferenceController;
+import com.android.settingslib.transition.SettingsTransitionHelper;
 
 /**
  * Controller for password unification/un-unification flows.
  *
  * When password is being unified, there may be two cases:
- *   1. If work password is not empty and satisfies device-wide policies (if any), it will be made
- *      into device-wide password. To do that we need both current device and profile passwords
- *      because both of them will be changed as a result.
- *   2. Otherwise device-wide password is preserved. In this case we only need current profile
- *      password, but after unifying the passwords we proceed to ask the user for a new device
- *      password.
+ *   1. If device password will satisfy device-wide policies post-unification (when password policy
+ *      set on the work challenge will be enforced on device password), the device password is
+ *      preserved while work challenge is unified. Only the current work challenge is required
+ *      in this flow.
+ *   2. Otherwise the user will need to enroll a new compliant device password before unification
+ *      takes place. In this case we first confirm the current work challenge, then guide the user
+ *      through an enrollment flow for the new device password, and finally unify the work challenge
+ *      at the very end.
  */
 public class LockUnificationPreferenceController extends AbstractPreferenceController
         implements PreferenceControllerMixin, Preference.OnPreferenceChangeListener {
@@ -66,22 +71,28 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
     private final DevicePolicyManager mDpm;
     private final LockPatternUtils mLockPatternUtils;
     private final int mProfileUserId;
-    private final SecuritySettings mHost;
+    private final SettingsPreferenceFragment mHost;
 
     private RestrictedSwitchPreference mUnifyProfile;
 
+    private final String mPreferenceKey;
 
     private LockscreenCredential mCurrentDevicePassword;
     private LockscreenCredential mCurrentProfilePassword;
-    private boolean mKeepDeviceLock;
+    private boolean mRequireNewDevicePassword;
 
     @Override
     public void displayPreference(PreferenceScreen screen) {
         super.displayPreference(screen);
-        mUnifyProfile = screen.findPreference(KEY_UNIFICATION);
+        mUnifyProfile = screen.findPreference(mPreferenceKey);
     }
 
-    public LockUnificationPreferenceController(Context context, SecuritySettings host) {
+    public LockUnificationPreferenceController(Context context, SettingsPreferenceFragment host) {
+        this(context, host, KEY_UNIFICATION);
+    }
+
+    public LockUnificationPreferenceController(
+            Context context, SettingsPreferenceFragment host, String key) {
         super(context);
         mHost = host;
         mUm = context.getSystemService(UserManager.class);
@@ -92,17 +103,18 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
         mProfileUserId = Utils.getManagedProfileId(mUm, MY_USER_ID);
         mCurrentDevicePassword = LockscreenCredential.createNone();
         mCurrentProfilePassword = LockscreenCredential.createNone();
+        this.mPreferenceKey = key;
     }
 
     @Override
     public boolean isAvailable() {
         return mProfileUserId != UserHandle.USER_NULL
-                && mLockPatternUtils.isSeparateProfileChallengeAllowed(mProfileUserId);
+                && mUm.isManagedProfile(mProfileUserId);
     }
 
     @Override
     public String getPreferenceKey() {
-        return KEY_UNIFICATION;
+        return mPreferenceKey;
     }
 
     @Override
@@ -112,20 +124,20 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
         }
         final boolean useOneLock = (Boolean) value;
         if (useOneLock) {
-            // Keep current device (personal) lock if the profile lock is empty or is not compliant
-            // with the policy on personal side.
-            mKeepDeviceLock =
-                    mLockPatternUtils.getKeyguardStoredPasswordQuality(mProfileUserId)
-                            < DevicePolicyManager.PASSWORD_QUALITY_SOMETHING
-                            || !mDpm.isProfileActivePasswordSufficientForParent(mProfileUserId);
-            UnificationConfirmationDialog.newInstance(!mKeepDeviceLock).show(mHost);
+            mRequireNewDevicePassword = !mDpm.isPasswordSufficientAfterProfileUnification(
+                    UserHandle.myUserId(), mProfileUserId);
+            startUnification();
         } else {
             final String title = mContext.getString(R.string.unlock_set_unlock_launch_picker_title);
-            final ChooseLockSettingsHelper helper =
-                    new ChooseLockSettingsHelper(mHost.getActivity(), mHost);
-            if (!helper.launchConfirmationActivity(
-                    UNUNIFY_LOCK_CONFIRM_DEVICE_REQUEST,
-                    title, true /* returnCredentials */, MY_USER_ID)) {
+            final ChooseLockSettingsHelper.Builder builder =
+                    new ChooseLockSettingsHelper.Builder(mHost.getActivity(), mHost);
+            final boolean launched = builder.setRequestCode(UNUNIFY_LOCK_CONFIRM_DEVICE_REQUEST)
+                    .setTitle(title)
+                    .setReturnCredentials(true)
+                    .setUserId(MY_USER_ID)
+                    .show();
+
+            if (!launched) {
                 ununifyLocks();
             }
         }
@@ -149,13 +161,9 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
     public boolean handleActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == UNUNIFY_LOCK_CONFIRM_DEVICE_REQUEST
                 && resultCode == Activity.RESULT_OK) {
-            ununifyLocks();
-            return true;
-        } else if (requestCode == UNIFY_LOCK_CONFIRM_DEVICE_REQUEST
-                && resultCode == Activity.RESULT_OK) {
             mCurrentDevicePassword =
                     data.getParcelableExtra(ChooseLockSettingsHelper.EXTRA_KEY_PASSWORD);
-            launchConfirmProfileLock();
+            ununifyLocks();
             return true;
         } else if (requestCode == UNIFY_LOCK_CONFIRM_PROFILE_REQUEST
                 && resultCode == Activity.RESULT_OK) {
@@ -170,67 +178,52 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
     private void ununifyLocks() {
         final Bundle extras = new Bundle();
         extras.putInt(Intent.EXTRA_USER_ID, mProfileUserId);
+        extras.putParcelable(ChooseLockSettingsHelper.EXTRA_KEY_PASSWORD, mCurrentDevicePassword);
         new SubSettingLauncher(mContext)
                 .setDestination(ChooseLockGeneric.ChooseLockGenericFragment.class.getName())
-                    .setTitleRes(R.string.lock_settings_picker_title_profile)
                 .setSourceMetricsCategory(mHost.getMetricsCategory())
                 .setArguments(extras)
+                .setTransitionType(SettingsTransitionHelper.TransitionType.TRANSITION_SLIDE)
                 .launch();
     }
 
-    /** Asks the user to confirm device lock (if there is one) and proceeds to ask profile lock. */
-    private void launchConfirmDeviceAndProfileLock() {
-        final String title = mContext.getString(
-                R.string.unlock_set_unlock_launch_picker_title);
-        final ChooseLockSettingsHelper helper =
-                new ChooseLockSettingsHelper(mHost.getActivity(), mHost);
-        if (!helper.launchConfirmationActivity(
-                UNIFY_LOCK_CONFIRM_DEVICE_REQUEST, title, true, MY_USER_ID)) {
-            launchConfirmProfileLock();
-        }
-    }
-
-    private void launchConfirmProfileLock() {
-        final String title = mContext.getString(
-                R.string.unlock_set_unlock_launch_picker_title_profile);
-        final ChooseLockSettingsHelper helper =
-                new ChooseLockSettingsHelper(mHost.getActivity(), mHost);
-        if (!helper.launchConfirmationActivity(
-                UNIFY_LOCK_CONFIRM_PROFILE_REQUEST, title, true, mProfileUserId)) {
+    /**
+     * Unify primary and profile locks.
+     */
+    public void startUnification() {
+        // Confirm profile lock
+        final String title = mDpm.getResources().getString(
+                WORK_PROFILE_SET_UNLOCK_LAUNCH_PICKER_TITLE,
+                () -> mContext.getString(R.string.unlock_set_unlock_launch_picker_title_profile));
+        final ChooseLockSettingsHelper.Builder builder =
+                new ChooseLockSettingsHelper.Builder(mHost.getActivity(), mHost);
+        final boolean launched = builder.setRequestCode(UNIFY_LOCK_CONFIRM_PROFILE_REQUEST)
+                .setTitle(title)
+                .setReturnCredentials(true)
+                .setUserId(mProfileUserId)
+                .show();
+        if (!launched) {
+            // If profile has no lock, go straight to unification.
             unifyLocks();
             // TODO: update relevant prefs.
             // createPreferenceHierarchy();
         }
     }
 
-    void startUnification() {
-        // If the device lock stays the same, only confirm profile lock. Otherwise confirm both.
-        if (mKeepDeviceLock) {
-            launchConfirmProfileLock();
-        } else {
-            launchConfirmDeviceAndProfileLock();
-        }
-    }
-
     private void unifyLocks() {
-        if (mKeepDeviceLock) {
-            unifyKeepingDeviceLock();
-            promptForNewDeviceLock();
+        if (mRequireNewDevicePassword) {
+            promptForNewDeviceLockAndThenUnify();
         } else {
-            unifyKeepingWorkLock();
+            unifyKeepingDeviceLock();
         }
-        mCurrentDevicePassword = null;
-        mCurrentProfilePassword = null;
-    }
-
-    private void unifyKeepingWorkLock() {
-        mLockPatternUtils.setLockCredential(
-                mCurrentProfilePassword, mCurrentDevicePassword, MY_USER_ID);
-        mLockPatternUtils.setSeparateProfileChallengeEnabled(mProfileUserId, false,
-                mCurrentProfilePassword);
-        final boolean profilePatternVisibility =
-                mLockPatternUtils.isVisiblePatternEnabled(mProfileUserId);
-        mLockPatternUtils.setVisiblePatternEnabled(profilePatternVisibility, MY_USER_ID);
+        if (mCurrentDevicePassword != null) {
+            mCurrentDevicePassword.zeroize();
+            mCurrentDevicePassword = null;
+        }
+        if (mCurrentProfilePassword != null) {
+            mCurrentProfilePassword.zeroize();
+            mCurrentProfilePassword = null;
+        }
     }
 
     private void unifyKeepingDeviceLock() {
@@ -238,11 +231,17 @@ public class LockUnificationPreferenceController extends AbstractPreferenceContr
                 mCurrentProfilePassword);
     }
 
-    private void promptForNewDeviceLock() {
+    private void promptForNewDeviceLockAndThenUnify() {
+        final Bundle extras = new Bundle();
+        extras.putInt(ChooseLockSettingsHelper.EXTRA_KEY_UNIFICATION_PROFILE_ID, mProfileUserId);
+        extras.putParcelable(ChooseLockSettingsHelper.EXTRA_KEY_UNIFICATION_PROFILE_CREDENTIAL,
+                mCurrentProfilePassword);
         new SubSettingLauncher(mContext)
                 .setDestination(ChooseLockGeneric.ChooseLockGenericFragment.class.getName())
                 .setTitleRes(R.string.lock_settings_picker_title)
                 .setSourceMetricsCategory(mHost.getMetricsCategory())
+                .setArguments(extras)
+                .setTransitionType(SettingsTransitionHelper.TransitionType.TRANSITION_SLIDE)
                 .launch();
     }
 

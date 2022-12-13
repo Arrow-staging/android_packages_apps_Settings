@@ -16,6 +16,8 @@
 
 package com.android.settings.dashboard.profileselector;
 
+import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
@@ -30,17 +32,25 @@ public class ProfileSelectManageApplications extends ProfileSelectFragment {
     @Override
     public Fragment[] getFragments() {
         final Bundle workOnly = getArguments() != null ? getArguments().deepCopy() : new Bundle();
-        workOnly.putInt(EXTRA_PROFILE, ProfileSelectFragment.WORK);
+        workOnly.putInt(EXTRA_PROFILE, ProfileSelectFragment.ProfileType.WORK);
         final Fragment workFragment = new ManageApplications();
         workFragment.setArguments(workOnly);
 
         final Bundle personalOnly = getArguments() != null ? getArguments() : new Bundle();
-        personalOnly.putInt(EXTRA_PROFILE, ProfileSelectFragment.PERSONAL);
+        personalOnly.putInt(EXTRA_PROFILE, ProfileSelectFragment.ProfileType.PERSONAL);
         final Fragment personalFragment = new ManageApplications();
         personalFragment.setArguments(personalOnly);
         return new Fragment[]{
                 personalFragment, //0
                 workFragment
         };
+    }
+
+    @Override
+    public int getTitleResId() {
+        final Activity activity = getActivity();
+        final Intent intent = activity.getIntent();
+        final Bundle args = getArguments();
+        return ManageApplications.getTitleResId(intent, args);
     }
 }

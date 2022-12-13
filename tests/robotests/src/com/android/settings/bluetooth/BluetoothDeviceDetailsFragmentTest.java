@@ -16,6 +16,8 @@
 
 package com.android.settings.bluetooth;
 
+import static android.bluetooth.BluetoothDevice.BOND_NONE;
+
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -87,6 +89,7 @@ public class BluetoothDeviceDetailsFragmentTest {
         when(fragmentManager.beginTransaction()).thenReturn(mFragmentTransaction);
 
         when(mCachedDevice.getAddress()).thenReturn(TEST_ADDRESS);
+        when(mCachedDevice.getIdentityAddress()).thenReturn(TEST_ADDRESS);
         Bundle args = new Bundle();
         args.putString(BluetoothDeviceDetailsFragment.KEY_DEVICE_ADDRESS, TEST_ADDRESS);
         mFragment.setArguments(args);
@@ -125,5 +128,14 @@ public class BluetoothDeviceDetailsFragmentTest {
         verify(mFragmentTransaction).add(captor.capture(), eq(RemoteDeviceNameDialogFragment.TAG));
         RemoteDeviceNameDialogFragment dialog = (RemoteDeviceNameDialogFragment) captor.getValue();
         assertThat(dialog).isNotNull();
+    }
+
+    @Test
+    public void finishFragmentIfNecessary_deviceIsBondNone_finishFragment() {
+        when(mCachedDevice.getBondState()).thenReturn(BOND_NONE);
+
+        mFragment.finishFragmentIfNecessary();
+
+        verify(mFragment).finish();
     }
 }

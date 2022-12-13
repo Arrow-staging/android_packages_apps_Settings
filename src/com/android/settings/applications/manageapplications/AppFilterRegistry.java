@@ -19,7 +19,12 @@ package com.android.settings.applications.manageapplications;
 import androidx.annotation.IntDef;
 
 import com.android.settings.R;
+import com.android.settings.applications.AppStateAlarmsAndRemindersBridge;
+import com.android.settings.applications.AppStateAppBatteryUsageBridge;
 import com.android.settings.applications.AppStateInstallAppsBridge;
+import com.android.settings.applications.AppStateLocaleBridge;
+import com.android.settings.applications.AppStateManageExternalStorageBridge;
+import com.android.settings.applications.AppStateMediaManagementAppsBridge;
 import com.android.settings.applications.AppStateNotificationBridge;
 import com.android.settings.applications.AppStateOverlayBridge;
 import com.android.settings.applications.AppStatePowerBridge;
@@ -33,36 +38,42 @@ import com.android.settingslib.applications.ApplicationsState;
  */
 public class AppFilterRegistry {
 
-    @IntDef(value = {
-            FILTER_APPS_POWER_WHITELIST,
-            FILTER_APPS_POWER_WHITELIST_ALL,
-            FILTER_APPS_ALL,
-            FILTER_APPS_ENABLED,
-            FILTER_APPS_INSTANT,
-            FILTER_APPS_DISABLED,
-            FILTER_APPS_RECENT,
-            FILTER_APPS_FREQUENT,
-            FILTER_APPS_PERSONAL,
-            FILTER_APPS_WORK,
-            FILTER_APPS_USAGE_ACCESS,
-            FILTER_APPS_WITH_OVERLAY,
-            FILTER_APPS_WRITE_SETTINGS,
-            FILTER_APPS_INSTALL_SOURCES,
-            FILTER_APPS_BLOCKED,
-    })
-    @interface FilterType {
-    }
+    @IntDef(
+            value = {
+                FILTER_APPS_POWER_ALLOWLIST,
+                FILTER_APPS_POWER_ALLOWLIST_ALL,
+                FILTER_APPS_ALL,
+                FILTER_APPS_ENABLED,
+                FILTER_APPS_INSTANT,
+                FILTER_APPS_DISABLED,
+                FILTER_APPS_RECENT,
+                FILTER_APPS_FREQUENT,
+                FILTER_APPS_PERSONAL,
+                FILTER_APPS_WORK,
+                FILTER_APPS_USAGE_ACCESS,
+                FILTER_APPS_WITH_OVERLAY,
+                FILTER_APPS_WRITE_SETTINGS,
+                FILTER_APPS_INSTALL_SOURCES,
+                FILTER_APPS_BLOCKED,
+                FILTER_ALARMS_AND_REMINDERS,
+                FILTER_APPS_MEDIA_MANAGEMENT,
+                FILTER_APPS_LOCALE,
+                FILTER_APPS_BATTERY_UNRESTRICTED,
+                FILTER_APPS_BATTERY_OPTIMIZED,
+                FILTER_APPS_BATTERY_RESTRICTED,
+            })
+    @interface FilterType {}
 
     // Filter options used for displayed list of applications
     // Filters will appear sorted based on their value defined here.
-    public static final int FILTER_APPS_POWER_WHITELIST = 0;
-    public static final int FILTER_APPS_POWER_WHITELIST_ALL = 1;
-    public static final int FILTER_APPS_ALL = 2;
-    public static final int FILTER_APPS_ENABLED = 3;
-    public static final int FILTER_APPS_INSTANT = 4;
-    public static final int FILTER_APPS_DISABLED = 5;
-    public static final int FILTER_APPS_RECENT = 6;
-    public static final int FILTER_APPS_FREQUENT = 7;
+    public static final int FILTER_APPS_POWER_ALLOWLIST = 0;
+    public static final int FILTER_APPS_POWER_ALLOWLIST_ALL = 1;
+    public static final int FILTER_APPS_RECENT = 2;
+    public static final int FILTER_APPS_FREQUENT = 3;
+    public static final int FILTER_APPS_ALL = 4;
+    public static final int FILTER_APPS_ENABLED = 5;
+    public static final int FILTER_APPS_INSTANT = 6;
+    public static final int FILTER_APPS_DISABLED = 7;
     public static final int FILTER_APPS_PERSONAL = 8;
     public static final int FILTER_APPS_WORK = 9;
     public static final int FILTER_APPS_USAGE_ACCESS = 10;
@@ -71,29 +82,37 @@ public class AppFilterRegistry {
     public static final int FILTER_APPS_INSTALL_SOURCES = 13;
     public static final int FILTER_APP_CAN_CHANGE_WIFI_STATE = 15;
     public static final int FILTER_APPS_BLOCKED = 16;
-    // Next id: 17
+    public static final int FILTER_MANAGE_EXTERNAL_STORAGE = 17;
+    public static final int FILTER_ALARMS_AND_REMINDERS = 18;
+    public static final int FILTER_APPS_MEDIA_MANAGEMENT = 19;
+    public static final int FILTER_APPS_LOCALE = 20;
+    public static final int FILTER_APPS_BATTERY_UNRESTRICTED = 21;
+    public static final int FILTER_APPS_BATTERY_OPTIMIZED = 22;
+    public static final int FILTER_APPS_BATTERY_RESTRICTED = 23;
+    // Next id: 24. If you add an entry here, please change NUM_FILTER_ENTRIES.
+    private static final int NUM_FILTER_ENTRIES = 24;
 
     private static AppFilterRegistry sRegistry;
 
     private final AppFilterItem[] mFilters;
 
     private AppFilterRegistry() {
-        mFilters = new AppFilterItem[17];
+        mFilters = new AppFilterItem[NUM_FILTER_ENTRIES];
 
-        // High power whitelist, on
-        mFilters[FILTER_APPS_POWER_WHITELIST] = new AppFilterItem(
+        // High power allowlist, on
+        mFilters[FILTER_APPS_POWER_ALLOWLIST] = new AppFilterItem(
                 new ApplicationsState.CompoundFilter(
-                        AppStatePowerBridge.FILTER_POWER_WHITELISTED,
+                        AppStatePowerBridge.FILTER_POWER_ALLOWLISTED,
                         ApplicationsState.FILTER_ALL_ENABLED),
-                FILTER_APPS_POWER_WHITELIST,
+                FILTER_APPS_POWER_ALLOWLIST,
                 R.string.high_power_filter_on);
 
         // Without disabled until used
-        mFilters[FILTER_APPS_POWER_WHITELIST_ALL] = new AppFilterItem(
+        mFilters[FILTER_APPS_POWER_ALLOWLIST_ALL] = new AppFilterItem(
                 new ApplicationsState.CompoundFilter(
                         ApplicationsState.FILTER_WITHOUT_DISABLED_UNTIL_USED,
                         ApplicationsState.FILTER_ALL_ENABLED),
-                FILTER_APPS_POWER_WHITELIST_ALL,
+                FILTER_APPS_POWER_ALLOWLIST_ALL,
                 R.string.filter_all_apps);
 
         // All apps
@@ -136,13 +155,13 @@ public class AppFilterRegistry {
         mFilters[FILTER_APPS_PERSONAL] = new AppFilterItem(
                 ApplicationsState.FILTER_PERSONAL,
                 FILTER_APPS_PERSONAL,
-                R.string.filter_personal_apps);
+                R.string.category_personal);
 
         // Work
         mFilters[FILTER_APPS_WORK] = new AppFilterItem(
                 ApplicationsState.FILTER_WORK,
                 FILTER_APPS_WORK,
-                R.string.filter_work_apps);
+                R.string.category_work);
 
         // Usage access screen, never displayed.
         mFilters[FILTER_APPS_USAGE_ACCESS] = new AppFilterItem(
@@ -178,7 +197,54 @@ public class AppFilterRegistry {
                 AppStateNotificationBridge.FILTER_APP_NOTIFICATION_BLOCKED,
                 FILTER_APPS_BLOCKED,
                 R.string.filter_notif_blocked_apps);
+
+        mFilters[FILTER_MANAGE_EXTERNAL_STORAGE] = new AppFilterItem(
+                AppStateManageExternalStorageBridge.FILTER_MANAGE_EXTERNAL_STORAGE,
+                FILTER_MANAGE_EXTERNAL_STORAGE,
+                R.string.filter_manage_external_storage);
+
+        // Apps that can schedule alarms and reminders
+        mFilters[FILTER_ALARMS_AND_REMINDERS] = new AppFilterItem(
+                AppStateAlarmsAndRemindersBridge.FILTER_CLOCK_APPS,
+                FILTER_ALARMS_AND_REMINDERS,
+                R.string.alarms_and_reminders_title);
+
+        // Apps that can manage media files
+        mFilters[FILTER_APPS_MEDIA_MANAGEMENT] = new AppFilterItem(
+                AppStateMediaManagementAppsBridge.FILTER_MEDIA_MANAGEMENT_APPS,
+                FILTER_APPS_MEDIA_MANAGEMENT,
+                R.string.media_management_apps_title);
+
+        // Apps that can configurate appication's locale.
+        mFilters[FILTER_APPS_LOCALE] = new AppFilterItem(
+                AppStateLocaleBridge.FILTER_APPS_LOCALE,
+                FILTER_APPS_LOCALE,
+                R.string.app_locale_picker_title);
+
+        // Battery optimization app states:
+        // Unrestricted
+        mFilters[FILTER_APPS_BATTERY_UNRESTRICTED] =
+                new AppFilterItem(
+                        AppStateAppBatteryUsageBridge.FILTER_BATTERY_UNRESTRICTED_APPS,
+                        FILTER_APPS_BATTERY_UNRESTRICTED,
+                        R.string.filter_battery_unrestricted_title);
+
+        // Optimized
+        mFilters[FILTER_APPS_BATTERY_OPTIMIZED] =
+                new AppFilterItem(
+                        AppStateAppBatteryUsageBridge.FILTER_BATTERY_OPTIMIZED_APPS,
+                        FILTER_APPS_BATTERY_OPTIMIZED,
+                        R.string.filter_battery_optimized_title);
+
+        // Unrestricted
+        mFilters[FILTER_APPS_BATTERY_RESTRICTED] =
+                new AppFilterItem(
+                        AppStateAppBatteryUsageBridge.FILTER_BATTERY_RESTRICTED_APPS,
+                        FILTER_APPS_BATTERY_RESTRICTED,
+                        R.string.filter_battery_restricted_title);
     }
+
+
 
     public static AppFilterRegistry getInstance() {
         if (sRegistry == null) {
@@ -193,7 +259,7 @@ public class AppFilterRegistry {
             case ManageApplications.LIST_TYPE_USAGE_ACCESS:
                 return FILTER_APPS_USAGE_ACCESS;
             case ManageApplications.LIST_TYPE_HIGH_POWER:
-                return FILTER_APPS_POWER_WHITELIST;
+                return FILTER_APPS_POWER_ALLOWLIST;
             case ManageApplications.LIST_TYPE_OVERLAY:
                 return FILTER_APPS_WITH_OVERLAY;
             case ManageApplications.LIST_TYPE_WRITE_SETTINGS:
@@ -204,6 +270,16 @@ public class AppFilterRegistry {
                 return FILTER_APP_CAN_CHANGE_WIFI_STATE;
             case ManageApplications.LIST_TYPE_NOTIFICATION:
                 return FILTER_APPS_RECENT;
+            case ManageApplications.LIST_MANAGE_EXTERNAL_STORAGE:
+                return FILTER_MANAGE_EXTERNAL_STORAGE;
+            case ManageApplications.LIST_TYPE_ALARMS_AND_REMINDERS:
+                return FILTER_ALARMS_AND_REMINDERS;
+            case ManageApplications.LIST_TYPE_MEDIA_MANAGEMENT_APPS:
+                return FILTER_APPS_MEDIA_MANAGEMENT;
+            case ManageApplications.LIST_TYPE_APPS_LOCALE:
+                return FILTER_APPS_LOCALE;
+            case ManageApplications.LIST_TYPE_BATTERY_OPTIMIZATION:
+                return FILTER_APPS_BATTERY_OPTIMIZED;
             default:
                 return FILTER_APPS_ALL;
         }
