@@ -178,4 +178,18 @@
     <string name="app_volume">Volume de aplicativos</string>
     <string name="app_volume_title">Controle de volume por aplicativo</string>
     <string name="app_volume_summary">Permitir definir diferentes níveis de volume para cada aplicativo</string>
+
+    <!-- UI settings -->
+    <string name="colors_category">Cores</string>
+    <string name="monet_title">Ajustes no tema Monet</string>
+    <string name="monet_summary">Personalize o motor de temas Monet</string>
+
+    <!-- Monet Engine -->
+    <string name="monet_engine_custom_color_title">Usar cor personalizada</string>
+    <string name="monet_engine_custom_color_summary">Usar cor personalizada para o motor de temas Monet em vez de cores do papel de parede</string>
+    <string name="monet_engine_color_override_title">Cor personalizada</string>
+    <string name="monet_engine_white_luminance_user_title">Tonalidade clara</string>
+    <string name="monet_engine_accurate_shades_title">Usar tons precisos</string>
+    <string name="monet_engine_chroma_factor_title">Coloração</string>
+    <string name="monet_engine_linear_lightness_title">Brilho linear</string>
 </resources>
