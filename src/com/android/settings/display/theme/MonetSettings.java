@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.arrow.settings.fragments.ui;
+package com.android.settings.display.theme;
 
 import android.content.ContentResolver;
 import android.content.Context;
